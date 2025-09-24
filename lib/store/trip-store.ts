@@ -120,8 +120,7 @@ export const useTripStore = create<TripStore>((set, get) => ({
           id: generateId() // Generate new IDs for destinations
         })),
         location: dayToDuplicate.location ? {
-          ...dayToDuplicate.location,
-          id: generateId() // Generate new ID for location
+          ...dayToDuplicate.location
         } : undefined,
       }
 

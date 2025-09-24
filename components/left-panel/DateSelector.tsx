@@ -2,17 +2,21 @@
 
 import { useState } from 'react'
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { useTripStore } from '@/lib/store/trip-store'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 
 interface DateSelectorProps {
   onClose: () => void
 }
 
 export function DateSelector({ onClose }: DateSelectorProps) {
-  const { currentTrip, updateTripDates } = useTripStore()
-  const [startDate, setStartDate] = useState(currentTrip.startDate)
-  const [endDate, setEndDate] = useState(currentTrip.endDate)
+  const { currentTrip, updateTripDates } = useSupabaseTripStore()
+  const [startDate, setStartDate] = useState(currentTrip?.startDate ?? new Date())
+  const [endDate, setEndDate] = useState(currentTrip?.endDate ?? new Date())
   const [isLoading, setIsLoading] = useState(false)
+
+  if (!currentTrip) {
+    return null
+  }
 
   const handleSave = async () => {
     setIsLoading(true)
@@ -45,7 +49,7 @@ export function DateSelector({ onClose }: DateSelectorProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden">
+      <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -66,7 +70,7 @@ export function DateSelector({ onClose }: DateSelectorProps) {
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6">
           {/* Start Date */}
           <div className="space-y-3">
             <label className="block text-sm font-medium text-white/80">
@@ -161,7 +165,7 @@ export function DateSelector({ onClose }: DateSelectorProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-white/10">
+        <div className="flex-shrink-0 flex items-center justify-end gap-3 p-6 border-t border-white/10">
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all duration-200"

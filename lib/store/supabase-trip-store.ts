@@ -1,0 +1,598 @@
+'use client'
+
+import { create } from 'zustand'
+import { Destination, Trip, DayLocation } from '@/types'
+import { addDays } from '@/lib/utils'
+import { tripApi } from '@/lib/supabase/trip-api'
+
+interface SupabaseTripStore {
+  // State
+  currentTrip: Trip | null
+  trips: Trip[]
+  selectedDestination: Destination | null
+  selectedDayId: string | null
+  isLoading: boolean
+  error: string | null
+  lastUpdate: number // Force re-renders
+  
+  // Actions
+  loadTrips: () => Promise<void>
+  loadTrip: (tripId: string) => Promise<void>
+  createTrip: (trip: Omit<Trip, 'id'>) => Promise<string>
+  updateTrip: (tripId: string, updates: Partial<Trip>) => Promise<void>
+  duplicateTrip: (tripId: string, newName: string) => Promise<string>
+  
+  addDestinationToDay: (destination: Destination, dayId: string) => Promise<void>
+  removeDestinationFromDay: (destinationId: string, dayId: string) => Promise<void>
+  addNewDay: () => Promise<void>
+  duplicateDay: (dayId: string) => Promise<void>
+  removeDay: (dayId: string) => Promise<void>
+  
+  setSelectedDestination: (destination: Destination | null) => void
+  setSelectedDay: (dayId: string) => void
+  setDayLocation: (dayId: string, location: DayLocation | null) => Promise<void>
+  
+  moveDestination: (destinationId: string, fromDayId: string, toDayId: string, newIndex: number) => Promise<void>
+  reorderDestinations: (dayId: string, startIndex: number, endIndex: number) => Promise<void>
+  updateTripDates: (startDate: Date, endDate: Date) => Promise<void>
+  
+  // Utility
+  setError: (error: string | null) => void
+  clearError: () => void
+}
+
+export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
+  // Initial state
+  currentTrip: null,
+  trips: [],
+  selectedDestination: null,
+  selectedDayId: null,
+  isLoading: false,
+  error: null,
+  lastUpdate: Date.now(),
+
+  // Load all trips for the user
+  loadTrips: async () => {
+    console.log('SupabaseTripStore: Loading trips...')
+    set({ isLoading: true, error: null })
+    try {
+      const trips = await tripApi.getUserTrips()
+      console.log('SupabaseTripStore: Trips loaded:', trips)
+      
+      // Set the first trip as current trip if none is selected
+      const { currentTrip } = get()
+      const newCurrentTrip = currentTrip
+        ? trips.find(trip => trip.id === currentTrip.id) ?? (trips.length > 0 ? trips[0] : null)
+        : (trips.length > 0 ? trips[0] : null)
+      
+      // Preserve selectedDayId if it's still valid, otherwise default to first day
+      const currentSelectedDayId = get().selectedDayId
+      const isValidSelectedDay = newCurrentTrip?.days.some(day => day.id === currentSelectedDayId)
+      
+      set({ 
+        trips, 
+        currentTrip: newCurrentTrip,
+        selectedDayId: isValidSelectedDay ? currentSelectedDayId : (newCurrentTrip?.days[0]?.id || null),
+        isLoading: false 
+      })
+    } catch (error) {
+      console.error('SupabaseTripStore: Error loading trips:', error)
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to load trips',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Load a specific trip
+  loadTrip: async (tripId: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      const trip = await tripApi.getTrip(tripId)
+      
+      // Preserve selectedDayId if it's still valid, otherwise default to first day
+      const currentSelectedDayId = get().selectedDayId
+      const isValidSelectedDay = trip?.days.some(day => day.id === currentSelectedDayId)
+      
+      set({ 
+        currentTrip: trip,
+        selectedDayId: isValidSelectedDay ? currentSelectedDayId : (trip?.days[0]?.id ?? null),
+        isLoading: false 
+      })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to load trip',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Create a new trip
+  createTrip: async (trip: Omit<Trip, 'id'>) => {
+    set({ isLoading: true, error: null })
+    try {
+      const tripId = await tripApi.createTrip(trip)
+      const newTrip = await tripApi.getTrip(tripId)
+
+      await get().loadTrips()
+
+      // For new trips, always select the first day
+      set({ 
+        currentTrip: newTrip ?? null,
+        selectedDayId: newTrip?.days[0]?.id ?? null,
+        isLoading: false 
+      })
+      return tripId
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to create trip',
+        isLoading: false 
+      })
+      throw error
+    }
+  },
+
+  // Update trip
+  updateTrip: async (tripId: string, updates: Partial<Trip>) => {
+    set({ isLoading: true, error: null })
+    try {
+      await tripApi.updateTrip(tripId, updates)
+      const refreshedTrip = await tripApi.getTrip(tripId)
+
+      const { trips, currentTrip } = get()
+      const updatedTrips = refreshedTrip
+        ? trips.map(trip => (trip.id === tripId ? refreshedTrip : trip))
+        : trips
+
+      set({ 
+        currentTrip: refreshedTrip ?? currentTrip,
+        trips: updatedTrips,
+        isLoading: false 
+      })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to update trip',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Duplicate trip
+  duplicateTrip: async (tripId: string, newName: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      const newTripId = await tripApi.duplicateTrip(tripId, newName)
+      await get().loadTrips() // Refresh trips list
+      set({ isLoading: false })
+      return newTripId
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to duplicate trip',
+        isLoading: false 
+      })
+      throw error
+    }
+  },
+
+  // Add destination to day
+  addDestinationToDay: async (destination: Destination, dayId: string) => {
+    console.log('SupabaseTripStore: Adding destination to day', { destination, dayId })
+    set({ isLoading: true, error: null })
+    try {
+      const createdDestination = await tripApi.addDestinationToDay(dayId, destination)
+      console.log('SupabaseTripStore: Destination created in database', createdDestination)
+
+      const { currentTrip, trips } = get()
+      if (currentTrip) {
+        const updatedTrip = {
+          ...currentTrip,
+          days: currentTrip.days.map(day =>
+            day.id === dayId
+              ? { ...day, destinations: [...day.destinations, createdDestination] }
+              : day
+          )
+        }
+
+        const updatedTrips = trips.map(trip =>
+          trip.id === currentTrip.id
+            ? {
+                ...trip,
+                days: trip.days.map(day =>
+                  day.id === dayId
+                    ? { ...day, destinations: [...day.destinations, createdDestination] }
+                    : day
+                ),
+              }
+            : trip
+        )
+
+        console.log('SupabaseTripStore: Updating local state with new destination', { 
+          dayId, 
+          newDestinationCount: updatedTrip.days.find(d => d.id === dayId)?.destinations.length 
+        })
+        
+        set({ 
+          currentTrip: updatedTrip, 
+          trips: updatedTrips, 
+          isLoading: false,
+          lastUpdate: Date.now()
+        })
+      } else {
+        console.warn('SupabaseTripStore: No current trip found when adding destination')
+        set({ isLoading: false })
+      }
+    } catch (error) {
+      console.error('SupabaseTripStore: Error adding destination', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        details: (error as any)?.details,
+        hint: (error as any)?.hint,
+        code: (error as any)?.code,
+        fullError: error
+      })
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to add destination',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Remove destination from day
+  removeDestinationFromDay: async (destinationId: string, dayId: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      await tripApi.removeDestinationFromDay(destinationId)
+      
+      // Update local state
+      const { currentTrip, trips } = get()
+      if (currentTrip) {
+        const updatedTrip = {
+          ...currentTrip,
+          days: currentTrip.days.map(day => 
+            day.id === dayId 
+              ? { ...day, destinations: day.destinations.filter(dest => dest.id !== destinationId) }
+              : day
+          )
+        }
+
+        const updatedDay = updatedTrip.days.find(day => day.id === dayId)
+        if (updatedDay) {
+          await tripApi.reorderDestinations(dayId, updatedDay.destinations.map(dest => dest.id))
+        }
+
+        const updatedTrips = trips.map(trip =>
+          trip.id === currentTrip.id
+            ? {
+                ...trip,
+                days: trip.days.map(day =>
+                  day.id === dayId
+                    ? { ...day, destinations: day.destinations.filter(dest => dest.id !== destinationId) }
+                    : day
+                ),
+              }
+            : trip
+        )
+
+        set({ currentTrip: updatedTrip, trips: updatedTrips, isLoading: false })
+      } else {
+        set({ isLoading: false })
+      }
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to remove destination',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Add new day
+  addNewDay: async () => {
+    const { currentTrip } = get()
+    if (!currentTrip) return
+
+    set({ isLoading: true, error: null })
+    try {
+      const newDate = addDays(currentTrip.endDate, 1)
+      await tripApi.addDay(currentTrip.id, newDate)
+
+      const refreshedTrip = await tripApi.getTrip(currentTrip.id)
+      const { trips } = get()
+      const updatedTrips = refreshedTrip
+        ? trips.map(trip => (trip.id === currentTrip.id ? refreshedTrip : trip))
+        : trips
+
+      set({
+        currentTrip: refreshedTrip ?? currentTrip,
+        trips: updatedTrips,
+        selectedDayId: refreshedTrip?.days[refreshedTrip.days.length - 1]?.id ?? null,
+        isLoading: false,
+      })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to add day',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Duplicate day
+  duplicateDay: async (dayId: string) => {
+    const { currentTrip } = get()
+    if (!currentTrip) return
+
+    set({ isLoading: true, error: null })
+    try {
+      const dayIndex = currentTrip.days.findIndex(day => day.id === dayId)
+      if (dayIndex === -1) return
+
+      await tripApi.duplicateDay(currentTrip.id, dayId)
+
+      const refreshedTrip = await tripApi.getTrip(currentTrip.id)
+      const { trips } = get()
+      const updatedTrips = refreshedTrip
+        ? trips.map(trip => (trip.id === currentTrip.id ? refreshedTrip : trip))
+        : trips
+
+      const newSelectedDayId = refreshedTrip?.days[dayIndex + 1]?.id ?? dayId
+
+      set({
+        currentTrip: refreshedTrip ?? currentTrip,
+        trips: updatedTrips,
+        selectedDayId: newSelectedDayId ?? null,
+        isLoading: false,
+      })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to duplicate day',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Remove day
+  removeDay: async (dayId: string) => {
+    const { currentTrip } = get()
+    if (!currentTrip || currentTrip.days.length <= 1) return
+
+    set({ isLoading: true, error: null })
+    try {
+      await tripApi.removeDay(currentTrip.id, dayId)
+
+      const refreshedTrip = await tripApi.getTrip(currentTrip.id)
+      const { trips } = get()
+      const updatedTrips = refreshedTrip
+        ? trips.map(trip => (trip.id === currentTrip.id ? refreshedTrip : trip))
+        : trips
+
+      set({ 
+        currentTrip: refreshedTrip ?? currentTrip,
+        trips: updatedTrips,
+        selectedDayId: refreshedTrip?.days[0]?.id ?? null,
+        isLoading: false 
+      })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to remove day',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Set selected destination
+  setSelectedDestination: (destination: Destination | null) => {
+    set({ selectedDestination: destination })
+  },
+
+  // Set selected day
+  setSelectedDay: (dayId: string) => {
+    set({ selectedDayId: dayId })
+  },
+
+  // Set day location
+  setDayLocation: async (dayId: string, location: DayLocation | null) => {
+    console.log('SupabaseTripStore: Setting day location', { dayId, location })
+    set({ isLoading: true, error: null })
+    try {
+      await tripApi.setDayLocation(dayId, location)
+      console.log('SupabaseTripStore: Day location updated in database')
+      
+      // Update local state
+      const { currentTrip, trips } = get()
+      if (currentTrip) {
+        const updatedTrip = {
+          ...currentTrip,
+          days: currentTrip.days.map(day => 
+            day.id === dayId ? { ...day, location: location || undefined } : day
+          )
+        }
+        const updatedTrips = trips.map(trip =>
+          trip.id === currentTrip.id
+            ? {
+                ...trip,
+                days: trip.days.map(day =>
+                  day.id === dayId ? { ...day, location: location || undefined } : day
+                ),
+              }
+            : trip
+        )
+        
+        console.log('SupabaseTripStore: Updating local state with new location', { 
+          dayId, 
+          locationName: location?.name 
+        })
+        
+        set({ 
+          currentTrip: updatedTrip, 
+          trips: updatedTrips, 
+          isLoading: false,
+          lastUpdate: Date.now()
+        })
+      } else {
+        console.warn('SupabaseTripStore: No current trip found when setting day location')
+        set({ isLoading: false })
+      }
+    } catch (error) {
+      console.error('SupabaseTripStore: Error setting day location', error)
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to set day location',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Move destination between days
+  moveDestination: async (destinationId: string, fromDayId: string, toDayId: string, newIndex: number) => {
+    const { currentTrip } = get()
+    if (!currentTrip) return
+
+    set({ isLoading: true, error: null })
+    try {
+      // Find the destination
+      const fromDay = currentTrip.days.find(day => day.id === fromDayId)
+      const destination = fromDay?.destinations.find(dest => dest.id === destinationId)
+      
+      if (!destination || !fromDay) return
+
+      // Remove from source day
+      const updatedFromDay = {
+        ...fromDay,
+        destinations: fromDay.destinations.filter(dest => dest.id !== destinationId)
+      }
+
+      // Add to target day
+      const toDay = currentTrip.days.find(day => day.id === toDayId)
+      if (!toDay) return
+
+      const updatedToDayDestinations = [...toDay.destinations]
+      updatedToDayDestinations.splice(newIndex, 0, destination)
+      const updatedToDay = {
+        ...toDay,
+        destinations: updatedToDayDestinations
+      }
+
+      const updatedTrip = {
+        ...currentTrip,
+        days: currentTrip.days.map(day => 
+          day.id === fromDayId ? updatedFromDay :
+          day.id === toDayId ? updatedToDay : day
+        )
+      }
+
+      await tripApi.moveDestination(destinationId, toDayId)
+
+      const fromDayDestIds = updatedFromDay.destinations.map(dest => dest.id)
+      const toDayDestIds = updatedToDayDestinations.map(dest => dest.id)
+
+      if (fromDayDestIds.length) {
+        await tripApi.reorderDestinations(fromDayId, fromDayDestIds)
+      }
+      await tripApi.reorderDestinations(toDayId, toDayDestIds)
+
+      const { trips } = get()
+      const updatedTrips = trips.map(trip =>
+        trip.id === currentTrip.id
+          ? {
+              ...trip,
+              days: trip.days.map(day => {
+                if (day.id === fromDayId) {
+                  return { ...day, destinations: updatedFromDay.destinations }
+                }
+                if (day.id === toDayId) {
+                  return { ...day, destinations: updatedToDayDestinations }
+                }
+                return day
+              }),
+            }
+          : trip
+      )
+
+      set({ currentTrip: updatedTrip, trips: updatedTrips, isLoading: false })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to move destination',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Reorder destinations within a day
+  reorderDestinations: async (dayId: string, startIndex: number, endIndex: number) => {
+    const { currentTrip } = get()
+    if (!currentTrip) return
+
+    set({ isLoading: true, error: null })
+    try {
+      const day = currentTrip.days.find(day => day.id === dayId)
+      if (!day) {
+        set({ isLoading: false })
+        return
+      }
+
+      const destinations = [...day.destinations]
+      const [movedDestination] = destinations.splice(startIndex, 1)
+      destinations.splice(endIndex, 0, movedDestination)
+
+      const updatedTrip = {
+        ...currentTrip,
+        days: currentTrip.days.map(d => 
+          d.id === dayId ? { ...d, destinations } : d
+        )
+      }
+
+      // Update order indices in database
+      await tripApi.reorderDestinations(dayId, destinations.map(dest => dest.id))
+      
+      const { trips } = get()
+      const updatedTrips = trips.map(trip =>
+        trip.id === currentTrip.id
+          ? {
+              ...trip,
+              days: trip.days.map(d =>
+                d.id === dayId ? { ...d, destinations } : d
+              ),
+            }
+          : trip
+      )
+
+      set({ currentTrip: updatedTrip, trips: updatedTrips, isLoading: false })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to reorder destinations',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Update trip dates
+  updateTripDates: async (startDate: Date, endDate: Date) => {
+    const { currentTrip } = get()
+    if (!currentTrip) return
+
+    set({ isLoading: true, error: null })
+    try {
+      await tripApi.updateTripDates(currentTrip.id, startDate, endDate)
+
+      const refreshedTrip = await tripApi.getTrip(currentTrip.id)
+      const { trips } = get()
+      const updatedTrips = refreshedTrip
+        ? trips.map(trip => (trip.id === currentTrip.id ? refreshedTrip : trip))
+        : trips
+
+      set({ currentTrip: refreshedTrip ?? currentTrip, trips: updatedTrips, isLoading: false })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to update trip dates',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Set error
+  setError: (error: string | null) => {
+    set({ error })
+  },
+
+  // Clear error
+  clearError: () => {
+    set({ error: null })
+  }
+}))

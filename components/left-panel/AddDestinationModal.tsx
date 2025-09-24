@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Search, MapPin, Star, Clock, DollarSign, Plus } from 'lucide-react'
 import { Destination } from '@/types'
-import { useTripStore } from '@/lib/store/trip-store'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 
 interface AddDestinationModalProps {
   dayId: string
@@ -20,8 +20,28 @@ interface SearchResult {
   rating?: number
 }
 
+function getCategoryLabel(category: string): string {
+  const categoryLabels: Record<string, string> = {
+    'country': 'Country',
+    'administrative_area_level_1': 'State/Province',
+    'administrative_area_level_2': 'Region/County',
+    'locality': 'City',
+    'sublocality': 'Town/Neighborhood',
+    'establishment': 'Business',
+    'tourist_attraction': 'Attraction',
+    'restaurant': 'Restaurant',
+    'lodging': 'Hotel',
+    'shopping_mall': 'Shopping',
+    'museum': 'Museum',
+    'park': 'Park',
+    'attraction': 'Attraction',
+    'location': 'Location'
+  }
+  return categoryLabels[category] || 'Location'
+}
+
 export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps) {
-  const { addDestinationToDay } = useTripStore()
+  const { addDestinationToDay } = useSupabaseTripStore()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -29,8 +49,9 @@ export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps
   const [duration, setDuration] = useState(2)
   const [cost, setCost] = useState(0)
   const [notes, setNotes] = useState('')
+  const [showNearbyRecommendations, setShowNearbyRecommendations] = useState(false)
 
-  // Search functionality
+  // Google Places API search functionality (via Next.js API route)
   useEffect(() => {
     if (query.trim().length < 2) {
       setResults([])
@@ -39,39 +60,35 @@ export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps
 
     const controller = new AbortController()
     const fetchResults = async () => {
-      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
-      if (!token) return
-
       try {
         setIsLoading(true)
-        const endpoint = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json`)
-        endpoint.searchParams.set('access_token', token)
-        endpoint.searchParams.set('autocomplete', 'true')
-        endpoint.searchParams.set('limit', '6')
-        endpoint.searchParams.set('language', 'en')
-        endpoint.searchParams.set('proximity', '12.4964,41.9028')
-        endpoint.searchParams.set('types', 'poi,place,neighborhood,address')
+        
+        // Use our Next.js API route to proxy Google Places API
+        const apiEndpoint = new URL('/api/places/search', window.location.origin)
+        apiEndpoint.searchParams.set('query', query)
 
-        const response = await fetch(endpoint.toString(), { signal: controller.signal })
-        if (!response.ok) return
+        const response = await fetch(apiEndpoint.toString(), { signal: controller.signal })
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`)
+        }
 
         const data = await response.json()
-        const features = data.features ?? []
+        const googleResults = data.results ?? []
         
-        const mapped: SearchResult[] = features.map((feature: any) => ({
-          id: feature.id,
-          name: feature.text,
-          fullName: feature.place_name,
-          coordinates: feature.center,
-          category: feature.properties?.category,
-          contextLabel: feature.context?.[0]?.text,
-          rating: Math.random() * 2 + 3 // Mock rating
+        const mapped: SearchResult[] = googleResults.slice(0, 6).map((place: any) => ({
+          id: `google-${place.place_id}`,
+          name: place.name,
+          fullName: place.formatted_address,
+          coordinates: [place.geometry.location.lng, place.geometry.location.lat] as [number, number],
+          category: place.types?.[0] || 'attraction',
+          contextLabel: place.formatted_address.split(',').slice(-2).join(', ').trim(),
+          rating: place.rating || Math.random() * 2 + 3
         }))
 
         setResults(mapped)
       } catch (error) {
         if ((error as Error).name !== 'AbortError') {
-          console.error('Search error:', error)
+          console.error('Places search error:', error)
         }
       } finally {
         setIsLoading(false)
@@ -102,10 +119,18 @@ export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
-        {/* Header */}
+      <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-2xl h-[80vh] overflow-hidden flex flex-col">
+        {/* Enhanced Header with Icon */}
         <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h3 className="text-lg font-semibold text-white">Add Destination</h3>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
+              <MapPin className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-white">Add Destination</h3>
+              <p className="text-sm text-white/60">Search for attractions, restaurants, hotels, landmarks</p>
+            </div>
+          </div>
           <button
             onClick={onClose}
             className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
@@ -115,7 +140,7 @@ export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 max-h-[calc(90vh-140px)] overflow-y-auto">
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6">
           {/* Search */}
           <div className="space-y-4">
             <div className="relative">
@@ -124,14 +149,14 @@ export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search for destinations..."
+                placeholder="Search for attractions, restaurants, hotels, landmarks..."
                 className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-400/50 transition-all duration-200"
               />
             </div>
 
             {/* Search Results */}
             {query.length >= 2 && (
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-hide">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-4">
                     <div className="flex items-center gap-3 text-sm text-white/60">
@@ -161,6 +186,11 @@ export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-medium text-white text-sm truncate">{result.name}</span>
+                            {result.category && (
+                              <span className="px-2 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded-full">
+                                {getCategoryLabel(result.category)}
+                              </span>
+                            )}
                             {result.rating && (
                               <div className="flex items-center gap-1">
                                 <Star className="h-3 w-3 text-yellow-400 fill-current" />
@@ -221,10 +251,33 @@ export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps
               </div>
             </div>
           )}
+
+          {/* Nearby Recommendations (Future Feature) */}
+          {selectedDestination && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-white/80">Nearby Recommendations</h4>
+                <button
+                  onClick={() => setShowNearbyRecommendations(!showNearbyRecommendations)}
+                  className="text-xs text-white/60 hover:text-white transition-colors"
+                >
+                  {showNearbyRecommendations ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              {showNearbyRecommendations && (
+                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <div className="text-sm text-blue-400 mb-2">🚀 Coming Soon</div>
+                  <p className="text-xs text-blue-300">
+                    This feature will show similar attractions, restaurants, and activities near {selectedDestination.name}.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-white/10">
+        <div className="flex-shrink-0 flex items-center justify-end gap-3 p-6 border-t border-white/10">
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all duration-200"

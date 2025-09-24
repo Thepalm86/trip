@@ -2,13 +2,21 @@
 
 import { useState } from 'react'
 import { Calendar, MapPin, Clock, Share2, Settings, Edit3 } from 'lucide-react'
-import { useTripStore } from '@/lib/store/trip-store'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { ItineraryTab } from './ItineraryTab'
 import { DateSelector } from './DateSelector'
 
 export function LeftPanel() {
-  const { currentTrip } = useTripStore()
+  const { currentTrip } = useSupabaseTripStore()
   const [showDateSelector, setShowDateSelector] = useState(false)
+
+  if (!currentTrip) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-white text-lg">Loading trip...</div>
+      </div>
+    )
+  }
 
   const totalDestinations = currentTrip.days.reduce((acc, day) => acc + day.destinations.length, 0)
   const totalDuration = currentTrip.days.reduce((acc, day) => 

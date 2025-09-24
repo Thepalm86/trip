@@ -5,7 +5,7 @@ import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import mapboxgl from 'mapbox-gl'
 import { Search, MapPin } from 'lucide-react'
 import { Destination } from '@/types'
-import { useTripStore } from '@/lib/store/trip-store'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 
 interface MapboxGeocoderComponentProps {
   map: mapboxgl.Map | null
@@ -15,7 +15,11 @@ interface MapboxGeocoderComponentProps {
 export function MapboxGeocoderComponent({ map, onResultSelect }: MapboxGeocoderComponentProps) {
   const geocoderContainer = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder | null>(null)
-  const { addDestinationToDay, currentTrip } = useTripStore()
+  const { addDestinationToDay, currentTrip } = useSupabaseTripStore()
+
+  if (!currentTrip) {
+    return null
+  }
 
   useEffect(() => {
     if (!map || !geocoderContainer.current || geocoderRef.current) return
@@ -30,7 +34,7 @@ export function MapboxGeocoderComponent({ map, onResultSelect }: MapboxGeocoderC
     // Configure Mapbox Geocoder
     const geocoder = new MapboxGeocoder({
       accessToken: mapboxToken,
-      mapboxgl: mapboxgl,
+      mapboxgl: mapboxgl as any,
       marker: false, // We'll handle markers ourselves
       placeholder: 'Search for destinations...',
       countries: 'IT', // Limit to Italy as per env config
@@ -38,7 +42,7 @@ export function MapboxGeocoderComponent({ map, onResultSelect }: MapboxGeocoderC
       proximity: {
         longitude: 12.4964,
         latitude: 41.9028
-      } as [number, number], // Rome coordinates for proximity bias
+      } as any, // Rome coordinates for proximity bias
       flyTo: {
         zoom: 15,
         speed: 1.5

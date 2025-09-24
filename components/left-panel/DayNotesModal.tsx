@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, BookOpen, Save } from 'lucide-react'
-import { useTripStore } from '@/lib/store/trip-store'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 
 interface DayNotesModalProps {
   dayId: string
@@ -10,12 +10,16 @@ interface DayNotesModalProps {
 }
 
 export function DayNotesModal({ dayId, onClose }: DayNotesModalProps) {
-  const { currentTrip, setDayLocation } = useTripStore()
+  const { currentTrip } = useSupabaseTripStore()
   const [notes, setNotes] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  const day = currentTrip.days.find(d => d.id === dayId)
-  const dayIndex = currentTrip.days.findIndex(d => d.id === dayId)
+  const day = currentTrip?.days.find(d => d.id === dayId)
+  const dayIndex = currentTrip?.days.findIndex(d => d.id === dayId) ?? -1
+
+  if (!currentTrip || !day || dayIndex === -1) {
+    return null
+  }
 
   // Load existing notes (in a real app, this would come from the store or API)
   useEffect(() => {
@@ -33,7 +37,7 @@ export function DayNotesModal({ dayId, onClose }: DayNotesModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+      <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -60,7 +64,7 @@ export function DayNotesModal({ dayId, onClose }: DayNotesModalProps) {
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6">
           {/* Notes Editor */}
           <div className="space-y-3">
             <label className="block text-sm font-medium text-white/80">
@@ -70,7 +74,7 @@ export function DayNotesModal({ dayId, onClose }: DayNotesModalProps) {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add your notes, ideas, and important information for this day..."
-              className="w-full h-64 px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-400/50 resize-none transition-all duration-200"
+              className="w-full min-h-32 max-h-48 px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-400/50 resize-y transition-all duration-200"
             />
             <div className="text-xs text-white/50">
               {notes.length} characters
@@ -116,7 +120,7 @@ export function DayNotesModal({ dayId, onClose }: DayNotesModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-white/10">
+        <div className="flex-shrink-0 flex items-center justify-end gap-3 p-6 border-t border-white/10">
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all duration-200"

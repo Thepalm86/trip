@@ -7,26 +7,35 @@ import {
   Star, 
   Plus, 
   Edit3, 
-  Trash2, 
+  Trash2,
+  Calendar, 
   ChevronRight, 
   ChevronDown,
   BookOpen,
   Navigation,
   DollarSign
 } from 'lucide-react'
-import { useTripStore } from '@/lib/store/trip-store'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { DayCard } from './DayCard'
 import { AddDestinationModal } from './AddDestinationModal'
 import { DayNotesModal } from './DayNotesModal'
 import { BaseLocationPicker } from './BaseLocationPicker'
 
 export function ItineraryTab() {
-  const { currentTrip, addNewDay, selectedDayId, setSelectedDay } = useTripStore()
+  const { currentTrip, addNewDay, selectedDayId, setSelectedDay } = useSupabaseTripStore()
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
   const [showAddDestination, setShowAddDestination] = useState(false)
   const [showDayNotes, setShowDayNotes] = useState(false)
   const [showBaseLocationPicker, setShowBaseLocationPicker] = useState(false)
   const [targetDayId, setTargetDayId] = useState<string | null>(null)
+
+  if (!currentTrip) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-white text-lg">Loading itinerary...</div>
+      </div>
+    )
+  }
 
   const toggleDayExpansion = (dayId: string) => {
     const newExpanded = new Set(expandedDays)

@@ -19,7 +19,7 @@ import {
   X
 } from 'lucide-react'
 import { TimelineDay } from '@/types'
-import { useTripStore } from '@/lib/store/trip-store'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { useState, useRef, useEffect } from 'react'
 
 interface DayCardProps {
@@ -41,7 +41,7 @@ export function DayCard({
   onAddNotes,
   onSetBaseLocation
 }: DayCardProps) {
-  const { removeDestinationFromDay, duplicateDay, removeDay } = useTripStore()
+  const { removeDestinationFromDay, duplicateDay, removeDay } = useSupabaseTripStore()
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
