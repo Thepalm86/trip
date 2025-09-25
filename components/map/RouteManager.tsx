@@ -20,6 +20,9 @@ interface RouteData {
   activityNumber?: number
   hasDestinationsOnRoute?: boolean
   destinationsOnRoute?: Array<{destination: any, dayIndex: number, destIndex: number}>
+  segmentName?: string
+  segmentType?: string
+  segmentIndex?: number
 }
 
 interface RouteManagerProps {

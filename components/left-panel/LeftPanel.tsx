@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Calendar, MapPin, Clock, Share2, Settings, Edit3 } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
-import { ItineraryTab } from './ItineraryTab'
+import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
 
 export function LeftPanel() {
@@ -75,7 +75,7 @@ export function LeftPanel() {
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
-        <ItineraryTab />
+        <TabSystem />
       </div>
 
       {/* Date Selector Modal */}

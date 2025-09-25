@@ -53,6 +53,19 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           console.log('✅ Simple destinations source created')
         }
 
+        // Exploration locations source
+        if (!map.getSource('exploration-locations')) {
+          console.log('🎯 Creating exploration locations source')
+          map.addSource('exploration-locations', {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: []
+            }
+          })
+          console.log('✅ Exploration locations source created')
+        }
+
         // Routes source
         if (!map.getSource('routes')) {
           map.addSource('routes', {
@@ -97,189 +110,8 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           })
         }
 
-      // Add base location markers layer with enhanced styling
-      if (!map.getLayer('base-locations-layer')) {
-        // Base location outer ring
-        map.addLayer({
-          id: 'base-locations-outer',
-          type: 'circle',
-          source: 'base-locations',
-          paint: {
-            'circle-radius': 18,
-            'circle-color': '#10b981',
-            'circle-opacity': 0.2,
-            'circle-stroke-width': 0
-          }
-        })
 
-        // Base location main circle
-        map.addLayer({
-          id: 'base-locations-layer',
-          type: 'circle',
-          source: 'base-locations',
-          paint: {
-            'circle-radius': [
-              'case',
-              ['boolean', ['feature-state', 'hover'], false], 16,
-              ['boolean', ['feature-state', 'selected'], false], 14,
-              12
-            ],
-            'circle-color': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], '#34d399',
-              ['boolean', ['feature-state', 'hover'], false], '#22c55e',
-              '#10b981'
-            ],
-            'circle-stroke-width': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], 4,
-              ['boolean', ['feature-state', 'hover'], false], 3,
-              2
-            ],
-            'circle-stroke-color': '#ffffff',
-            'circle-opacity': 0.95
-          }
-        })
 
-        // Base location day number
-        map.addLayer({
-          id: 'base-locations-day-number',
-          type: 'symbol',
-          source: 'base-locations',
-          layout: {
-            'text-field': ['get', 'dayNumber'],
-            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-            'text-size': 11,
-            'text-anchor': 'center',
-            'text-offset': [0, 0]
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': '#000000',
-            'text-halo-width': 1
-          }
-        })
-
-        // Base location labels
-        map.addLayer({
-          id: 'base-locations-labels',
-          type: 'symbol',
-          source: 'base-locations',
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-            'text-size': 12,
-            'text-anchor': 'top',
-            'text-offset': [0, 2.5],
-            'text-optional': true
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': '#000000',
-            'text-halo-width': 2,
-            'text-opacity': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], 1,
-              ['boolean', ['feature-state', 'hover'], false], 0.9,
-              0.8
-            ]
-          }
-        })
-      }
-
-      // Destination markers - MATCHING BASE LOCATIONS EXACTLY
-      if (!map.getLayer('destinations-layer')) {
-        console.log('🎯 Creating destinations layers matching base locations')
-        
-        // Destination outer ring (consistent blue)
-        map.addLayer({
-          id: 'destinations-outer',
-          type: 'circle',
-          source: 'destinations',
-          paint: {
-            'circle-radius': 18,
-            'circle-color': '#3b82f6',
-            'circle-opacity': 0.2,
-            'circle-stroke-width': 0
-          }
-        })
-
-        // Destination main circle (like base locations)
-        map.addLayer({
-          id: 'destinations-layer',
-          type: 'circle',
-          source: 'destinations',
-          paint: {
-            'circle-radius': [
-              'case',
-              ['boolean', ['feature-state', 'hover'], false], 16,
-              ['boolean', ['feature-state', 'selected'], false], 14,
-              12
-            ],
-            'circle-color': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], '#34d399',
-              ['boolean', ['feature-state', 'hover'], false], '#22c55e',
-              ['coalesce', ['get', 'markerColor'], '#3b82f6']
-            ],
-            'circle-stroke-width': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], 4,
-              ['boolean', ['feature-state', 'hover'], false], 3,
-              2
-            ],
-            'circle-stroke-color': '#ffffff',
-            'circle-opacity': 0.95
-          }
-        })
-
-        // Destination activity letters (A, B, C, etc.)
-        map.addLayer({
-          id: 'destinations-activity-letter',
-          type: 'symbol',
-          source: 'destinations',
-          layout: {
-            'text-field': ['get', 'activityLetter'],
-            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-            'text-size': 11,
-            'text-anchor': 'center',
-            'text-offset': [0, 0]
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': '#000000',
-            'text-halo-width': 1
-          }
-        })
-
-        // Destination labels (like base locations)
-        map.addLayer({
-          id: 'destinations-labels',
-          type: 'symbol',
-          source: 'destinations',
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-            'text-size': 12,
-            'text-anchor': 'top',
-            'text-offset': [0, 2.5],
-            'text-optional': true
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': '#000000',
-            'text-halo-width': 2,
-            'text-opacity': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], 1,
-              ['boolean', ['feature-state', 'hover'], false], 0.9,
-              0.8
-            ]
-          }
-        })
-        
-        console.log('✅ Destination layers created matching base locations')
-      }
 
       // Add routes layer with enhanced styling
       if (!map.getLayer('routes-layer')) {
@@ -406,8 +238,7 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               'case',
               ['boolean', ['feature-state', 'hover'], false], 0.8,
               0.6
-            ],
-            'line-dasharray': [2, 2]
+            ]
           }
         })
       }
@@ -445,6 +276,273 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             'text-halo-width': 1
           }
         })
+      }
+
+      // Base location markers layer with enhanced styling
+      if (!map.getLayer('base-locations-layer')) {
+        // Base location outer ring
+        map.addLayer({
+          id: 'base-locations-outer',
+          type: 'circle',
+          source: 'base-locations',
+          paint: {
+            'circle-radius': 18,
+            'circle-color': '#10b981',
+            'circle-opacity': 0.2,
+            'circle-stroke-width': 0
+          }
+        })
+
+        // Base location main circle
+        map.addLayer({
+          id: 'base-locations-layer',
+          type: 'circle',
+          source: 'base-locations',
+          paint: {
+            'circle-radius': [
+              'case',
+              ['boolean', ['feature-state', 'hover'], false], 16,
+              ['boolean', ['feature-state', 'selected'], false], 14,
+              12
+            ],
+            'circle-color': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], '#34d399',
+              ['boolean', ['feature-state', 'hover'], false], '#22c55e',
+              '#10b981'
+            ],
+            'circle-stroke-width': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 4,
+              ['boolean', ['feature-state', 'hover'], false], 3,
+              2
+            ],
+            'circle-stroke-color': '#ffffff',
+            'circle-opacity': 0.95
+          }
+        })
+
+        // Base location day number
+        map.addLayer({
+          id: 'base-locations-day-number',
+          type: 'symbol',
+          source: 'base-locations',
+          layout: {
+            'text-field': ['get', 'dayNumber'],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-size': 11,
+            'text-anchor': 'center',
+            'text-offset': [0, 0]
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': '#000000',
+            'text-halo-width': 1
+          }
+        })
+
+        // Base location labels
+        map.addLayer({
+          id: 'base-locations-labels',
+          type: 'symbol',
+          source: 'base-locations',
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-size': 12,
+            'text-anchor': 'top',
+            'text-offset': [0, 2.5],
+            'text-optional': true
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': '#000000',
+            'text-halo-width': 2,
+            'text-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 1,
+              ['boolean', ['feature-state', 'hover'], false], 0.9,
+              0.8
+            ]
+          }
+        })
+        
+        console.log('✅ Base location layers created')
+      }
+
+      // Destination markers - MATCHING BASE LOCATIONS EXACTLY
+      if (!map.getLayer('destinations-layer')) {
+        console.log('🎯 Creating destinations layers matching base locations')
+        
+        // Destination outer ring (consistent blue)
+        map.addLayer({
+          id: 'destinations-outer',
+          type: 'circle',
+          source: 'destinations',
+          paint: {
+            'circle-radius': 18,
+            'circle-color': '#3b82f6',
+            'circle-opacity': 0.2,
+            'circle-stroke-width': 0
+          }
+        })
+
+        // Destination main circle (like base locations)
+        map.addLayer({
+          id: 'destinations-layer',
+          type: 'circle',
+          source: 'destinations',
+          paint: {
+            'circle-radius': [
+              'case',
+              ['boolean', ['feature-state', 'hover'], false], 16,
+              ['boolean', ['feature-state', 'selected'], false], 14,
+              12
+            ],
+            'circle-color': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], '#34d399',
+              ['boolean', ['feature-state', 'hover'], false], '#22c55e',
+              ['coalesce', ['get', 'markerColor'], '#3b82f6']
+            ],
+            'circle-stroke-width': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 4,
+              ['boolean', ['feature-state', 'hover'], false], 3,
+              2
+            ],
+            'circle-stroke-color': '#ffffff',
+            'circle-opacity': 0.95
+          }
+        })
+
+        // Destination activity letters (A, B, C, etc.)
+        map.addLayer({
+          id: 'destinations-activity-letter',
+          type: 'symbol',
+          source: 'destinations',
+          layout: {
+            'text-field': ['get', 'activityLetter'],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-size': 11,
+            'text-anchor': 'center',
+            'text-offset': [0, 0]
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': '#000000',
+            'text-halo-width': 1
+          }
+        })
+
+        // Destination labels (like base locations)
+        map.addLayer({
+          id: 'destinations-labels',
+          type: 'symbol',
+          source: 'destinations',
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-size': 12,
+            'text-anchor': 'top',
+            'text-offset': [0, 2.5],
+            'text-optional': true
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': '#000000',
+            'text-halo-width': 2,
+            'text-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 1,
+              ['boolean', ['feature-state', 'hover'], false], 0.9,
+              0.8
+            ]
+          }
+        })
+        
+        console.log('✅ Destination layers created matching base locations')
+      }
+
+      // Exploration locations layers - same as destinations but orange color
+      if (!map.getLayer('exploration-locations-layer')) {
+        console.log('🎯 Creating exploration locations layers')
+
+        // Exploration location main circle
+        map.addLayer({
+          id: 'exploration-locations-layer',
+          type: 'circle',
+          source: 'exploration-locations',
+          paint: {
+            'circle-radius': [
+              'case',
+              ['boolean', ['feature-state', 'hover'], false], 16,
+              ['boolean', ['feature-state', 'selected'], false], 14,
+              12
+            ],
+            'circle-color': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], '#ef4444',
+              ['boolean', ['feature-state', 'hover'], false], '#dc2626',
+              ['coalesce', ['get', 'markerColor'], '#f97316']
+            ],
+            'circle-stroke-width': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 4,
+              ['boolean', ['feature-state', 'hover'], false], 3,
+              2
+            ],
+            'circle-stroke-color': '#ffffff',
+            'circle-opacity': 0.95
+          }
+        })
+
+        // Exploration activity letters (A, B, C, etc.)
+        map.addLayer({
+          id: 'exploration-locations-activity-letter',
+          type: 'symbol',
+          source: 'exploration-locations',
+          layout: {
+            'text-field': ['get', 'activityLetter'],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-size': 11,
+            'text-anchor': 'center',
+            'text-offset': [0, 0]
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': '#000000',
+            'text-halo-width': 1
+          }
+        })
+
+        // Exploration labels
+        map.addLayer({
+          id: 'exploration-locations-labels',
+          type: 'symbol',
+          source: 'exploration-locations',
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-size': 12,
+            'text-anchor': 'top',
+            'text-offset': [0, 2.5],
+            'text-optional': true
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': '#000000',
+            'text-halo-width': 2,
+            'text-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 1,
+              ['boolean', ['feature-state', 'hover'], false], 0.9,
+              0.8
+            ]
+          }
+        })
+        
+        console.log('✅ Exploration location layers created')
       }
 
       // Add selection highlight layer
@@ -506,6 +604,9 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
         'destinations-outer',
         'destinations-activity-letter',
         'destinations-labels',
+        'exploration-locations-activity-letter',
+        'exploration-locations-labels',
+        'exploration-locations-layer',
         'base-locations-labels',
         'base-locations-day-number',
         'base-locations-layer',
@@ -513,14 +614,14 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
       ]
       
       layers.forEach(layerId => {
-        if (map.getLayer(layerId)) {
+        if (map && map.getLayer && map.getLayer(layerId)) {
           map.removeLayer(layerId)
         }
       })
 
-      const sources = ['selection-highlight', 'day-routes', 'routes', 'destinations', 'base-locations']
+      const sources = ['selection-highlight', 'day-routes', 'routes', 'destinations', 'exploration-locations', 'base-locations']
       sources.forEach(sourceId => {
-        if (map.getSource(sourceId)) {
+        if (map && map.getSource && map.getSource(sourceId)) {
           map.removeSource(sourceId)
         }
       })

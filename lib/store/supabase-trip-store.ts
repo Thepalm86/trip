@@ -14,6 +14,8 @@ interface SupabaseTripStore {
   isLoading: boolean
   error: string | null
   lastUpdate: number // Force re-renders
+  activeTab: 'timeline' | 'exploration' // Tab system state
+  explorationLocations: Destination[] // Locations for exploration tab
   
   // Actions
   loadTrips: () => Promise<void>
@@ -36,6 +38,12 @@ interface SupabaseTripStore {
   reorderDestinations: (dayId: string, startIndex: number, endIndex: number) => Promise<void>
   updateTripDates: (startDate: Date, endDate: Date) => Promise<void>
   
+  // Tab system actions
+  setActiveTab: (tab: 'timeline' | 'exploration') => void
+  addExplorationLocation: (destination: Destination) => void
+  removeExplorationLocation: (destinationId: string) => void
+  clearExplorationLocations: () => void
+  
   // Utility
   setError: (error: string | null) => void
   clearError: () => void
@@ -50,6 +58,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   isLoading: false,
   error: null,
   lastUpdate: Date.now(),
+  activeTab: 'timeline',
+  explorationLocations: [],
 
   // Load all trips for the user
   loadTrips: async () => {
@@ -594,5 +604,30 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   // Clear error
   clearError: () => {
     set({ error: null })
+  },
+
+  // Tab system actions
+  setActiveTab: (tab: 'timeline' | 'exploration') => {
+    set({ activeTab: tab })
+  },
+
+  addExplorationLocation: (destination: Destination) => {
+    const { explorationLocations } = get()
+    // Check if location already exists
+    if (!explorationLocations.find(loc => loc.id === destination.id)) {
+      set({ explorationLocations: [...explorationLocations, destination] })
+    }
+  },
+
+  removeExplorationLocation: (destinationId: string) => {
+    const { explorationLocations } = get()
+    set({ 
+      explorationLocations: explorationLocations.filter(loc => loc.id !== destinationId),
+      selectedDestination: get().selectedDestination?.id === destinationId ? null : get().selectedDestination
+    })
+  },
+
+  clearExplorationLocations: () => {
+    set({ explorationLocations: [], selectedDestination: null })
   }
 }))
