@@ -49,7 +49,7 @@ export function MapControls({ map }: MapControlsProps) {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-full bg-blue-500 border border-white flex items-center justify-center flex-shrink-0">
-                    <MapPin className="h-2 w-2 text-white" />
+                    <span className="text-xs font-bold text-white">A</span>
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-white">Activities</p>

@@ -16,7 +16,8 @@ import {
   Map,
   MoreVertical,
   Copy,
-  X
+  X,
+  Settings
 } from 'lucide-react'
 import { TimelineDay } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
@@ -30,6 +31,7 @@ interface DayCardProps {
   onAddDestination: () => void
   onAddNotes: () => void
   onSetBaseLocation: () => void
+  onOpenDayBuilder: () => void
 }
 
 export function DayCard({ 
@@ -39,7 +41,8 @@ export function DayCard({
   onToggleExpansion, 
   onAddDestination, 
   onAddNotes,
-  onSetBaseLocation
+  onSetBaseLocation,
+  onOpenDayBuilder
 }: DayCardProps) {
   const { removeDestinationFromDay, duplicateDay, removeDay } = useSupabaseTripStore()
   const [showDropdown, setShowDropdown] = useState(false)
@@ -86,7 +89,11 @@ export function DayCard({
   }, [])
 
   return (
-    <div className="h-full flex flex-col bg-white/[0.02] rounded-2xl border border-white/10 overflow-hidden">
+    <div 
+      className="h-full flex flex-col bg-white/[0.02] rounded-2xl border border-white/10 overflow-hidden cursor-pointer hover:bg-white/[0.04] transition-all duration-200"
+      onDoubleClick={onOpenDayBuilder}
+      title="Double-click to open Day Builder"
+    >
       {/* Day Header - Compact */}
       <div className="p-4 border-b border-white/10 bg-white/[0.02]">
         <div className="flex items-center justify-between">
@@ -107,6 +114,18 @@ export function DayCard({
           </div>
           
           <div className="flex items-center gap-1">
+            {/* Day Builder Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenDayBuilder()
+              }}
+              className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
+              title="Open Day Builder"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+            
             <button
               onClick={onToggleExpansion}
               className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"

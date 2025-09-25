@@ -21,6 +21,7 @@ const DAY_COLORS = [
   '#f97316', // Orange-red
 ]
 
+
 export function MarkerManager({ 
   map, 
   hasTrip, 
@@ -141,14 +142,15 @@ export function MarkerManager({
         return
       }
 
-      // Create features with proper properties for numbers and colors
+      // Create features with proper properties for letters and consistent colors
       const features = tripDays.flatMap((day, dayIndex) => {
         // Only show destination markers for the selected day
-        if (selectedDayId && selectedDayId !== day.id) {
+        if (selectedDayId !== day.id) {
           return []
         }
 
-        const dayColor = DAY_COLORS[dayIndex % DAY_COLORS.length] || '#3b82f6'
+        // Use consistent blue color for all destination markers (matching legend)
+        const markerColor = '#3b82f6'
         return day.destinations.map((destination, destIndex) => ({
           type: 'Feature' as const,
           geometry: {
@@ -162,9 +164,9 @@ export function MarkerManager({
             dayNumber: dayIndex + 1,
             dayId: day.id,
             destIndex,
-            activityNumber: destIndex + 1, // This will be the number shown on the marker
+            activityLetter: String.fromCharCode(65 + destIndex), // Convert to letters: A, B, C, etc.
             destinationId: destination.id,
-            dayColor: dayColor // This will be the color of the marker
+            markerColor: markerColor // Consistent blue color for all destination markers
           }
         }))
       })

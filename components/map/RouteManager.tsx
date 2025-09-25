@@ -132,28 +132,53 @@ export function RouteManager({
 
               // Only calculate route if we have multiple waypoints
               if (waypoints.length > 2) {
-                try {
-                  // Create waypoint string for Mapbox API
-                  const waypointString = waypoints.map(coord => `${coord[0]},${coord[1]}`).join(';')
+                // Calculate individual segments instead of one long route
+                for (let i = 0; i < waypoints.length - 1; i++) {
+                  const startPoint = waypoints[i]
+                  const endPoint = waypoints[i + 1]
+                  const segmentKey = `${routeKey}-segment-${i}`
                   
-                  const response = await fetch(
-                    `https://api.mapbox.com/directions/v5/mapbox/driving/${waypointString}?access_token=${token}&geometries=geojson&overview=full`
-                  )
+                  try {
+                    const response = await fetch(
+                      `https://api.mapbox.com/directions/v5/mapbox/driving/${startPoint[0]},${startPoint[1]};${endPoint[0]},${endPoint[1]}?access_token=${token}&geometries=geojson&overview=full`
+                    )
 
-                  if (response.ok) {
-                    const data = await response.json()
-                    const route = data.routes[0]
+                    if (response.ok) {
+                      const data = await response.json()
+                      const route = data.routes[0]
 
-                    newRoutes.set(routeKey, {
-                      coordinates: route.geometry.coordinates,
-                      duration: route.duration,
-                      distance: route.distance,
-                      hasDestinationsOnRoute: true,
-                      destinationsOnRoute: destinationsOnRoute
-                    })
+                      // Determine segment type and names
+                      let segmentName = ''
+                      let segmentType = 'base-to-base'
+                      
+                      if (i === 0) {
+                        // First segment: base location to first destination
+                        segmentName = `${currentDay.location!.name} → ${destinationsOnRoute[0].destination.name}`
+                        segmentType = 'base-to-destination'
+                      } else if (i === waypoints.length - 2) {
+                        // Last segment: last destination to next base location
+                        segmentName = `${destinationsOnRoute[destinationsOnRoute.length - 1].destination.name} → ${nextDay.location!.name}`
+                        segmentType = 'destination-to-base'
+                      } else {
+                        // Middle segments: destination to destination
+                        segmentName = `${destinationsOnRoute[i - 1].destination.name} → ${destinationsOnRoute[i].destination.name}`
+                        segmentType = 'destination-to-destination'
+                      }
+
+                      newRoutes.set(segmentKey, {
+                        coordinates: route.geometry.coordinates,
+                        duration: route.duration,
+                        distance: route.distance,
+                        segmentName,
+                        segmentType,
+                        segmentIndex: i,
+                        hasDestinationsOnRoute: true,
+                        destinationsOnRoute: destinationsOnRoute
+                      })
+                    }
+                  } catch (error) {
+                    console.error('Error calculating route segment:', error)
                   }
-                } catch (error) {
-                  console.error('Error calculating multi-stop route:', error)
                 }
               } else {
                 // Simple route between base locations (no destinations)
@@ -270,10 +295,11 @@ export function RouteManager({
 
         // Update routes on map with enhanced data
         const routeFeatures = Array.from(newRoutes.entries()).map(([key, route]) => {
-          const isBaseRoute = key.startsWith('base-') && !key.includes('base-dest-') && !key.includes('day-marker-')
+          const isBaseRoute = key.startsWith('base-') && !key.includes('base-dest-') && !key.includes('day-marker-') && !key.includes('segment-')
           const isDayRoute = key.startsWith('day-') && !key.includes('day-marker-')
           const isBaseDestRoute = key.startsWith('base-dest-')
           const isDayMarker = key.startsWith('day-marker-')
+          const isSegmentRoute = key.includes('segment-')
           
           let dayColor = '#10b981' // Default green for base routes
           let dayIndex = -1
@@ -282,11 +308,22 @@ export function RouteManager({
             const dayId = key.split('-')[1]
             const day = tripDays.find(d => d.id === dayId)
             dayIndex = tripDays.findIndex(d => d.id === dayId)
-            dayColor = DAY_COLORS[dayIndex % DAY_COLORS.length]
+            // All routes should be green
+            dayColor = '#10b981'
           } else if (isBaseDestRoute) {
             const dayId = key.split('-')[2]
             dayIndex = tripDays.findIndex(d => d.id === dayId)
-            dayColor = DAY_COLORS[dayIndex % DAY_COLORS.length]
+            const day = tripDays.find(d => d.id === dayId)
+            
+            // All routes should be green
+            dayColor = '#10b981'
+          } else if (isSegmentRoute) {
+            // Segment routes are part of base routes, so they should be green
+            dayColor = '#10b981'
+            // Extract day info from the original route key
+            const baseKey = key.split('-segment-')[0]
+            const dayId = baseKey.split('-')[2] // Extract day ID from base-{day1}-{day2}
+            dayIndex = tripDays.findIndex(d => d.id === dayId)
           } else if (isDayMarker) {
             dayColor = (route as any).dayColor || '#3b82f6'
             dayIndex = (route as any).dayNumber - 1
@@ -302,13 +339,19 @@ export function RouteManager({
               id: key,
               duration: Math.round(route.duration / 3600 * 10) / 10, // Convert to hours (1 decimal)
               distance: Math.round(route.distance / 1000), // Convert to km
-              label: `${Math.round(route.duration / 3600 * 10) / 10}h • ${Math.round(route.distance / 1000)}km`,
+              label: isSegmentRoute && (route as any).segmentName 
+                ? `${(route as any).segmentName}: ${Math.round(route.duration / 3600 * 10) / 10}h • ${Math.round(route.distance / 1000)}km`
+                : `${Math.round(route.duration / 3600 * 10) / 10}h • ${Math.round(route.distance / 1000)}km`,
               dayColor,
               dayIndex,
               isBaseRoute,
               isDayRoute,
               isBaseDestRoute,
               isDayMarker,
+              isSegmentRoute,
+              segmentName: isSegmentRoute ? (route as any).segmentName : undefined,
+              segmentType: isSegmentRoute ? (route as any).segmentType : undefined,
+              segmentIndex: isSegmentRoute ? (route as any).segmentIndex : undefined,
               dayNumber: isDayMarker ? (route as any).dayNumber : undefined,
               bearing: isDayMarker ? 0 : calculateBearing(route.coordinates[0], route.coordinates[route.coordinates.length - 1])
             }
@@ -316,7 +359,7 @@ export function RouteManager({
         })
 
         // Separate base routes, day routes, and day markers
-        const baseRouteFeatures = routeFeatures.filter(f => f.properties.isBaseRoute)
+        const baseRouteFeatures = routeFeatures.filter(f => f.properties.isBaseRoute || f.properties.isSegmentRoute)
         const dayRouteFeatures = routeFeatures.filter(f => f.properties.isDayRoute || f.properties.isBaseDestRoute)
         const dayMarkerFeatures = routeFeatures.filter(f => f.properties.isDayMarker)
 

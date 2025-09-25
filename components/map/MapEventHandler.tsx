@@ -98,12 +98,12 @@ export function MapEventHandler({
           .setHTML(`
             <div class="p-3 min-w-[220px]">
               <div class="flex items-center gap-2 mb-2">
-                <div class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background-color: ${feature.properties.dayColor}">
-                  ${feature.properties.activityNumber}
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background-color: ${feature.properties.markerColor || '#3b82f6'}">
+                  ${feature.properties.activityLetter}
                 </div>
                 <h3 class="font-semibold text-sm text-white">${feature.properties.name}</h3>
               </div>
-              <p class="text-xs text-white/60 mb-2">Day ${feature.properties.dayNumber} • Activity ${feature.properties.activityNumber}</p>
+              <p class="text-xs text-white/60 mb-2">Day ${feature.properties.dayNumber} • Activity ${feature.properties.activityLetter}</p>
               ${feature.properties.description ? `<p class="text-xs text-white/50 mb-2">${feature.properties.description}</p>` : ''}
               <div class="flex items-center gap-4 text-xs text-white/60">
                 ${feature.properties.duration ? `<span>${feature.properties.duration}h</span>` : ''}

@@ -191,7 +191,7 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
       if (!map.getLayer('destinations-layer')) {
         console.log('🎯 Creating destinations layers matching base locations')
         
-        // Destination outer ring (like base locations)
+        // Destination outer ring (consistent blue)
         map.addLayer({
           id: 'destinations-outer',
           type: 'circle',
@@ -220,7 +220,7 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               'case',
               ['boolean', ['feature-state', 'selected'], false], '#34d399',
               ['boolean', ['feature-state', 'hover'], false], '#22c55e',
-              ['coalesce', ['get', 'dayColor'], '#3b82f6']
+              ['coalesce', ['get', 'markerColor'], '#3b82f6']
             ],
             'circle-stroke-width': [
               'case',
@@ -233,13 +233,13 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           }
         })
 
-        // Destination activity numbers (like base locations)
+        // Destination activity letters (A, B, C, etc.)
         map.addLayer({
-          id: 'destinations-activity-number',
+          id: 'destinations-activity-letter',
           type: 'symbol',
           source: 'destinations',
           layout: {
-            'text-field': ['get', 'activityNumber'],
+            'text-field': ['get', 'activityLetter'],
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
             'text-size': 11,
             'text-anchor': 'center',
@@ -379,7 +379,7 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             'line-cap': 'round'
           },
           paint: {
-            'line-color': '#3b82f6',
+            'line-color': ['coalesce', ['get', 'dayColor'], '#10b981'],
             'line-width': 6,
             'line-opacity': 0.15,
             'line-blur': 1
@@ -396,7 +396,7 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             'line-cap': 'round'
           },
           paint: {
-            'line-color': ['get', 'dayColor'],
+            'line-color': ['coalesce', ['get', 'dayColor'], '#10b981'],
             'line-width': [
               'case',
               ['boolean', ['feature-state', 'hover'], false], 4,
@@ -504,7 +504,7 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
         'routes-shadow',
         'destinations-layer',
         'destinations-outer',
-        'destinations-activity-number',
+        'destinations-activity-letter',
         'destinations-labels',
         'base-locations-labels',
         'base-locations-day-number',
