@@ -102,11 +102,35 @@ export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps
   const handleAddDestination = () => {
     if (!selectedDestination) return
 
+    // Extract city from the address
+    const extractCity = (fullName: string) => {
+      const parts = fullName.split(',').map(part => part.trim())
+      
+      // Look for common Italian cities
+      const italianCities = ['Rome', 'Firenze', 'Florence', 'Siena', 'Lucca', 'Pisa', 'Bologna', 'Venice', 'Venezia', 'Milan', 'Milano', 'Naples', 'Napoli', 'Turin', 'Torino', 'Genoa', 'Genova', 'Palermo', 'Catania', 'Bari', 'Verona', 'Padua', 'Padova', 'Ravenna', 'Modena', 'Parma', 'Reggio Emilia', 'Ferrara', 'Rimini', 'San Gimignano', 'Volterra', 'Arezzo', 'Cortona', 'Montepulciano', 'Pienza', 'Montalcino', 'Grosseto', 'Livorno', 'Pistoia', 'Prato', 'Massa', 'Carrara', 'La Spezia', 'Piacenza', 'Cremona', 'Mantova', 'Brescia', 'Bergamo', 'Como', 'Varese', 'Lecco', 'Sondrio', 'Trento', 'Bolzano', 'Udine', 'Trieste', 'Gorizia', 'Pordenone', 'Belluno', 'Treviso', 'Vicenza', 'Rovigo', 'Chioggia', 'Adria', 'Este', 'Montagnana', 'Cittadella', 'Castelfranco Veneto', 'Bassano del Grappa', 'Asolo', 'Marostica', 'Thiene', 'Schio', 'Valdagno', 'Arzignano', 'Montecchio Maggiore', 'Lonigo', 'Noventa Vicentina', 'Orgiano', 'Badia Polesine', 'Lendinara', 'Occhiobello', 'Stienta', 'Gaiba', 'Salara', 'Canda', 'Castelguglielmo', 'Fratta Polesine', 'Lusia', 'Pincara', 'Pontecchio Polesine', 'San Bellino', 'Villanova del Ghebbo', 'Villamarzana', 'Villanova Marchesana', 'Villanova del Sillaro', 'Villanova di Camposampiero', 'Villanova di San Giorgio', 'Villanova di San Martino', 'Villanova di San Pietro', 'Villanova di San Rocco', 'Villanova di San Tommaso', 'Villanova di San Vito', 'Villanova di San Zeno', 'Villanova di San Zenone', 'Villanova di San Zeno', 'Villanova di San Zenone']
+      
+      // First, try to find a known Italian city
+      for (const part of parts) {
+        for (const city of italianCities) {
+          if (part.toLowerCase().includes(city.toLowerCase())) {
+            return city
+          }
+        }
+      }
+      
+      // If no known city found, use the second-to-last part (before country)
+      if (parts.length >= 2) {
+        return parts[parts.length - 2]
+      }
+      return parts[0] // Fallback to first part
+    }
+
     const destination: Destination = {
       id: `search-${Date.now()}`,
       name: selectedDestination.name,
       description: selectedDestination.fullName,
       coordinates: selectedDestination.coordinates,
+      city: extractCity(selectedDestination.fullName),
       category: (selectedDestination.category as Destination['category']) ?? 'attraction',
       estimatedDuration: duration,
       cost: cost > 0 ? cost : undefined,

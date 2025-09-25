@@ -35,11 +35,12 @@ export function MarkerManager({
 
     console.log('MarkerManager: Updating base location markers', { 
       tripDaysCount: tripDays.length,
-      daysWithLocations: tripDays.filter(day => day.location).length,
+      daysWithBaseLocations: tripDays.filter(day => day.baseLocations?.length > 0).length,
       tripDays: tripDays.map(day => ({ 
         id: day.id, 
-        hasLocation: !!day.location,
-        locationName: day.location?.name
+        hasBaseLocations: day.baseLocations?.length > 0,
+        baseLocationCount: day.baseLocations?.length || 0,
+        firstBaseLocationName: day.baseLocations?.[0]?.name
       }))
     })
 
@@ -51,44 +52,46 @@ export function MarkerManager({
       let daysToShow: typeof tripDays = []
       
       if (selectedDayId) {
-        // Show the selected day's base location
+        // Show the selected day's first base location
         const selectedDay = tripDays.find(day => day.id === selectedDayId)
-        if (selectedDay?.location) {
+        if (selectedDay?.baseLocations?.length > 0) {
           daysToShow.push(selectedDay)
         }
         
-        // For travel days, also show the previous day's base location (departure point)
+        // For travel days, also show the previous day's first base location (departure point)
         const selectedDayIndex = tripDays.findIndex(day => day.id === selectedDayId)
         const previousDay = tripDays[selectedDayIndex - 1]
         
-        if (previousDay?.location && 
-            (!selectedDay?.location || 
-             selectedDay.location.coordinates[0] !== previousDay.location.coordinates[0] || 
-             selectedDay.location.coordinates[1] !== previousDay.location.coordinates[1])) {
+        if (previousDay?.baseLocations?.length > 0 && 
+            (!selectedDay?.baseLocations?.length || 
+             selectedDay.baseLocations[0].coordinates[0] !== previousDay.baseLocations[0].coordinates[0] || 
+             selectedDay.baseLocations[0].coordinates[1] !== previousDay.baseLocations[0].coordinates[1])) {
           daysToShow.push(previousDay)
         }
       } else {
-        // No day selected - show all base locations
-        daysToShow = tripDays.filter(day => day.location)
+        // No day selected - show all first base locations
+        daysToShow = tripDays.filter(day => day.baseLocations?.length > 0)
       }
 
       const baseLocationFeatures = daysToShow.map((day, index) => {
         const dayIndex = tripDays.findIndex(d => d.id === day.id)
+        const firstBaseLocation = day.baseLocations![0] // We know it exists because we filtered for it
         return {
           type: 'Feature' as const,
           geometry: {
             type: 'Point' as const,
-            coordinates: day.location!.coordinates
+            coordinates: firstBaseLocation.coordinates
           },
           properties: {
-            name: day.location!.name,
+            name: firstBaseLocation.name,
             dayIndex: dayIndex,
             dayNumber: dayIndex + 1,
             dayId: day.id,
-            context: day.location!.context,
+            context: firstBaseLocation.context,
             isSelected: selectedDayId === day.id,
             isDeparturePoint: selectedDayId === day.id ? false : true, // Previous day's location is departure point
-            destinationCount: day.destinations.length
+            destinationCount: day.destinations.length,
+            totalBaseLocations: day.baseLocations!.length
           }
         }
       })
@@ -98,7 +101,8 @@ export function MarkerManager({
         daysToShowCount: daysToShow.length,
         daysToShow: daysToShow.map(d => ({ 
           dayId: d.id, 
-          locationName: d.location?.name,
+          baseLocationName: d.baseLocations?.[0]?.name,
+          totalBaseLocations: d.baseLocations?.length || 0,
           isSelectedDay: d.id === selectedDayId
         })),
         featureCount: baseLocationFeatures.length,
@@ -106,7 +110,8 @@ export function MarkerManager({
           name: f.properties.name, 
           dayId: f.properties.dayId,
           isSelected: f.properties.isSelected,
-          isDeparturePoint: f.properties.isDeparturePoint
+          isDeparturePoint: f.properties.isDeparturePoint,
+          totalBaseLocations: f.properties.totalBaseLocations
         }))
       })
 

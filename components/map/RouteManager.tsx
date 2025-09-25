@@ -8,21 +8,17 @@ interface RouteData {
   coordinates: [number, number][]
   duration: number
   distance: number
-  isDayMarker?: boolean
-  dayId?: string
-  dayColor?: string
-  dayNumber?: number
-  isRouteDestination?: boolean
-  destinationId?: string
-  destinationName?: string
-  dayIndex?: number
-  destIndex?: number
-  activityNumber?: number
-  hasDestinationsOnRoute?: boolean
-  destinationsOnRoute?: Array<{destination: any, dayIndex: number, destIndex: number}>
-  segmentName?: string
-  segmentType?: string
-  segmentIndex?: number
+  routeType: 'inter-day' | 'intra-day'
+  fromDayId: string
+  toDayId: string
+  fromLocation: string
+  toLocation: string
+  waypoints: Array<{
+    coordinates: [number, number]
+    type: 'base' | 'destination'
+    name: string
+    dayId: string
+  }>
 }
 
 interface RouteManagerProps {
@@ -34,17 +30,6 @@ interface RouteManagerProps {
   onLoadingChange: (loading: boolean) => void
 }
 
-const DAY_COLORS = [
-  '#3b82f6', // Blue
-  '#10b981', // Green
-  '#f59e0b', // Orange
-  '#ef4444', // Red
-  '#8b5cf6', // Purple
-  '#06b6d4', // Cyan
-  '#84cc16', // Lime
-  '#f97316', // Orange-red
-]
-
 export function RouteManager({ 
   map, 
   hasTrip, 
@@ -54,6 +39,7 @@ export function RouteManager({
   onLoadingChange 
 }: RouteManagerProps) {
   const routeCalculationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const routeCache = useRef<Map<string, RouteData>>(new Map())
 
   // Calculate bearing between two points
   const calculateBearing = useCallback((start: [number, number], end: [number, number]) => {
@@ -69,347 +55,366 @@ export function RouteManager({
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360
   }, [])
 
-  // Calculate and display routes - now reactive to trip changes
-  useEffect(() => {
-    if (!map || !token || !hasTrip) return
+  // Check if two base locations are different (agnostic comparison)
+  const areBaseLocationsDifferent = useCallback((loc1: any, loc2: any) => {
+    if (!loc1 || !loc2) return true
+    return loc1.coordinates[0] !== loc2.coordinates[0] || 
+           loc1.coordinates[1] !== loc2.coordinates[1]
+  }, [])
 
-    const calculateRoutes = async () => {
-      onLoadingChange(true)
-      const newRoutes = new Map<string, RouteData>()
+  // Build waypoints for inter-day route: fromDay base → toDay destinations → toDay base
+  const buildInterDayWaypoints = useCallback((fromDay: Trip['days'][0], toDay: Trip['days'][0]) => {
+    const waypoints: RouteData['waypoints'] = []
 
-      try {
-        // Calculate routes between base locations (including destinations along the way)
-        const baseDaysWithLocation = tripDays.filter(day => day.location)
-        if (baseDaysWithLocation.length > 1) {
-          for (let i = 0; i < baseDaysWithLocation.length - 1; i++) {
-            const currentDay = baseDaysWithLocation[i]
-            const nextDay = baseDaysWithLocation[i + 1]
-            const routeKey = `base-${currentDay.id}-${nextDay.id}`
+    // Start from fromDay's base location
+    if (fromDay.baseLocations && fromDay.baseLocations.length > 0) {
+      waypoints.push({
+        coordinates: fromDay.baseLocations[0].coordinates,
+        type: 'base',
+        name: fromDay.baseLocations[0].name,
+        dayId: fromDay.id
+      })
+    }
 
-            // Only show routes for the selected day (show route on the destination day)
-            if (selectedDayId && selectedDayId !== nextDay.id) {
-              continue
-            }
+    // Add all destinations from toDay (these are visited on the way to toDay's base location)
+    toDay.destinations.forEach(destination => {
+      waypoints.push({
+        coordinates: destination.coordinates,
+        type: 'destination',
+        name: destination.name,
+        dayId: toDay.id
+      })
+    })
 
-            // Find days between these base locations
-            const currentDayIndex = tripDays.findIndex(d => d.id === currentDay.id)
-            const nextDayIndex = tripDays.findIndex(d => d.id === nextDay.id)
-            
-            if (currentDayIndex !== -1 && nextDayIndex !== -1) {
-              // Get days between current and next base location
-              const daysBetween = tripDays.slice(currentDayIndex + 1, nextDayIndex)
-              
-              // Collect all destinations from days between base locations AND from the destination day
-              const destinationsOnRoute: Array<{destination: any, dayIndex: number, destIndex: number}> = []
-              
-              // Add destinations from days between base locations
-              daysBetween.forEach((day, dayIndex) => {
-                day.destinations.forEach((destination, destIndex) => {
-                  destinationsOnRoute.push({
-                    destination,
-                    dayIndex: tripDays.findIndex(d => d.id === day.id),
-                    destIndex
-                  })
-                })
-              })
-              
-              // Add destinations from the destination day itself (like Siena on Day 2)
-              nextDay.destinations.forEach((destination, destIndex) => {
-                destinationsOnRoute.push({
-                  destination,
-                  dayIndex: nextDayIndex,
-                  destIndex
-                })
-              })
+    // End at toDay's base location
+    if (toDay.baseLocations && toDay.baseLocations.length > 0) {
+      waypoints.push({
+        coordinates: toDay.baseLocations[0].coordinates,
+        type: 'base',
+        name: toDay.baseLocations[0].name,
+        dayId: toDay.id
+      })
+    }
 
-              // Build waypoints: start → destinations → end
-              const waypoints = [currentDay.location!.coordinates]
-              
-              // Add destinations in order
-              destinationsOnRoute.forEach(item => {
-                waypoints.push(item.destination.coordinates)
-              })
-              
-              // Add end point
-              waypoints.push(nextDay.location!.coordinates)
+    return waypoints
+  }, [])
 
-              // Only calculate route if we have multiple waypoints
-              if (waypoints.length > 2) {
-                // Calculate individual segments instead of one long route
-                for (let i = 0; i < waypoints.length - 1; i++) {
-                  const startPoint = waypoints[i]
-                  const endPoint = waypoints[i + 1]
-                  const segmentKey = `${routeKey}-segment-${i}`
-                  
-                  try {
+  // Calculate route between multiple waypoints
+  const calculateMultiWaypointRoute = useCallback(async (waypoints: RouteData['waypoints'], routeType: 'inter-day' | 'intra-day') => {
+    if (waypoints.length < 2) return null
+
+    const coordinates = waypoints.map(wp => wp.coordinates)
+    const cacheKey = `${coordinates.map(coord => `${coord[0]},${coord[1]}`).join('-')}-${routeType}`
+    
+    // Check cache first
+    if (routeCache.current.has(cacheKey)) {
+      return routeCache.current.get(cacheKey)!
+    }
+
+    try {
+      const profile = routeType === 'inter-day' ? 'driving' : 'walking'
                     const response = await fetch(
-                      `https://api.mapbox.com/directions/v5/mapbox/driving/${startPoint[0]},${startPoint[1]};${endPoint[0]},${endPoint[1]}?access_token=${token}&geometries=geojson&overview=full`
+        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates.map(coord => `${coord[0]},${coord[1]}`).join(';')}?access_token=${token}&geometries=geojson&overview=full`
                     )
 
                     if (response.ok) {
                       const data = await response.json()
                       const route = data.routes[0]
 
-                      // Determine segment type and names
-                      let segmentName = ''
-                      let segmentType = 'base-to-base'
-                      
-                      if (i === 0) {
-                        // First segment: base location to first destination
-                        segmentName = `${currentDay.location!.name} → ${destinationsOnRoute[0].destination.name}`
-                        segmentType = 'base-to-destination'
-                      } else if (i === waypoints.length - 2) {
-                        // Last segment: last destination to next base location
-                        segmentName = `${destinationsOnRoute[destinationsOnRoute.length - 1].destination.name} → ${nextDay.location!.name}`
-                        segmentType = 'destination-to-base'
-                      } else {
-                        // Middle segments: destination to destination
-                        segmentName = `${destinationsOnRoute[i - 1].destination.name} → ${destinationsOnRoute[i].destination.name}`
-                        segmentType = 'destination-to-destination'
-                      }
-
-                      newRoutes.set(segmentKey, {
+        const routeData: RouteData = {
                         coordinates: route.geometry.coordinates,
                         duration: route.duration,
                         distance: route.distance,
-                        segmentName,
-                        segmentType,
-                        segmentIndex: i,
-                        hasDestinationsOnRoute: true,
-                        destinationsOnRoute: destinationsOnRoute
-                      })
+          routeType,
+          fromDayId: waypoints[0].dayId,
+          toDayId: waypoints[waypoints.length - 1].dayId,
+          fromLocation: waypoints[0].name,
+          toLocation: waypoints[waypoints.length - 1].name,
+          waypoints: waypoints
+        }
+
+        // Cache the result
+        routeCache.current.set(cacheKey, routeData)
+        return routeData
                     }
                   } catch (error) {
-                    console.error('Error calculating route segment:', error)
+      console.error('Error calculating route:', error)
+    }
+
+    return null
+  }, [token])
+
+  // Determine which routes to show based on selected day
+  const getRoutesToShow = useCallback(() => {
+    const routesToShow: Array<{
+      fromDay: Trip['days'][0]
+      toDay: Trip['days'][0]
+      type: 'inter-day' | 'intra-day'
+    }> = []
+
+    if (!selectedDayId) {
+      // No day selected - show all inter-day routes where base locations change and destination day has destinations
+      for (let i = 0; i < tripDays.length - 1; i++) {
+        const fromDay = tripDays[i]
+        const toDay = tripDays[i + 1]
+        
+        if (fromDay.baseLocations && fromDay.baseLocations.length > 0 && 
+            toDay.baseLocations && toDay.baseLocations.length > 0 &&
+            areBaseLocationsDifferent(fromDay.baseLocations[0], toDay.baseLocations[0]) &&
+            toDay.destinations.length > 0) {
+          routesToShow.push({
+            fromDay,
+            toDay,
+            type: 'inter-day'
+          })
                   }
                 }
               } else {
-                // Simple route between base locations (no destinations)
-                try {
-                  const response = await fetch(
-                    `https://api.mapbox.com/directions/v5/mapbox/driving/${currentDay.location!.coordinates[0]},${currentDay.location!.coordinates[1]};${nextDay.location!.coordinates[0]},${nextDay.location!.coordinates[1]}?access_token=${token}&geometries=geojson&overview=full`
-                  )
-
-                  if (response.ok) {
-                    const data = await response.json()
-                    const route = data.routes[0]
-
-                    newRoutes.set(routeKey, {
-                      coordinates: route.geometry.coordinates,
-                      duration: route.duration,
-                      distance: route.distance,
-                      hasDestinationsOnRoute: false
-                    })
-                  }
-                } catch (error) {
-                  console.error('Error calculating simple route:', error)
-                }
-              }
-            }
-          }
-        }
-
-        // Calculate routes within each day (between destinations)
-        for (const day of tripDays) {
-          if (day.destinations.length > 1) {
-            // Only show routes for the selected day
-            if (selectedDayId && selectedDayId !== day.id) {
-              continue
-            }
-
-            const destinations = day.destinations.map(dest => dest.coordinates)
-            
-            for (let i = 0; i < destinations.length - 1; i++) {
-              const from = destinations[i]
-              const to = destinations[i + 1]
-              const routeKey = `day-${day.id}-${i}-${i + 1}`
-
-              try {
-                const response = await fetch(
-                  `https://api.mapbox.com/directions/v5/mapbox/walking/${from[0]},${from[1]};${to[0]},${to[1]}?access_token=${token}&geometries=geojson&overview=full`
-                )
-                
-                if (response.ok) {
-                  const data = await response.json()
-                  const route = data.routes[0]
-                  
-                  newRoutes.set(routeKey, {
-                    coordinates: route.geometry.coordinates,
-                    duration: route.duration,
-                    distance: route.distance
-                  })
-                }
-              } catch (error) {
-                console.error('Error calculating day route:', error)
-              }
-            }
-          }
-        }
-
-        // Calculate routes from base locations to their destinations
-        for (const day of tripDays) {
-          if (day.location && day.destinations.length > 0) {
-            // Only show routes for the selected day
-            if (selectedDayId && selectedDayId !== day.id) {
-              continue
-            }
-
-            const baseLocation = day.location.coordinates
-            const dayColor = DAY_COLORS[tripDays.findIndex(d => d.id === day.id) % DAY_COLORS.length]
-            
-            for (const destination of day.destinations) {
-              const routeKey = `base-dest-${day.id}-${destination.id}`
-              
-              // Skip base-to-destination routes if the destination is already included in a main route
-              // Check if this destination is part of any main route (base-to-base route)
-              const isDestinationInMainRoute = Array.from(newRoutes.keys()).some(key => {
-                if (key.startsWith('base-') && !key.includes('base-dest-') && !key.includes('day-marker-')) {
-                  const route = newRoutes.get(key)
-                  return route && (route as any).destinationsOnRoute?.some((dest: any) => dest.destination.id === destination.id)
-                }
-                return false
-              })
-              
-              if (isDestinationInMainRoute) {
-                continue // Skip this base-to-destination route
-              }
-              
-              try {
-                const response = await fetch(
-                  `https://api.mapbox.com/directions/v5/mapbox/walking/${baseLocation[0]},${baseLocation[1]};${destination.coordinates[0]},${destination.coordinates[1]}?access_token=${token}&geometries=geojson&overview=full`
-                )
-                
-                if (response.ok) {
-                  const data = await response.json()
-                  const route = data.routes[0]
-                  
-                  newRoutes.set(routeKey, {
-                    coordinates: route.geometry.coordinates,
-                    duration: route.duration,
-                    distance: route.distance
-                  })
-                }
-              } catch (error) {
-                console.error('Error calculating base-to-destination route:', error)
-              }
-            }
-          }
-        }
-
-        // Update routes on map with enhanced data
-        const routeFeatures = Array.from(newRoutes.entries()).map(([key, route]) => {
-          const isBaseRoute = key.startsWith('base-') && !key.includes('base-dest-') && !key.includes('day-marker-') && !key.includes('segment-')
-          const isDayRoute = key.startsWith('day-') && !key.includes('day-marker-')
-          const isBaseDestRoute = key.startsWith('base-dest-')
-          const isDayMarker = key.startsWith('day-marker-')
-          const isSegmentRoute = key.includes('segment-')
+      // Day selected - show routes to/from that day
+      const selectedDayIndex = tripDays.findIndex(day => day.id === selectedDayId)
+      
+      if (selectedDayIndex >= 0) {
+        // Route FROM previous day TO selected day (if base locations are different)
+        // Show route if: base locations are different AND (selected day has destinations OR it's a direct base change)
+        if (selectedDayIndex > 0) {
+          const fromDay = tripDays[selectedDayIndex - 1]
+          const toDay = tripDays[selectedDayIndex]
           
-          let dayColor = '#10b981' // Default green for base routes
-          let dayIndex = -1
-          
-          if (isDayRoute) {
-            const dayId = key.split('-')[1]
-            const day = tripDays.find(d => d.id === dayId)
-            dayIndex = tripDays.findIndex(d => d.id === dayId)
-            // All routes should be green
-            dayColor = '#10b981'
-          } else if (isBaseDestRoute) {
-            const dayId = key.split('-')[2]
-            dayIndex = tripDays.findIndex(d => d.id === dayId)
-            const day = tripDays.find(d => d.id === dayId)
-            
-            // All routes should be green
-            dayColor = '#10b981'
-          } else if (isSegmentRoute) {
-            // Segment routes are part of base routes, so they should be green
-            dayColor = '#10b981'
-            // Extract day info from the original route key
-            const baseKey = key.split('-segment-')[0]
-            const dayId = baseKey.split('-')[2] // Extract day ID from base-{day1}-{day2}
-            dayIndex = tripDays.findIndex(d => d.id === dayId)
-          } else if (isDayMarker) {
-            dayColor = (route as any).dayColor || '#3b82f6'
-            dayIndex = (route as any).dayNumber - 1
+          if (fromDay.baseLocations && fromDay.baseLocations.length > 0 && 
+              toDay.baseLocations && toDay.baseLocations.length > 0 &&
+              areBaseLocationsDifferent(fromDay.baseLocations[0], toDay.baseLocations[0])) {
+            routesToShow.push({
+              fromDay,
+              toDay,
+              type: 'inter-day'
+            })
           }
+        }
 
-          return {
+        // Route FROM selected day TO next day (only if base locations are different AND next day has destinations)
+        // BUT: Don't show routes FROM a day that has no destinations
+        if (selectedDayIndex < tripDays.length - 1) {
+          const fromDay = tripDays[selectedDayIndex]
+          const toDay = tripDays[selectedDayIndex + 1]
+          
+          if (fromDay.baseLocations && fromDay.baseLocations.length > 0 && 
+              toDay.baseLocations && toDay.baseLocations.length > 0 &&
+              areBaseLocationsDifferent(fromDay.baseLocations[0], toDay.baseLocations[0]) &&
+              toDay.destinations.length > 0 &&
+              fromDay.destinations.length > 0) { // Only show routes FROM days that have destinations
+            routesToShow.push({
+              fromDay,
+              toDay,
+              type: 'inter-day'
+            })
+          }
+        }
+
+        // Intra-day routes within selected day (base to each destination)
+        // BUT: Only show intra-day routes if this is NOT a travel day (base location doesn't change)
+        const selectedDay = tripDays[selectedDayIndex]
+        const previousDay = tripDays[selectedDayIndex - 1]
+        const nextDay = tripDays[selectedDayIndex + 1]
+        
+        // Check if this is a travel day (base location changes from previous or to next day)
+        const isTravelDay = (previousDay?.baseLocations?.[0] && areBaseLocationsDifferent(selectedDay.baseLocations?.[0], previousDay.baseLocations[0])) ||
+                           (nextDay?.baseLocations?.[0] && areBaseLocationsDifferent(selectedDay.baseLocations?.[0], nextDay.baseLocations[0]))
+        
+        // Only show intra-day routes if this is NOT a travel day
+        if (selectedDay.baseLocations && selectedDay.baseLocations.length > 0 && 
+            selectedDay.destinations.length > 0 && !isTravelDay) {
+          routesToShow.push({
+            fromDay: selectedDay,
+            toDay: selectedDay,
+            type: 'intra-day'
+          })
+        }
+      }
+    }
+
+    return routesToShow
+  }, [selectedDayId, tripDays, areBaseLocationsDifferent])
+
+  // Main route calculation function
+  const calculateRoutes = useCallback(async () => {
+    if (!map || !token || !hasTrip || tripDays.length === 0) return
+
+    onLoadingChange(true)
+    const newRoutes = new Map<string, RouteData>()
+
+    try {
+      const routesToShow = getRoutesToShow()
+      
+      console.log('RouteManager: Calculating routes', {
+        selectedDayId,
+        routesToShow: routesToShow.length,
+        routes: routesToShow.map(r => ({
+          from: r.fromDay.id,
+          to: r.toDay.id,
+          type: r.type,
+          fromDayDestinations: r.fromDay.destinations.length,
+          toDayDestinations: r.toDay.destinations.length,
+          fromBaseLocation: r.fromDay.baseLocations?.[0]?.name,
+          toBaseLocation: r.toDay.baseLocations?.[0]?.name,
+          baseLocationsDifferent: areBaseLocationsDifferent(r.fromDay.baseLocations?.[0], r.toDay.baseLocations?.[0])
+        })),
+        tripDays: tripDays.map(d => ({
+          id: d.id,
+          baseLocation: d.baseLocations?.[0]?.name,
+          destinations: d.destinations.map(dest => dest.name)
+        }))
+      })
+
+      for (const routeInfo of routesToShow) {
+        const { fromDay, toDay, type } = routeInfo
+        
+        if (type === 'inter-day') {
+          // Inter-day route: fromDay base → toDay destinations → toDay base
+          const waypoints = buildInterDayWaypoints(fromDay, toDay)
+          
+          console.log(`RouteManager: Building inter-day route ${fromDay.id} → ${toDay.id}`, {
+            waypoints: waypoints.map(wp => ({
+              name: wp.name,
+              type: wp.type,
+              dayId: wp.dayId,
+              coordinates: wp.coordinates
+            }))
+          })
+          
+          if (waypoints.length >= 2) {
+            const routeData = await calculateMultiWaypointRoute(waypoints, 'inter-day')
+            
+            if (routeData) {
+              const routeKey = `inter-day-${fromDay.id}-${toDay.id}`
+              newRoutes.set(routeKey, routeData)
+            }
+          }
+        } else if (type === 'intra-day') {
+          // Intra-day routes: base → each destination
+          const baseLocation = fromDay.baseLocations![0]
+          
+          for (const destination of fromDay.destinations) {
+            const waypoints = [
+              {
+                coordinates: baseLocation.coordinates,
+                type: 'base' as const,
+                name: baseLocation.name,
+                dayId: fromDay.id
+              },
+              {
+                coordinates: destination.coordinates,
+                type: 'destination' as const,
+                name: destination.name,
+                dayId: fromDay.id
+              }
+            ]
+            
+            const routeData = await calculateMultiWaypointRoute(waypoints, 'intra-day')
+            
+            if (routeData) {
+              const routeKey = `intra-day-${fromDay.id}-${destination.id}`
+              newRoutes.set(routeKey, routeData)
+            }
+          }
+        }
+      }
+
+      // Update map sources
+      const interDayRoutes = Array.from(newRoutes.entries())
+        .filter(([key]) => key.startsWith('inter-day'))
+        .map(([key, route]) => ({
+          type: 'Feature' as const,
+          geometry: {
+            type: 'LineString' as const,
+            coordinates: route.coordinates
+          },
+          properties: {
+            id: key,
+            routeType: 'inter-day',
+            duration: Math.round(route.duration / 3600 * 10) / 10,
+            distance: Math.round(route.distance / 1000),
+            label: `${route.fromLocation} → ${route.toLocation}: ${Math.round(route.duration / 3600 * 10) / 10}h • ${Math.round(route.distance / 1000)}km`,
+            fromDayId: route.fromDayId,
+            toDayId: route.toDayId,
+            bearing: calculateBearing(route.coordinates[0], route.coordinates[route.coordinates.length - 1])
+          }
+        }))
+
+      const intraDayRoutes = Array.from(newRoutes.entries())
+        .filter(([key]) => key.startsWith('intra-day'))
+        .map(([key, route]) => ({
             type: 'Feature' as const,
             geometry: {
-              type: isDayMarker ? 'Point' as const : 'LineString' as const,
-              coordinates: isDayMarker ? route.coordinates[0] : route.coordinates
+            type: 'LineString' as const,
+            coordinates: route.coordinates
             },
             properties: {
               id: key,
-              duration: Math.round(route.duration / 3600 * 10) / 10, // Convert to hours (1 decimal)
-              distance: Math.round(route.distance / 1000), // Convert to km
-              label: isSegmentRoute && (route as any).segmentName 
-                ? `${(route as any).segmentName}: ${Math.round(route.duration / 3600 * 10) / 10}h • ${Math.round(route.distance / 1000)}km`
-                : `${Math.round(route.duration / 3600 * 10) / 10}h • ${Math.round(route.distance / 1000)}km`,
-              dayColor,
-              dayIndex,
-              isBaseRoute,
-              isDayRoute,
-              isBaseDestRoute,
-              isDayMarker,
-              isSegmentRoute,
-              segmentName: isSegmentRoute ? (route as any).segmentName : undefined,
-              segmentType: isSegmentRoute ? (route as any).segmentType : undefined,
-              segmentIndex: isSegmentRoute ? (route as any).segmentIndex : undefined,
-              dayNumber: isDayMarker ? (route as any).dayNumber : undefined,
-              bearing: isDayMarker ? 0 : calculateBearing(route.coordinates[0], route.coordinates[route.coordinates.length - 1])
-            }
+            routeType: 'intra-day',
+            duration: Math.round(route.duration / 60), // Minutes for walking
+            distance: Math.round(route.distance),
+            label: `${route.fromLocation} → ${route.toLocation}: ${Math.round(route.duration / 60)}min • ${Math.round(route.distance)}m`,
+            fromDayId: route.fromDayId,
+            toDayId: route.toDayId,
+            bearing: calculateBearing(route.coordinates[0], route.coordinates[route.coordinates.length - 1])
           }
+        }))
+
+      // Update map sources
+      if (map.getSource('inter-day-routes')) {
+        map.getSource('inter-day-routes').setData({
+          type: 'FeatureCollection',
+          features: interDayRoutes
         })
+      }
 
-        // Separate base routes, day routes, and day markers
-        const baseRouteFeatures = routeFeatures.filter(f => f.properties.isBaseRoute || f.properties.isSegmentRoute)
-        const dayRouteFeatures = routeFeatures.filter(f => f.properties.isDayRoute || f.properties.isBaseDestRoute)
-        const dayMarkerFeatures = routeFeatures.filter(f => f.properties.isDayMarker)
-
-        if (map.getSource('routes')) {
-          map.getSource('routes').setData({
+      if (map.getSource('intra-day-routes')) {
+        map.getSource('intra-day-routes').setData({
             type: 'FeatureCollection',
-            features: baseRouteFeatures
-          })
-        }
+          features: intraDayRoutes
+        })
+      }
 
-        if (map.getSource('day-routes')) {
-          map.getSource('day-routes').setData({
-            type: 'FeatureCollection',
-            features: dayRouteFeatures
-          })
-        }
-
-        // Update day markers source
-        if (map.getSource('day-markers')) {
-          map.getSource('day-markers').setData({
-            type: 'FeatureCollection',
-            features: dayMarkerFeatures
-          })
-        }
+      console.log('RouteManager: Routes updated', {
+        interDayRoutes: interDayRoutes.length,
+        intraDayRoutes: intraDayRoutes.length,
+        interDayRouteDetails: interDayRoutes.map(r => ({
+          id: r.properties.id,
+          label: r.properties.label,
+          fromDayId: r.properties.fromDayId,
+          toDayId: r.properties.toDayId
+        })),
+        intraDayRouteDetails: intraDayRoutes.map(r => ({
+          id: r.properties.id,
+          label: r.properties.label,
+          fromDayId: r.properties.fromDayId,
+          toDayId: r.properties.toDayId
+        }))
+      })
 
       } catch (error) {
         console.error('Error calculating routes:', error)
       } finally {
         onLoadingChange(false)
       }
-    }
+  }, [map, hasTrip, token, tripDays, selectedDayId, getRoutesToShow, buildInterDayWaypoints, calculateMultiWaypointRoute, calculateBearing, areBaseLocationsDifferent, onLoadingChange])
 
-    // Debounce route calculation to avoid too many API calls
+  // Debounced route calculation
+  useEffect(() => {
     if (routeCalculationTimeoutRef.current) {
       clearTimeout(routeCalculationTimeoutRef.current)
     }
     
     routeCalculationTimeoutRef.current = setTimeout(() => {
       calculateRoutes()
-    }, 500) // Wait 500ms after last change
+    }, 200)
 
     return () => {
       if (routeCalculationTimeoutRef.current) {
         clearTimeout(routeCalculationTimeoutRef.current)
       }
     }
-  }, [map, hasTrip, token, tripDays, selectedDayId, calculateBearing, onLoadingChange])
+  }, [calculateRoutes])
 
   return null
 }

@@ -8,7 +8,6 @@ import { MarkerManager } from './MarkerManager'
 import { MapInitializer } from './MapInitializer'
 import { MapEventHandler } from './MapEventHandler'
 import { MapCleanup } from './MapCleanup'
-import { ExplorationMarkerManager } from './ExplorationMarkerManager'
 
 /**
  * MapIntegration - Orchestrates all map-related components
@@ -68,8 +67,6 @@ export function MapIntegration({ map }: MapIntegrationProps) {
     setSelectedDay, 
     selectedDestination, 
     setSelectedDestination,
-    activeTab,
-    explorationLocations
   } = useSupabaseTripStore()
 
   const emptyTrip: Trip = {
@@ -102,91 +99,41 @@ export function MapIntegration({ map }: MapIntegrationProps) {
         hasTrip={hasTrip}
       />
       
-      {/* Timeline Tab - Show trip routes and markers */}
-      {activeTab === 'timeline' && (
-        <>
-          <RouteManager
-            map={map}
-            hasTrip={hasTrip}
-            tripDays={tripDays}
-            selectedDayId={selectedDayId}
-            token={token || ''}
-            onLoadingChange={setIsLoadingRoutes}
-          />
-          <MarkerManager
-            map={map}
-            hasTrip={hasTrip}
-            tripDays={tripDays}
-            selectedDayId={selectedDayId}
-          />
-          <MapEventHandler
-            map={map}
-            hasTrip={hasTrip}
-            tripDays={tripDays}
-            selectedDayId={selectedDayId}
-            selectedDestination={selectedDestination}
-            setSelectedDay={setSelectedDay}
-            setSelectedDestination={setSelectedDestination}
-          />
-          <MapCleanup
-            map={map}
-            hasTrip={hasTrip}
-            tripDays={tripDays}
-            selectedDayId={selectedDayId}
-            selectedDestination={selectedDestination}
-          />
-        </>
-      )}
+      {/* Show trip routes and markers */}
+      <RouteManager
+        map={map}
+        hasTrip={hasTrip}
+        tripDays={tripDays}
+        selectedDayId={selectedDayId}
+        token={token || ''}
+        onLoadingChange={setIsLoadingRoutes}
+      />
+      <MarkerManager
+        map={map}
+        hasTrip={hasTrip}
+        tripDays={tripDays}
+        selectedDayId={selectedDayId}
+      />
+      <MapEventHandler
+        map={map}
+        hasTrip={hasTrip}
+        tripDays={tripDays}
+        selectedDayId={selectedDayId}
+        selectedDestination={selectedDestination}
+        setSelectedDay={setSelectedDay}
+        setSelectedDestination={setSelectedDestination}
+      />
+      <MapCleanup
+        map={map}
+        hasTrip={hasTrip}
+        tripDays={tripDays}
+        selectedDayId={selectedDayId}
+        selectedDestination={selectedDestination}
+      />
 
-      {/* Exploration Tab - Show exploration markers and optionally full day view */}
-      {activeTab === 'exploration' && (
-        <>
-          <ExplorationMarkerManager
-            map={map}
-            explorationLocations={explorationLocations}
-            selectedDestination={selectedDestination}
-            setSelectedDestination={setSelectedDestination}
-          />
-          {/* Show full day view if a day is selected in exploration mode */}
-          {selectedDayId && (
-            <>
-              <RouteManager
-                map={map}
-                hasTrip={hasTrip}
-                tripDays={tripDays}
-                selectedDayId={selectedDayId}
-                token={token || ''}
-                onLoadingChange={setIsLoadingRoutes}
-              />
-              <MarkerManager
-                map={map}
-                hasTrip={hasTrip}
-                tripDays={tripDays}
-                selectedDayId={selectedDayId}
-              />
-              <MapEventHandler
-                map={map}
-                hasTrip={hasTrip}
-                tripDays={tripDays}
-                selectedDayId={selectedDayId}
-                selectedDestination={selectedDestination}
-                setSelectedDay={setSelectedDay}
-                setSelectedDestination={setSelectedDestination}
-              />
-              <MapCleanup
-                map={map}
-                hasTrip={hasTrip}
-                tripDays={tripDays}
-                selectedDayId={selectedDayId}
-                selectedDestination={selectedDestination}
-              />
-            </>
-          )}
-        </>
-      )}
 
       <div className="absolute top-4 right-4 z-10">
-        {isLoadingRoutes && (activeTab === 'timeline' || (activeTab === 'exploration' && selectedDayId)) && (
+        {isLoadingRoutes && (
           <div className="glass-card rounded-lg p-3 shadow-lg">
             <div className="flex items-center gap-2 text-sm text-white">
               <div className="w-4 h-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />

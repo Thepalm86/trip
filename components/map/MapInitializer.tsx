@@ -53,22 +53,10 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           console.log('✅ Simple destinations source created')
         }
 
-        // Exploration locations source
-        if (!map.getSource('exploration-locations')) {
-          console.log('🎯 Creating exploration locations source')
-          map.addSource('exploration-locations', {
-            type: 'geojson',
-            data: {
-              type: 'FeatureCollection',
-              features: []
-            }
-          })
-          console.log('✅ Exploration locations source created')
-        }
 
-        // Routes source
-        if (!map.getSource('routes')) {
-          map.addSource('routes', {
+        // Inter-day routes source (between different days)
+        if (!map.getSource('inter-day-routes')) {
+          map.addSource('inter-day-routes', {
             type: 'geojson',
             data: {
               type: 'FeatureCollection',
@@ -77,20 +65,9 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           })
         }
 
-        // Day markers source (for markers on routes between base location changes)
-        if (!map.getSource('day-markers')) {
-          map.addSource('day-markers', {
-            type: 'geojson',
-            data: {
-              type: 'FeatureCollection',
-              features: []
-            }
-          })
-        }
-
-        // Day routes source (routes within a day)
-        if (!map.getSource('day-routes')) {
-          map.addSource('day-routes', {
+        // Intra-day routes source (within the same day)
+        if (!map.getSource('intra-day-routes')) {
+          map.addSource('intra-day-routes', {
             type: 'geojson',
             data: {
               type: 'FeatureCollection',
@@ -113,13 +90,13 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
 
 
 
-      // Add routes layer with enhanced styling
-      if (!map.getLayer('routes-layer')) {
-        // Route shadow/glow effect
+      // Add inter-day routes layer (between different days - driving routes)
+      if (!map.getLayer('inter-day-routes-layer')) {
+        // Inter-day route shadow/glow effect
         map.addLayer({
-          id: 'routes-shadow',
+          id: 'inter-day-routes-shadow',
           type: 'line',
-          source: 'routes',
+          source: 'inter-day-routes',
           layout: {
             'line-join': 'round',
             'line-cap': 'round'
@@ -132,11 +109,11 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           }
         })
 
-        // Main route line
+        // Main inter-day route line
         map.addLayer({
-          id: 'routes-layer',
+          id: 'inter-day-routes-layer',
           type: 'line',
-          source: 'routes',
+          source: 'inter-day-routes',
           layout: {
             'line-join': 'round',
             'line-cap': 'round'
@@ -156,11 +133,11 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           }
         })
 
-        // Route direction arrows
+        // Inter-day route direction arrows
         map.addLayer({
-          id: 'routes-arrows',
+          id: 'inter-day-routes-arrows',
           type: 'symbol',
-          source: 'routes',
+          source: 'inter-day-routes',
           layout: {
             'symbol-placement': 'line',
             'symbol-spacing': 200,
@@ -172,11 +149,11 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           }
         })
 
-        // Route labels (distance/duration)
+        // Inter-day route labels (distance/duration)
         map.addLayer({
-          id: 'routes-labels',
+          id: 'inter-day-routes-labels',
           type: 'symbol',
-          source: 'routes',
+          source: 'inter-day-routes',
           layout: {
             'text-field': ['get', 'label'],
             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
@@ -199,36 +176,36 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
         })
       }
 
-      // Add day routes layer with enhanced styling
-      if (!map.getLayer('day-routes-layer')) {
-        // Day route shadow
+      // Add intra-day routes layer (within the same day - walking routes)
+      if (!map.getLayer('intra-day-routes-layer')) {
+        // Intra-day route shadow
         map.addLayer({
-          id: 'day-routes-shadow',
+          id: 'intra-day-routes-shadow',
           type: 'line',
-          source: 'day-routes',
+          source: 'intra-day-routes',
           layout: {
             'line-join': 'round',
             'line-cap': 'round'
           },
           paint: {
-            'line-color': ['coalesce', ['get', 'dayColor'], '#10b981'],
+            'line-color': '#3b82f6',
             'line-width': 6,
             'line-opacity': 0.15,
             'line-blur': 1
           }
         })
 
-        // Main day route line
+        // Main intra-day route line (dashed for walking)
         map.addLayer({
-          id: 'day-routes-layer',
+          id: 'intra-day-routes-layer',
           type: 'line',
-          source: 'day-routes',
+          source: 'intra-day-routes',
           layout: {
             'line-join': 'round',
             'line-cap': 'round'
           },
           paint: {
-            'line-color': ['coalesce', ['get', 'dayColor'], '#10b981'],
+            'line-color': '#3b82f6',
             'line-width': [
               'case',
               ['boolean', ['feature-state', 'hover'], false], 4,
@@ -238,45 +215,38 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               'case',
               ['boolean', ['feature-state', 'hover'], false], 0.8,
               0.6
+            ],
+            'line-dasharray': [2, 2] // Dashed line for walking routes
+          }
+        })
+
+        // Intra-day route labels (distance/duration)
+        map.addLayer({
+          id: 'intra-day-routes-labels',
+          type: 'symbol',
+          source: 'intra-day-routes',
+          layout: {
+            'text-field': ['get', 'label'],
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-size': 10,
+            'text-anchor': 'center',
+            'symbol-placement': 'line',
+            'text-offset': [0, 0],
+            'text-optional': true
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': '#3b82f6',
+            'text-halo-width': 2,
+            'text-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'hover'], false], 1,
+              0.9
             ]
           }
         })
       }
 
-      // Day markers layer (markers on routes between base location changes)
-      if (!map.getLayer('day-markers-layer')) {
-        map.addLayer({
-          id: 'day-markers-layer',
-          type: 'circle',
-          source: 'day-markers',
-          paint: {
-            'circle-radius': 10,
-            'circle-color': ['get', 'dayColor'],
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff',
-            'circle-opacity': 0.9
-          }
-        })
-
-        // Day marker numbers
-        map.addLayer({
-          id: 'day-markers-number',
-          type: 'symbol',
-          source: 'day-markers',
-          layout: {
-            'text-field': ['get', 'dayNumber'],
-            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-            'text-size': 10,
-            'text-anchor': 'center',
-            'text-offset': [0, 0]
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': '#000000',
-            'text-halo-width': 1
-          }
-        })
-      }
 
       // Base location markers layer with enhanced styling
       if (!map.getLayer('base-locations-layer')) {
@@ -464,86 +434,6 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
         console.log('✅ Destination layers created matching base locations')
       }
 
-      // Exploration locations layers - same as destinations but orange color
-      if (!map.getLayer('exploration-locations-layer')) {
-        console.log('🎯 Creating exploration locations layers')
-
-        // Exploration location main circle
-        map.addLayer({
-          id: 'exploration-locations-layer',
-          type: 'circle',
-          source: 'exploration-locations',
-          paint: {
-            'circle-radius': [
-              'case',
-              ['boolean', ['feature-state', 'hover'], false], 16,
-              ['boolean', ['feature-state', 'selected'], false], 14,
-              12
-            ],
-            'circle-color': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], '#ef4444',
-              ['boolean', ['feature-state', 'hover'], false], '#dc2626',
-              ['coalesce', ['get', 'markerColor'], '#f97316']
-            ],
-            'circle-stroke-width': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], 4,
-              ['boolean', ['feature-state', 'hover'], false], 3,
-              2
-            ],
-            'circle-stroke-color': '#ffffff',
-            'circle-opacity': 0.95
-          }
-        })
-
-        // Exploration activity letters (A, B, C, etc.)
-        map.addLayer({
-          id: 'exploration-locations-activity-letter',
-          type: 'symbol',
-          source: 'exploration-locations',
-          layout: {
-            'text-field': ['get', 'activityLetter'],
-            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-            'text-size': 11,
-            'text-anchor': 'center',
-            'text-offset': [0, 0]
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': '#000000',
-            'text-halo-width': 1
-          }
-        })
-
-        // Exploration labels
-        map.addLayer({
-          id: 'exploration-locations-labels',
-          type: 'symbol',
-          source: 'exploration-locations',
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-            'text-size': 12,
-            'text-anchor': 'top',
-            'text-offset': [0, 2.5],
-            'text-optional': true
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': '#000000',
-            'text-halo-width': 2,
-            'text-opacity': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], 1,
-              ['boolean', ['feature-state', 'hover'], false], 0.9,
-              0.8
-            ]
-          }
-        })
-        
-        console.log('✅ Exploration location layers created')
-      }
 
       // Add selection highlight layer
       if (!map.getLayer('selection-highlight-layer')) {
@@ -592,21 +482,17 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
       // Cleanup layers and sources
       const layers = [
         'selection-highlight-layer',
-        'day-markers-layer',
-        'day-markers-number',
-        'day-routes-layer',
-        'day-routes-shadow',
-        'routes-labels',
-        'routes-arrows',
-        'routes-layer',
-        'routes-shadow',
+        'intra-day-routes-labels',
+        'intra-day-routes-layer',
+        'intra-day-routes-shadow',
+        'inter-day-routes-labels',
+        'inter-day-routes-arrows',
+        'inter-day-routes-layer',
+        'inter-day-routes-shadow',
         'destinations-layer',
         'destinations-outer',
         'destinations-activity-letter',
         'destinations-labels',
-        'exploration-locations-activity-letter',
-        'exploration-locations-labels',
-        'exploration-locations-layer',
         'base-locations-labels',
         'base-locations-day-number',
         'base-locations-layer',
@@ -619,7 +505,7 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
         }
       })
 
-      const sources = ['selection-highlight', 'day-routes', 'routes', 'destinations', 'exploration-locations', 'base-locations']
+      const sources = ['selection-highlight', 'intra-day-routes', 'inter-day-routes', 'destinations', 'base-locations']
       sources.forEach(sourceId => {
         if (map && map.getSource && map.getSource(sourceId)) {
           map.removeSource(sourceId)

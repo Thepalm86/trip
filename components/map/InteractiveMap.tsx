@@ -59,6 +59,42 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
     }
   }, [])
 
+  // Listen for custom events to center map on destinations
+  useEffect(() => {
+    const handleCenterMapOnDestinations = (event: CustomEvent) => {
+      if (!map.current) return
+
+      const { coordinates, bounds, center, zoom } = event.detail
+
+      if (bounds) {
+        // Multiple destinations - fit bounds
+        const mapBounds = new mapboxgl.LngLatBounds()
+        coordinates.forEach((coord: { lng: number; lat: number }) => {
+          mapBounds.extend([coord.lng, coord.lat])
+        })
+        
+        map.current.fitBounds(mapBounds, {
+          padding: 50,
+          maxZoom: 15,
+          duration: 1000
+        })
+      } else if (center && zoom) {
+        // Single destination - center and zoom
+        map.current.flyTo({
+          center: [center.lng, center.lat],
+          zoom: zoom,
+          duration: 1000
+        })
+      }
+    }
+
+    window.addEventListener('centerMapOnDestinations', handleCenterMapOnDestinations as EventListener)
+
+    return () => {
+      window.removeEventListener('centerMapOnDestinations', handleCenterMapOnDestinations as EventListener)
+    }
+  }, [])
+
   // Expose map instance to parent components
   useImperativeHandle(ref, () => ({
     getMap: () => map.current

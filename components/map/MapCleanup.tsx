@@ -36,8 +36,8 @@ export function MapCleanup({
         selectedDayIndex,
         selectedDay: selectedDay ? {
           id: selectedDay.id,
-          hasLocation: !!selectedDay.location,
-          locationName: selectedDay.location?.name,
+          hasBaseLocation: selectedDay.baseLocations && selectedDay.baseLocations.length > 0,
+          baseLocationName: selectedDay.baseLocations?.[0]?.name,
           destinationCount: selectedDay.destinations.length,
           destinations: selectedDay.destinations.map(d => d.name)
         } : null,
@@ -46,9 +46,9 @@ export function MapCleanup({
       
       if (selectedDay) {
         // Add the current day's base location
-        if (selectedDay.location) {
-          coordinatesToFit.push(selectedDay.location.coordinates)
-          console.log('MapCleanup: Added current day base location', selectedDay.location.name, selectedDay.location.coordinates)
+        if (selectedDay.baseLocations && selectedDay.baseLocations.length > 0) {
+          coordinatesToFit.push(selectedDay.baseLocations[0].coordinates)
+          console.log('MapCleanup: Added current day base location', selectedDay.baseLocations[0].name, selectedDay.baseLocations[0].coordinates)
         }
         
         // Add destinations for this day
@@ -70,27 +70,31 @@ export function MapCleanup({
         const baseLocationsToInclude: Array<{location: any, dayId: string, role: string}> = []
         
         // Always include current day's base location if it exists
-        if (selectedDay.location) {
+        if (selectedDay.baseLocations && selectedDay.baseLocations.length > 0) {
           baseLocationsToInclude.push({
-            location: selectedDay.location,
+            location: selectedDay.baseLocations[0],
             dayId: selectedDay.id,
             role: 'current'
           })
         }
         
         // Include previous day's base location if it's different (departure point)
-        if (previousDay?.location && areLocationsDifferent(selectedDay.location, previousDay.location)) {
+        if (previousDay?.baseLocations && previousDay.baseLocations.length > 0 && 
+            selectedDay.baseLocations && selectedDay.baseLocations.length > 0 &&
+            areLocationsDifferent(selectedDay.baseLocations[0], previousDay.baseLocations[0])) {
           baseLocationsToInclude.push({
-            location: previousDay.location,
+            location: previousDay.baseLocations[0],
             dayId: previousDay.id,
             role: 'departure'
           })
         }
         
         // Include next day's base location if it's different (arrival point)
-        if (nextDay?.location && areLocationsDifferent(selectedDay.location, nextDay.location)) {
+        if (nextDay?.baseLocations && nextDay.baseLocations.length > 0 && 
+            selectedDay.baseLocations && selectedDay.baseLocations.length > 0 &&
+            areLocationsDifferent(selectedDay.baseLocations[0], nextDay.baseLocations[0])) {
           baseLocationsToInclude.push({
-            location: nextDay.location,
+            location: nextDay.baseLocations[0],
             dayId: nextDay.id,
             role: 'arrival'
           })
@@ -106,9 +110,9 @@ export function MapCleanup({
         
         console.log('MapCleanup: Travel day analysis', {
           selectedDayId,
-          selectedDayLocation: selectedDay.location?.name,
-          previousDayLocation: previousDay?.location?.name,
-          nextDayLocation: nextDay?.location?.name,
+          selectedDayBaseLocation: selectedDay.baseLocations?.[0]?.name,
+          previousDayBaseLocation: previousDay?.baseLocations?.[0]?.name,
+          nextDayBaseLocation: nextDay?.baseLocations?.[0]?.name,
           baseLocationsToInclude: uniqueLocations.map(l => ({
             name: l.location.name,
             dayId: l.dayId,
@@ -126,8 +130,8 @@ export function MapCleanup({
       // When no day is selected, show all locations
       coordinatesToFit = tripDays.flatMap(day => {
         const coords = []
-        if (day.location) {
-          coords.push(day.location.coordinates)
+        if (day.baseLocations && day.baseLocations.length > 0) {
+          coords.push(day.baseLocations[0].coordinates)
         }
         coords.push(...day.destinations.map(dest => dest.coordinates))
         return coords
@@ -167,15 +171,15 @@ export function MapCleanup({
                    loc1.coordinates[1] !== loc2.coordinates[1]
           }
           
-          const isTravelDay = (previousDay?.location && areLocationsDifferent(selectedDay?.location, previousDay.location)) ||
-                             (nextDay?.location && areLocationsDifferent(selectedDay?.location, nextDay.location))
+          const isTravelDay = (previousDay?.baseLocations?.[0] && areLocationsDifferent(selectedDay?.baseLocations?.[0], previousDay.baseLocations[0])) ||
+                             (nextDay?.baseLocations?.[0] && areLocationsDifferent(selectedDay?.baseLocations?.[0], nextDay.baseLocations[0]))
           
           console.log('MapCleanup: Zoom decision', {
             locationCount,
             isTravelDay,
-            selectedDayLocation: selectedDay?.location?.name,
-            previousDayLocation: previousDay?.location?.name,
-            nextDayLocation: nextDay?.location?.name,
+            selectedDayBaseLocation: selectedDay?.baseLocations?.[0]?.name,
+            previousDayBaseLocation: previousDay?.baseLocations?.[0]?.name,
+            nextDayBaseLocation: nextDay?.baseLocations?.[0]?.name,
             coordinatesToFit: coordinatesToFit.length,
             coordinatesToFitDetails: coordinatesToFit.map((coord, i) => ({ index: i, coord }))
           })
@@ -247,12 +251,12 @@ export function MapCleanup({
       }
     } else if (selectedDayId) {
       const selectedDay = tripDays.find(day => day.id === selectedDayId)
-      if (selectedDay?.location) {
+      if (selectedDay?.baseLocations && selectedDay.baseLocations.length > 0) {
         highlightFeature = {
           type: 'Feature' as const,
           geometry: {
             type: 'Point' as const,
-            coordinates: selectedDay.location.coordinates
+            coordinates: selectedDay.baseLocations[0].coordinates
           },
           properties: {
             type: 'base-location',

@@ -39,7 +39,7 @@ function getCategoryLabel(category: string): string {
 }
 
 export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) {
-  const { currentTrip, setDayLocation } = useSupabaseTripStore()
+  const { currentTrip, addBaseLocation, removeBaseLocation } = useSupabaseTripStore()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<LocationResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -51,6 +51,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
 
   const day = currentTrip.days.find(d => d.id === dayId)
   const dayIndex = currentTrip.days.findIndex(d => d.id === dayId)
+  const baseLocations = day?.baseLocations || []
 
   // Nearby recommendations (future feature)
   const [nearbyRecommendations, setNearbyRecommendations] = useState<LocationResult[]>([])
@@ -83,9 +84,9 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
         const mapped: LocationResult[] = googleResults.slice(0, 6).map((place: any) => ({
           id: `google-${place.place_id}`,
           name: place.name,
-          fullName: place.formatted_address,
+          fullName: place.formatted_address || place.name,
           coordinates: [place.geometry.location.lng, place.geometry.location.lat] as [number, number],
-          context: place.formatted_address.split(',').slice(-2).join(', ').trim(),
+          context: place.formatted_address ? place.formatted_address.split(',').slice(-2).join(', ').trim() : place.name,
           category: place.types?.[0] || 'location'
         }))
 
@@ -103,15 +104,48 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
     return () => controller.abort()
   }, [query])
 
-  const handleSetLocation = (location: LocationResult) => {
+  const handleAddLocation = (location: LocationResult) => {
+    // Extract city from the context
+    const extractCity = (context: string | undefined) => {
+      if (!context) return undefined
+      
+      const parts = context.split(',').map(part => part.trim())
+      
+      // Look for common Italian cities
+      const italianCities = ['Rome', 'Firenze', 'Florence', 'Siena', 'Lucca', 'Pisa', 'Bologna', 'Venice', 'Venezia', 'Milan', 'Milano', 'Naples', 'Napoli', 'Turin', 'Torino', 'Genoa', 'Genova', 'Palermo', 'Catania', 'Bari', 'Verona', 'Padua', 'Padova', 'Ravenna', 'Modena', 'Parma', 'Reggio Emilia', 'Ferrara', 'Rimini', 'San Gimignano', 'Volterra', 'Arezzo', 'Cortona', 'Montepulciano', 'Pienza', 'Montalcino', 'Grosseto', 'Livorno', 'Pistoia', 'Prato', 'Massa', 'Carrara', 'La Spezia', 'Piacenza', 'Cremona', 'Mantova', 'Brescia', 'Bergamo', 'Como', 'Varese', 'Lecco', 'Sondrio', 'Trento', 'Bolzano', 'Udine', 'Trieste', 'Gorizia', 'Pordenone', 'Belluno', 'Treviso', 'Vicenza', 'Rovigo']
+      
+      // First, try to find a known Italian city
+      for (const part of parts) {
+        for (const city of italianCities) {
+          if (part.toLowerCase().includes(city.toLowerCase())) {
+            return city
+          }
+        }
+      }
+      
+      // If no known city found, use the first part but clean it
+      if (parts.length >= 1) {
+        const firstPart = parts[0]
+        // Remove postal codes (numbers at the beginning)
+        return firstPart.replace(/^\d+\s*/, '').trim()
+      }
+      return context.trim()
+    }
+
     const dayLocation: DayLocation = {
       name: location.name,
       coordinates: location.coordinates,
-      context: location.context
+      context: location.context,
+      city: extractCity(location.context)
     }
     
-    setDayLocation(dayId, dayLocation)
-    onClose()
+    addBaseLocation(dayId, dayLocation)
+    setQuery('')
+    setResults([])
+  }
+
+  const handleRemoveLocation = (locationIndex: number) => {
+    removeBaseLocation(dayId, locationIndex)
   }
 
   // Future feature: Get nearby recommendations based on selected location
@@ -146,20 +180,42 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6">
-          {/* Current Location */}
-          {day?.location && (
-            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <h4 className="text-sm font-medium text-blue-400 mb-2">Current Base Location</h4>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                  <MapPin className="h-4 w-4 text-blue-400" />
-                </div>
-                <div>
-                  <div className="font-medium text-white">{day.location.name}</div>
-                  {day.location.context && (
-                    <div className="text-sm text-white/60">{day.location.context}</div>
-                  )}
-                </div>
+          {/* Current Base Locations */}
+          {baseLocations.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-blue-400">Base Locations</h4>
+              <div className="space-y-2">
+                {baseLocations.map((location, index) => (
+                  <div key={index} className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                          <MapPin className="h-4 w-4 text-blue-400" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-white flex items-center gap-2">
+                            {location.name}
+                            {index === 0 && (
+                              <span className="px-2 py-0.5 text-xs bg-green-500/20 text-green-400 rounded-full">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          {location.context && (
+                            <div className="text-sm text-white/60">{location.context}</div>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveLocation(index)}
+                        className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
+                        title="Remove base location"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -195,7 +251,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
                   results.map((result) => (
                     <button
                       key={result.id}
-                      onClick={() => handleSetLocation(result)}
+                      onClick={() => handleAddLocation(result)}
                       className="w-full p-3 rounded-lg text-left transition-all duration-200 bg-white/5 border border-white/10 hover:bg-green-500/10 hover:border-green-400/30"
                     >
                       <div className="flex items-center gap-3">
@@ -246,11 +302,12 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
           <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
             <h4 className="text-sm font-medium text-green-400 mb-2">About Base Locations</h4>
             <ul className="text-xs text-green-300 space-y-1">
-              <li>• Set the main city, region, or specific place for this day</li>
-              <li>• All activities and destinations will be planned around this location</li>
-              <li>• Can be a hotel, landmark, or any point of interest</li>
-              <li>• Helps organize multi-city trips logically</li>
-              <li>• Can be changed anytime without losing your activities</li>
+              <li>• Add multiple potential base locations for this day</li>
+              <li>• The first location is the default and will be shown on the map</li>
+              <li>• All activities and destinations will be planned around these locations</li>
+              <li>• Can be hotels, landmarks, or any points of interest</li>
+              <li>• Helps organize multi-city trips and explore different options</li>
+              <li>• Can be reordered, added, or removed anytime</li>
             </ul>
           </div>
         </div>

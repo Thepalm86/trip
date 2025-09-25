@@ -71,20 +71,20 @@ export function MapControls({ map }: MapControlsProps) {
                 </div>
               </div>
 
-              {/* Base Routes */}
+              {/* Inter-Day Routes */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <div className="flex items-center flex-shrink-0">
                     <div className="w-4 h-1 bg-green-500 rounded"></div>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-white">Base Routes</p>
+                    <p className="text-xs font-medium text-white">Inter-Day Routes</p>
                     <p className="text-xs text-white/50">Between cities (driving)</p>
                   </div>
                 </div>
               </div>
 
-              {/* Day Routes */}
+              {/* Intra-Day Routes */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <div className="flex items-center flex-shrink-0">
@@ -94,7 +94,7 @@ export function MapControls({ map }: MapControlsProps) {
                     }}></div>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-white">Day Routes</p>
+                    <p className="text-xs font-medium text-white">Intra-Day Routes</p>
                     <p className="text-xs text-white/50">Within cities (walking)</p>
                   </div>
                 </div>

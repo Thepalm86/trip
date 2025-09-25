@@ -5,19 +5,22 @@ export interface Destination {
   name: string
   description?: string
   coordinates: [number, number] // [longitude, latitude]
+  city?: string
   category?: 'city' | 'attraction' | 'restaurant' | 'hotel' | 'activity'
   rating?: number
   imageUrl?: string
   estimatedDuration?: number // in hours
   openingHours?: string
   cost?: number
+  notes?: string
+  links?: LocationLink[]
 }
 
 export interface TimelineDay {
   id: string
   date: Date
   destinations: Destination[]
-  location?: DayLocation
+  baseLocations: DayLocation[]
 }
 
 export interface Trip {
@@ -30,10 +33,20 @@ export interface Trip {
   country: string
 }
 
+export interface LocationLink {
+  id: string
+  type: 'airbnb' | 'booking' | 'hotels' | 'google_maps' | 'tripadvisor' | 'website' | 'other'
+  label: string
+  url: string
+}
+
 export interface DayLocation {
   name: string
   coordinates: [number, number]
   context?: string
+  city?: string
+  notes?: string
+  links?: LocationLink[]
 }
 
 export interface MapViewport {

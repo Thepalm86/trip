@@ -9,8 +9,6 @@ import {
   Edit3, 
   Trash2,
   Calendar, 
-  ChevronRight, 
-  ChevronDown,
   BookOpen,
   Navigation,
   DollarSign
@@ -20,15 +18,12 @@ import { DayCard } from './DayCard'
 import { AddDestinationModal } from './AddDestinationModal'
 import { DayNotesModal } from './DayNotesModal'
 import { BaseLocationPicker } from './BaseLocationPicker'
-import { DayBuilderModal } from '../modals/DayBuilderModal'
 
 export function ItineraryTab() {
   const { currentTrip, addNewDay, selectedDayId, setSelectedDay } = useSupabaseTripStore()
-  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
   const [showAddDestination, setShowAddDestination] = useState(false)
   const [showDayNotes, setShowDayNotes] = useState(false)
   const [showBaseLocationPicker, setShowBaseLocationPicker] = useState(false)
-  const [showDayBuilder, setShowDayBuilder] = useState(false)
   const [targetDayId, setTargetDayId] = useState<string | null>(null)
 
   if (!currentTrip) {
@@ -39,15 +34,6 @@ export function ItineraryTab() {
     )
   }
 
-  const toggleDayExpansion = (dayId: string) => {
-    const newExpanded = new Set(expandedDays)
-    if (newExpanded.has(dayId)) {
-      newExpanded.delete(dayId)
-    } else {
-      newExpanded.add(dayId)
-    }
-    setExpandedDays(newExpanded)
-  }
 
   const handleAddDestination = (dayId: string) => {
     setTargetDayId(dayId)
@@ -64,9 +50,6 @@ export function ItineraryTab() {
     setShowBaseLocationPicker(true)
   }
 
-  const handleOpenDayBuilder = () => {
-    setShowDayBuilder(true)
-  }
 
   const selectedDay = currentTrip.days.find(day => day.id === selectedDayId) || currentTrip.days[0]
 
@@ -126,12 +109,10 @@ export function ItineraryTab() {
           <DayCard
             day={selectedDay}
             dayIndex={currentTrip.days.findIndex(d => d.id === selectedDay.id)}
-            isExpanded={expandedDays.has(selectedDay.id)}
-            onToggleExpansion={() => toggleDayExpansion(selectedDay.id)}
+            isExpanded={true}
             onAddDestination={() => handleAddDestination(selectedDay.id)}
             onAddNotes={() => handleAddNotes(selectedDay.id)}
             onSetBaseLocation={() => handleSetBaseLocation(selectedDay.id)}
-            onOpenDayBuilder={handleOpenDayBuilder}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
@@ -188,14 +169,6 @@ export function ItineraryTab() {
         />
       )}
 
-      {showDayBuilder && selectedDay && (
-        <DayBuilderModal
-          day={selectedDay}
-          dayIndex={currentTrip.days.findIndex(d => d.id === selectedDay.id)}
-          isOpen={showDayBuilder}
-          onClose={() => setShowDayBuilder(false)}
-        />
-      )}
     </div>
   )
 }

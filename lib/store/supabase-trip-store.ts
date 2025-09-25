@@ -14,8 +14,6 @@ interface SupabaseTripStore {
   isLoading: boolean
   error: string | null
   lastUpdate: number // Force re-renders
-  activeTab: 'timeline' | 'exploration' // Tab system state
-  explorationLocations: Destination[] // Locations for exploration tab
   
   // Actions
   loadTrips: () => Promise<void>
@@ -25,6 +23,7 @@ interface SupabaseTripStore {
   duplicateTrip: (tripId: string, newName: string) => Promise<string>
   
   addDestinationToDay: (destination: Destination, dayId: string) => Promise<void>
+  updateDestination: (dayId: string, destinationId: string, destination: Destination) => Promise<void>
   removeDestinationFromDay: (destinationId: string, dayId: string) => Promise<void>
   addNewDay: () => Promise<void>
   duplicateDay: (dayId: string) => Promise<void>
@@ -33,16 +32,15 @@ interface SupabaseTripStore {
   setSelectedDestination: (destination: Destination | null) => void
   setSelectedDay: (dayId: string) => void
   setDayLocation: (dayId: string, location: DayLocation | null) => Promise<void>
+  addBaseLocation: (dayId: string, location: DayLocation) => Promise<void>
+  removeBaseLocation: (dayId: string, locationIndex: number) => Promise<void>
+  updateBaseLocation: (dayId: string, locationIndex: number, location: DayLocation) => Promise<void>
+  reorderBaseLocations: (dayId: string, fromIndex: number, toIndex: number) => Promise<void>
   
   moveDestination: (destinationId: string, fromDayId: string, toDayId: string, newIndex: number) => Promise<void>
   reorderDestinations: (dayId: string, startIndex: number, endIndex: number) => Promise<void>
   updateTripDates: (startDate: Date, endDate: Date) => Promise<void>
   
-  // Tab system actions
-  setActiveTab: (tab: 'timeline' | 'exploration') => void
-  addExplorationLocation: (destination: Destination) => void
-  removeExplorationLocation: (destinationId: string) => void
-  clearExplorationLocations: () => void
   
   // Utility
   setError: (error: string | null) => void
@@ -58,8 +56,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   isLoading: false,
   error: null,
   lastUpdate: Date.now(),
-  activeTab: 'timeline',
-  explorationLocations: [],
 
   // Load all trips for the user
   loadTrips: async () => {
@@ -246,6 +242,49 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     }
   },
 
+  // Update destination
+  updateDestination: async (dayId: string, destinationId: string, destination: Destination) => {
+    console.log('SupabaseTripStore: Updating destination', { dayId, destinationId, destination })
+    set({ isLoading: true, error: null })
+    try {
+      const updatedDestination = await tripApi.updateDestination(destinationId, destination)
+      console.log('SupabaseTripStore: Destination updated in database', updatedDestination)
+
+      // Update local state
+      const { currentTrip, trips } = get()
+      if (currentTrip) {
+        const updatedTrip = {
+          ...currentTrip,
+          days: currentTrip.days.map(day => 
+            day.id === dayId 
+              ? { 
+                  ...day, 
+                  destinations: day.destinations.map(dest => 
+                    dest.id === destinationId ? updatedDestination : dest
+                  )
+                }
+              : day
+          )
+        }
+        
+        set({ 
+          currentTrip: updatedTrip,
+          trips: trips.map(trip => trip.id === currentTrip.id ? updatedTrip : trip),
+          isLoading: false 
+        })
+      }
+    } catch (error) {
+      console.error('SupabaseTripStore: Error updating destination:', {
+        error,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        dayId,
+        destinationId,
+        destination
+      })
+      set({ error: error instanceof Error ? error.message : 'Failed to update destination', isLoading: false })
+    }
+  },
+
   // Remove destination from day
   removeDestinationFromDay: async (destinationId: string, dayId: string) => {
     set({ isLoading: true, error: null })
@@ -397,7 +436,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     set({ selectedDayId: dayId })
   },
 
-  // Set day location
+  // Set day location (for backward compatibility - sets first base location)
   setDayLocation: async (dayId: string, location: DayLocation | null) => {
     console.log('SupabaseTripStore: Setting day location', { dayId, location })
     set({ isLoading: true, error: null })
@@ -411,7 +450,12 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         const updatedTrip = {
           ...currentTrip,
           days: currentTrip.days.map(day => 
-            day.id === dayId ? { ...day, location: location || undefined } : day
+            day.id === dayId 
+              ? { 
+                  ...day, 
+                  baseLocations: location ? [location] : []
+                } 
+              : day
           )
         }
         const updatedTrips = trips.map(trip =>
@@ -419,7 +463,12 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
             ? {
                 ...trip,
                 days: trip.days.map(day =>
-                  day.id === dayId ? { ...day, location: location || undefined } : day
+                  day.id === dayId 
+                    ? { 
+                        ...day, 
+                        baseLocations: location ? [location] : []
+                      } 
+                    : day
                 ),
               }
             : trip
@@ -444,6 +493,236 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.error('SupabaseTripStore: Error setting day location', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to set day location',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Add base location to day
+  addBaseLocation: async (dayId: string, location: DayLocation) => {
+    console.log('SupabaseTripStore: Adding base location', { dayId, location })
+    set({ isLoading: true, error: null })
+    try {
+      await tripApi.addBaseLocation(dayId, location)
+      console.log('SupabaseTripStore: Base location added to database')
+      
+      // Update local state
+      const { currentTrip, trips } = get()
+      if (currentTrip) {
+        const updatedTrip = {
+          ...currentTrip,
+          days: currentTrip.days.map(day => 
+            day.id === dayId 
+              ? { 
+                  ...day, 
+                  baseLocations: [...day.baseLocations, location]
+                } 
+              : day
+          )
+        }
+        const updatedTrips = trips.map(trip =>
+          trip.id === currentTrip.id
+            ? {
+                ...trip,
+                days: trip.days.map(day =>
+                  day.id === dayId 
+                    ? { 
+                        ...day, 
+                        baseLocations: [...day.baseLocations, location]
+                      } 
+                    : day
+                ),
+              }
+            : trip
+        )
+        
+        set({
+          currentTrip: updatedTrip,
+          trips: updatedTrips,
+          isLoading: false,
+          lastUpdate: Date.now()
+        })
+      }
+    } catch (error) {
+      console.error('SupabaseTripStore: Error adding base location:', error)
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to add base location',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Remove base location from day
+  removeBaseLocation: async (dayId: string, locationIndex: number) => {
+    console.log('SupabaseTripStore: Removing base location', { dayId, locationIndex })
+    set({ isLoading: true, error: null })
+    try {
+      await tripApi.removeBaseLocation(dayId, locationIndex)
+      console.log('SupabaseTripStore: Base location removed from database')
+      
+      // Update local state
+      const { currentTrip, trips } = get()
+      if (currentTrip) {
+        const updatedTrip = {
+          ...currentTrip,
+          days: currentTrip.days.map(day => 
+            day.id === dayId 
+              ? { 
+                  ...day, 
+                  baseLocations: day.baseLocations.filter((_, index) => index !== locationIndex)
+                } 
+              : day
+          )
+        }
+        const updatedTrips = trips.map(trip =>
+          trip.id === currentTrip.id
+            ? {
+                ...trip,
+                days: trip.days.map(day =>
+                  day.id === dayId 
+                    ? { 
+                        ...day, 
+                        baseLocations: day.baseLocations.filter((_, index) => index !== locationIndex)
+                      } 
+                    : day
+                ),
+              }
+            : trip
+        )
+        
+        set({
+          currentTrip: updatedTrip,
+          trips: updatedTrips,
+          isLoading: false,
+          lastUpdate: Date.now()
+        })
+      }
+    } catch (error) {
+      console.error('SupabaseTripStore: Error removing base location:', error)
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to remove base location',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Update base location
+  updateBaseLocation: async (dayId: string, locationIndex: number, location: DayLocation) => {
+    console.log('SupabaseTripStore: Updating base location', { dayId, locationIndex, location })
+    set({ isLoading: true, error: null })
+    try {
+      await tripApi.updateBaseLocation(dayId, locationIndex, location)
+      console.log('SupabaseTripStore: Base location updated in database')
+      
+      // Update local state
+      const { currentTrip, trips } = get()
+      if (currentTrip) {
+        const updatedTrip = {
+          ...currentTrip,
+          days: currentTrip.days.map(day => 
+            day.id === dayId 
+              ? { 
+                  ...day, 
+                  baseLocations: day.baseLocations.map((loc, index) => 
+                    index === locationIndex ? location : loc
+                  )
+                } 
+              : day
+          )
+        }
+        const updatedTrips = trips.map(trip =>
+          trip.id === currentTrip.id
+            ? {
+                ...trip,
+                days: trip.days.map(day =>
+                  day.id === dayId 
+                    ? { 
+                        ...day, 
+                        baseLocations: day.baseLocations.map((loc, index) => 
+                          index === locationIndex ? location : loc
+                        )
+                      } 
+                    : day
+                ),
+              }
+            : trip
+        )
+        
+        set({
+          currentTrip: updatedTrip,
+          trips: updatedTrips,
+          isLoading: false,
+          lastUpdate: Date.now()
+        })
+      }
+    } catch (error) {
+      console.error('SupabaseTripStore: Error updating base location:', error)
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to update base location',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Reorder base locations
+  reorderBaseLocations: async (dayId: string, fromIndex: number, toIndex: number) => {
+    console.log('SupabaseTripStore: Reordering base locations', { dayId, fromIndex, toIndex })
+    set({ isLoading: true, error: null })
+    try {
+      await tripApi.reorderBaseLocations(dayId, fromIndex, toIndex)
+      console.log('SupabaseTripStore: Base locations reordered in database')
+      
+      // Update local state
+      const { currentTrip, trips } = get()
+      if (currentTrip) {
+        const updatedTrip = {
+          ...currentTrip,
+          days: currentTrip.days.map(day => 
+            day.id === dayId 
+              ? { 
+                  ...day, 
+                  baseLocations: (() => {
+                    const newBaseLocations = [...day.baseLocations]
+                    const [movedLocation] = newBaseLocations.splice(fromIndex, 1)
+                    newBaseLocations.splice(toIndex, 0, movedLocation)
+                    return newBaseLocations
+                  })()
+                } 
+              : day
+          )
+        }
+        const updatedTrips = trips.map(trip =>
+          trip.id === currentTrip.id
+            ? {
+                ...trip,
+                days: trip.days.map(day =>
+                  day.id === dayId 
+                    ? { 
+                        ...day, 
+                        baseLocations: (() => {
+                          const newBaseLocations = [...day.baseLocations]
+                          const [movedLocation] = newBaseLocations.splice(fromIndex, 1)
+                          newBaseLocations.splice(toIndex, 0, movedLocation)
+                          return newBaseLocations
+                        })()
+                      } 
+                    : day
+                ),
+              }
+            : trip
+        )
+        
+        set({
+          currentTrip: updatedTrip,
+          trips: updatedTrips,
+          isLoading: false,
+          lastUpdate: Date.now()
+        })
+      }
+    } catch (error) {
+      console.error('SupabaseTripStore: Error reordering base locations:', error)
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to reorder base locations',
         isLoading: false 
       })
     }
@@ -606,28 +885,4 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     set({ error: null })
   },
 
-  // Tab system actions
-  setActiveTab: (tab: 'timeline' | 'exploration') => {
-    set({ activeTab: tab })
-  },
-
-  addExplorationLocation: (destination: Destination) => {
-    const { explorationLocations } = get()
-    // Check if location already exists
-    if (!explorationLocations.find(loc => loc.id === destination.id)) {
-      set({ explorationLocations: [...explorationLocations, destination] })
-    }
-  },
-
-  removeExplorationLocation: (destinationId: string) => {
-    const { explorationLocations } = get()
-    set({ 
-      explorationLocations: explorationLocations.filter(loc => loc.id !== destinationId),
-      selectedDestination: get().selectedDestination?.id === destinationId ? null : get().selectedDestination
-    })
-  },
-
-  clearExplorationLocations: () => {
-    set({ explorationLocations: [], selectedDestination: null })
-  }
 }))

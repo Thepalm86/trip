@@ -29,6 +29,7 @@ interface DatabaseDay {
   base_location_name?: string
   base_location_coordinates?: string // POINT as string
   base_location_context?: string
+  base_locations_json?: DayLocation[] // New field for multiple base locations
   notes?: string
   created_at: string
   updated_at: string
@@ -40,6 +41,7 @@ interface DatabaseDestination {
   name: string
   description?: string
   coordinates: string // POINT as string
+  city?: string
   category?: 'city' | 'attraction' | 'restaurant' | 'hotel' | 'activity'
   rating?: number
   image_url?: string
@@ -48,6 +50,7 @@ interface DatabaseDestination {
   cost?: number
   order_index: number
   notes?: string
+  links_json?: string
   created_at: string
   updated_at: string
 }
@@ -113,12 +116,15 @@ function dbDestinationToDestination(dest: DatabaseDestination): Destination {
     name: dest.name,
     description: dest.description ?? undefined,
     coordinates: parsePoint(dest.coordinates),
+    city: dest.city ?? undefined,
     category: dest.category ?? undefined,
     rating: dest.rating ?? undefined,
     imageUrl: dest.image_url ?? undefined,
     estimatedDuration: dest.estimated_duration_hours ?? undefined,
     openingHours: dest.opening_hours ?? undefined,
     cost: dest.cost ?? undefined,
+    notes: dest.notes ?? undefined,
+    links: dest.links_json ? JSON.parse(dest.links_json) : undefined,
   }
 }
 
@@ -128,17 +134,26 @@ function dbDayToTimelineDay(day: DatabaseDay, destinations: DatabaseDestination[
     .sort((a, b) => a.order_index - b.order_index)
     .map(dbDestinationToDestination)
 
+  // Handle both old single location format and new multiple base locations format
+  let baseLocations: DayLocation[] = []
+  
+  if (day.base_locations_json && Array.isArray(day.base_locations_json)) {
+    // New format: multiple base locations stored as JSON
+    baseLocations = day.base_locations_json
+  } else if (day.base_location_name) {
+    // Old format: single base location
+    baseLocations = [{
+      name: day.base_location_name,
+      coordinates: parsePoint(day.base_location_coordinates || ''),
+      context: day.base_location_context ?? undefined,
+    }]
+  }
+
   return {
     id: day.id,
     date: new Date(day.date),
     destinations: dayDestinations,
-    location: day.base_location_name
-      ? {
-          name: day.base_location_name,
-          coordinates: parsePoint(day.base_location_coordinates || ''),
-          context: day.base_location_context ?? undefined,
-        }
-      : undefined,
+    baseLocations: baseLocations,
   }
 }
 
@@ -392,12 +407,15 @@ export const tripApi = {
       name: destination.name,
       description: destination.description,
       coordinates: formatPoint(destination.coordinates),
+      city: destination.city,
       category: destination.category ? mapCategoryToAllowed(destination.category) : 'attraction',
       rating: destination.rating,
       image_url: destination.imageUrl,
       estimated_duration_hours: destination.estimatedDuration,
       opening_hours: destination.openingHours,
       cost: destination.cost,
+      notes: destination.notes,
+      links_json: destination.links ? JSON.stringify(destination.links) : null,
       order_index: nextOrder
     }
     
@@ -441,6 +459,65 @@ export const tripApi = {
     if (error) throw error
   },
 
+  async updateDestination(destinationId: string, destination: Destination): Promise<Destination> {
+    console.log('TripAPI: Updating destination', { destinationId, destination })
+    
+    // Check authentication first
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    console.log('TripAPI: Authentication check', { user: user?.id, authError })
+    
+    if (authError || !user) {
+      throw new Error('User not authenticated')
+    }
+    
+    // First check if the destination exists
+    const { data: existingDestination, error: checkError } = await supabase
+      .from('trip_destinations')
+      .select('id')
+      .eq('id', destinationId)
+      .single()
+
+    if (checkError) {
+      console.error('TripAPI: Destination not found', { destinationId, checkError })
+      throw new Error(`Destination with ID ${destinationId} not found`)
+    }
+    
+    const updateData: any = {
+      name: destination.name,
+      coordinates: formatPoint(destination.coordinates),
+      city: destination.city,
+      category: destination.category ? mapCategoryToAllowed(destination.category) : 'attraction',
+      estimated_duration_hours: destination.estimatedDuration,
+      cost: destination.cost,
+      notes: destination.notes,
+      links_json: destination.links ? JSON.stringify(destination.links) : null
+    }
+
+    console.log('TripAPI: Update data being sent', updateData)
+
+    const { data, error } = await supabase
+      .from('trip_destinations')
+      .update(updateData)
+      .eq('id', destinationId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('TripAPI: Update destination error', {
+        error,
+        errorMessage: error.message,
+        errorDetails: error.details,
+        errorHint: error.hint,
+        updateData,
+        destinationId
+      })
+      throw error
+    }
+    
+    console.log('TripAPI: Destination updated successfully', data)
+    return dbDestinationToDestination(data)
+  },
+
   async moveDestination(destinationId: string, toDayId: string): Promise<void> {
     const { error } = await supabase
       .from('trip_destinations')
@@ -450,7 +527,7 @@ export const tripApi = {
     if (error) throw error
   },
 
-  // Set day location
+  // Set day location (for backward compatibility - sets first base location)
   async setDayLocation(dayId: string, location: DayLocation | null): Promise<void> {
     const updateData: any = {}
     
@@ -467,6 +544,95 @@ export const tripApi = {
     const { error } = await supabase
       .from('trip_days')
       .update(updateData)
+      .eq('id', dayId)
+
+    if (error) throw error
+  },
+
+  // Add base location to day
+  async addBaseLocation(dayId: string, location: DayLocation): Promise<void> {
+    // For now, we'll store multiple base locations as JSON in a single field
+    // In a production system, you might want a separate table for base locations
+    const { data: dayData, error: fetchError } = await supabase
+      .from('trip_days')
+      .select('base_locations_json')
+      .eq('id', dayId)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    const existingBaseLocations = dayData?.base_locations_json || []
+    const updatedBaseLocations = [...existingBaseLocations, location]
+
+    const { error } = await supabase
+      .from('trip_days')
+      .update({ base_locations_json: updatedBaseLocations })
+      .eq('id', dayId)
+
+    if (error) throw error
+  },
+
+  // Remove base location from day
+  async removeBaseLocation(dayId: string, locationIndex: number): Promise<void> {
+    const { data: dayData, error: fetchError } = await supabase
+      .from('trip_days')
+      .select('base_locations_json')
+      .eq('id', dayId)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    const existingBaseLocations = dayData?.base_locations_json || []
+    const updatedBaseLocations = existingBaseLocations.filter((_: any, index: number) => index !== locationIndex)
+
+    const { error } = await supabase
+      .from('trip_days')
+      .update({ base_locations_json: updatedBaseLocations })
+      .eq('id', dayId)
+
+    if (error) throw error
+  },
+
+  // Update base location
+  async updateBaseLocation(dayId: string, locationIndex: number, location: DayLocation): Promise<void> {
+    const { data: dayData, error: fetchError } = await supabase
+      .from('trip_days')
+      .select('base_locations_json')
+      .eq('id', dayId)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    const existingBaseLocations = dayData?.base_locations_json || []
+    const updatedBaseLocations = [...existingBaseLocations]
+    updatedBaseLocations[locationIndex] = location
+
+    const { error } = await supabase
+      .from('trip_days')
+      .update({ base_locations_json: updatedBaseLocations })
+      .eq('id', dayId)
+
+    if (error) throw error
+  },
+
+  // Reorder base locations
+  async reorderBaseLocations(dayId: string, fromIndex: number, toIndex: number): Promise<void> {
+    const { data: dayData, error: fetchError } = await supabase
+      .from('trip_days')
+      .select('base_locations_json')
+      .eq('id', dayId)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    const existingBaseLocations = dayData?.base_locations_json || []
+    const updatedBaseLocations = [...existingBaseLocations]
+    const [movedLocation] = updatedBaseLocations.splice(fromIndex, 1)
+    updatedBaseLocations.splice(toIndex, 0, movedLocation)
+
+    const { error } = await supabase
+      .from('trip_days')
+      .update({ base_locations_json: updatedBaseLocations })
       .eq('id', dayId)
 
     if (error) throw error

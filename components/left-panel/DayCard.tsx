@@ -3,12 +3,9 @@
 import { 
   MapPin, 
   Clock, 
-  Star, 
   Plus, 
   Edit3, 
   Trash2, 
-  ChevronRight, 
-  ChevronDown,
   BookOpen,
   Navigation,
   DollarSign,
@@ -17,35 +14,39 @@ import {
   MoreVertical,
   Copy,
   X,
-  Settings
+  Settings,
+  Eye,
+  ExternalLink
 } from 'lucide-react'
-import { TimelineDay } from '@/types'
+import { TimelineDay, DayLocation, Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { useState, useRef, useEffect } from 'react'
+import { BaseLocationEditModal } from '../modals/BaseLocationEditModal'
+import { DestinationEditModal } from '../modals/DestinationEditModal'
 
 interface DayCardProps {
   day: TimelineDay
   dayIndex: number
   isExpanded: boolean
-  onToggleExpansion: () => void
   onAddDestination: () => void
   onAddNotes: () => void
   onSetBaseLocation: () => void
-  onOpenDayBuilder: () => void
 }
 
 export function DayCard({ 
   day, 
   dayIndex, 
   isExpanded, 
-  onToggleExpansion, 
   onAddDestination, 
   onAddNotes,
-  onSetBaseLocation,
-  onOpenDayBuilder
+  onSetBaseLocation
 }: DayCardProps) {
-  const { removeDestinationFromDay, duplicateDay, removeDay } = useSupabaseTripStore()
+  const { removeDestinationFromDay, duplicateDay, removeDay, setSelectedDestination } = useSupabaseTripStore()
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingLocation, setEditingLocation] = useState<{ location: DayLocation; index: number } | null>(null)
+  const [showDestinationEditModal, setShowDestinationEditModal] = useState(false)
+  const [editingDestination, setEditingDestination] = useState<Destination | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const totalDuration = day.destinations.reduce((acc, dest) => acc + (dest.estimatedDuration || 2), 0)
@@ -74,6 +75,98 @@ export function DayCard({
     setShowDropdown(false)
   }
 
+  const handleBaseLocationClick = (location: DayLocation) => {
+    // Create a temporary destination to show on map
+    const tempDestination = {
+      id: `temp-${location.name}`,
+      name: location.name,
+      description: location.context,
+      coordinates: location.coordinates,
+      category: 'city' as const,
+    }
+    setSelectedDestination(tempDestination)
+  }
+
+  const handleEditBaseLocation = (location: DayLocation, index: number) => {
+    setEditingLocation({ location, index })
+    setShowEditModal(true)
+  }
+
+  const handleCloseEditModal = () => {
+    setShowEditModal(false)
+    setEditingLocation(null)
+  }
+
+  const handleEditDestination = (destination: Destination) => {
+    setEditingDestination(destination)
+    setShowDestinationEditModal(true)
+  }
+
+  const handleCloseDestinationEditModal = () => {
+    setShowDestinationEditModal(false)
+    setEditingDestination(null)
+  }
+
+  const handleDayClick = () => {
+    if (day.destinations.length > 0) {
+      // Calculate bounds to fit all destinations
+      const coordinates = day.destinations.map(dest => dest.coordinates)
+      
+      if (coordinates.length === 1) {
+        // Single destination - center on it with default zoom
+        const [lng, lat] = coordinates[0]
+        // You can dispatch a custom event or use a callback to update the map
+        window.dispatchEvent(new CustomEvent('centerMapOnDestinations', {
+          detail: { coordinates: [{ lng, lat }], zoom: 12 }
+        }))
+      } else if (coordinates.length > 1) {
+        // Multiple destinations - calculate bounds
+        const lngs = coordinates.map(coord => coord[0])
+        const lats = coordinates.map(coord => coord[1])
+        
+        const minLng = Math.min(...lngs)
+        const maxLng = Math.max(...lngs)
+        const minLat = Math.min(...lats)
+        const maxLat = Math.max(...lats)
+        
+        // Add padding to the bounds
+        const lngPadding = (maxLng - minLng) * 0.1
+        const latPadding = (maxLat - minLat) * 0.1
+        
+        const bounds = {
+          north: maxLat + latPadding,
+          south: minLat - latPadding,
+          east: maxLng + lngPadding,
+          west: minLng - lngPadding
+        }
+        
+        // Calculate center point
+        const centerLng = (minLng + maxLng) / 2
+        const centerLat = (minLat + maxLat) / 2
+        
+        // Calculate appropriate zoom level based on bounds
+        const lngDiff = maxLng - minLng
+        const latDiff = maxLat - minLat
+        const maxDiff = Math.max(lngDiff, latDiff)
+        
+        let zoom = 12
+        if (maxDiff > 0.1) zoom = 8
+        else if (maxDiff > 0.05) zoom = 10
+        else if (maxDiff > 0.01) zoom = 12
+        else zoom = 14
+        
+        window.dispatchEvent(new CustomEvent('centerMapOnDestinations', {
+          detail: { 
+            coordinates: coordinates.map(([lng, lat]) => ({ lng, lat })),
+            bounds,
+            center: { lng: centerLng, lat: centerLat },
+            zoom
+          }
+        }))
+      }
+    }
+  }
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -90,9 +183,9 @@ export function DayCard({
 
   return (
     <div 
-      className="h-full flex flex-col bg-white/[0.02] rounded-2xl border border-white/10 overflow-hidden cursor-pointer hover:bg-white/[0.04] transition-all duration-200"
-      onDoubleClick={onOpenDayBuilder}
-      title="Double-click to open Day Builder"
+      className="h-full flex flex-col bg-white/[0.02] rounded-2xl border border-white/10 overflow-hidden hover:bg-white/[0.04] transition-all duration-200 cursor-pointer"
+      onClick={handleDayClick}
+      title={day.destinations.length > 0 ? "Click to center map on destinations" : "No destinations to center on"}
     >
       {/* Day Header - Compact */}
       <div className="p-4 border-b border-white/10 bg-white/[0.02]">
@@ -114,29 +207,13 @@ export function DayCard({
           </div>
           
           <div className="flex items-center gap-1">
-            {/* Day Builder Button */}
+            {/* Day Actions Dropdown */}
+            <div className="relative" ref={dropdownRef}>
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                onOpenDayBuilder()
+                setShowDropdown(!showDropdown)
               }}
-              className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
-              title="Open Day Builder"
-            >
-              <Settings className="h-4 w-4" />
-            </button>
-            
-            <button
-              onClick={onToggleExpansion}
-              className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
-            >
-              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-            
-            {/* Day Actions Dropdown */}
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
                 className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
               >
                 <MoreVertical className="h-4 w-4" />
@@ -144,6 +221,30 @@ export function DayCard({
               
               {showDropdown && (
                 <div className="absolute right-0 top-full mt-1 w-48 bg-slate-800 border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      onAddDestination()
+                      setShowDropdown(false)
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors duration-200"
+                  >
+                    <Plus className="h-4 w-4 text-blue-400" />
+                    <span>Add Activity</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      onAddNotes()
+                      setShowDropdown(false)
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors duration-200"
+                  >
+                    <BookOpen className="h-4 w-4 text-green-400" />
+                    <span>Add Notes</span>
+                  </button>
+                  
+                  <div className="border-t border-white/10 my-1"></div>
+                  
                   <button
                     onClick={handleDuplicateDay}
                     className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors duration-200"
@@ -166,91 +267,254 @@ export function DayCard({
         </div>
       </div>
 
-      {/* Base Location Section - Prominent */}
-      <div className="p-4 border-b border-white/10 bg-gradient-to-r from-green-500/5 to-blue-500/5">
-        {day.location ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
-                <Map className="h-4 w-4 text-green-400" />
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto scrollbar-hide">
+        {/* Base Locations Section */}
+        <div className="p-4 border-b border-white/10 bg-white/[0.01]">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-green-500/20 flex items-center justify-center">
+                <Map className="h-3 w-3 text-green-400" />
               </div>
-              <div>
-                <p className="text-xs font-medium text-white/60 uppercase tracking-wide">Base Location</p>
-                <p className="text-sm font-semibold text-green-400">{day.location.name}</p>
-                {day.location.context && (
-                  <p className="text-xs text-white/50">{day.location.context}</p>
-                )}
-              </div>
+              <h4 className="text-sm font-semibold text-white/80">Base Locations</h4>
+              {day.baseLocations.length > 1 && (
+                <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-full">
+                  {day.baseLocations.length}
+                </span>
+              )}
             </div>
             <button
               onClick={onSetBaseLocation}
               className="p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-all duration-200"
+              title="Manage base locations"
             >
               <Edit3 className="h-3 w-3" />
             </button>
           </div>
+
+        {day.baseLocations.length > 0 ? (
+          <div className="space-y-2">
+            {/* Default Base Location */}
+            <div className="relative group">
+              <div 
+                className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500/15 via-green-500/10 to-emerald-500/5 border border-green-400/20 cursor-pointer hover:border-green-400/40 hover:shadow-xl hover:shadow-green-500/10 transition-all duration-500"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleBaseLocationClick(day.baseLocations[0])
+                }}
+              >
+                {/* Background Pattern */}
+                <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-50"></div>
+                
+                {/* Content */}
+                <div className="relative p-5">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-green-500/30 to-emerald-500/20 flex items-center justify-center shadow-lg border border-green-400/30">
+                          <Map className="h-6 w-6 text-green-400" />
+                        </div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
+                          <div className="w-2 h-2 bg-white rounded-full"></div>
+                        </div>
+              </div>
+              <div>
+                        <h3 className="text-lg font-bold text-white mb-1">{day.baseLocations[0].name}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-green-400 font-medium">
+                            {day.baseLocations[0].city || 'Rome, Italy'}
+                          </span>
+                          <div className="w-1 h-1 bg-white/40 rounded-full"></div>
+                          <span className="text-xs text-white/60">Base Location</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                  </div>
+                  
+                  {/* Notes */}
+                  {day.baseLocations[0].notes && (
+                    <div className="mb-4">
+                      <div className="bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-sm">
+                        <p className="text-sm text-white/80 italic leading-relaxed">
+                          "{day.baseLocations[0].notes}"
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Links */}
+                  {day.baseLocations[0].links && day.baseLocations[0].links.length > 0 && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-white/60 font-medium uppercase tracking-wide">Quick Access</span>
+                      <div className="flex items-center gap-2">
+                        {day.baseLocations[0].links.slice(0, 2).map((link, linkIndex) => (
+                          <a
+                            key={link.id}
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 rounded-lg text-xs font-medium transition-all duration-200 border border-blue-500/30 hover:border-blue-400/50"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            {link.label}
+                          </a>
+                        ))}
+                        {day.baseLocations[0].links.length > 2 && (
+                          <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-lg border border-white/10">
+                            +{day.baseLocations[0].links.length - 2} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Default Badge */}
+                <div className="absolute top-4 right-4">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-xl text-xs font-semibold border border-green-400/30 backdrop-blur-sm">
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                    Default
+                  </span>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleEditBaseLocation(day.baseLocations[0], 0)
+                    }}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 backdrop-blur-sm"
+                    title="Edit base location"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (confirm('Are you sure you want to remove this base location?')) {
+                        // This will be handled by the store function
+                      }
+                    }}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-red-500/20 text-white/70 hover:text-red-400 transition-all duration-200 backdrop-blur-sm"
+                    title="Remove base location"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Base Locations */}
+            {day.baseLocations.length > 1 && (
+              <div className="space-y-2">
+                {day.baseLocations.slice(1).map((location, index) => (
+                  <div key={index} className="relative group">
+                    <div 
+                      className="relative overflow-hidden rounded-xl bg-gradient-to-br from-white/8 via-white/5 to-white/3 border border-white/15 cursor-pointer hover:border-white/25 hover:shadow-lg hover:shadow-white/5 transition-all duration-300"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleBaseLocationClick(location)
+                      }}
+                    >
+                      {/* Content */}
+                      <div className="relative p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
+                            <Map className="h-5 w-5 text-white/70" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-semibold text-white/95 mb-1">{location.name}</h4>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-white/70 font-medium">
+                                {location.city || 'Rome, Italy'}
+                              </span>
+                              <div className="w-1 h-1 bg-white/40 rounded-full"></div>
+                              <span className="text-xs text-white/50">Alternative</span>
+                            </div>
+                          </div>
+                          
+                        </div>
+                        
+                        {location.notes && (
+                          <div className="mt-3 bg-white/5 rounded-lg p-2 border border-white/10">
+                            <p className="text-xs text-white/70 italic">
+                              "{location.notes}"
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Action Buttons */}
+                      <div className="absolute bottom-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditBaseLocation(location, index + 1)
+                          }}
+                          className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all duration-200"
+                          title="Edit base location"
+            >
+              <Edit3 className="h-3 w-3" />
+            </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm('Are you sure you want to remove this base location?')) {
+                              // This will be handled by the store function
+                            }
+                          }}
+                          className="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/20 text-white/60 hover:text-red-400 transition-all duration-200"
+                          title="Remove base location"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           <button
-            onClick={onSetBaseLocation}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSetBaseLocation()
+            }}
             className="w-full flex items-center gap-3 p-3 rounded-lg border border-dashed border-white/20 hover:border-green-400/50 hover:bg-green-500/5 transition-all duration-200"
           >
             <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
               <Map className="h-4 w-4 text-white/40" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-medium text-white">Set Base Location</p>
-              <p className="text-xs text-white/60">Choose the main city or region</p>
+              <p className="text-sm font-medium text-white">Add Base Locations</p>
+              <p className="text-xs text-white/60">Choose potential cities or regions</p>
             </div>
           </button>
         )}
-      </div>
-
-
-      {/* Action Buttons */}
-      <div className="p-4 border-b border-white/10">
-        <div className="flex gap-2">
-          <button
-            onClick={onAddDestination}
-            className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500 text-white font-medium transition-all duration-200 hover:bg-blue-600 text-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Add Activity
-          </button>
-          <button
-            onClick={onAddNotes}
-            className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-medium transition-all duration-200 hover:bg-white/10 text-sm"
-          >
-            <BookOpen className="h-4 w-4" />
-            Add Notes
-          </button>
         </div>
-      </div>
 
-      {/* Activities Section - Clear Separation */}
-      {isExpanded && (
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
-          {/* Section Header */}
+        {/* Activities Section */}
+        {isExpanded && (
           <div className="p-4 border-b border-white/10 bg-white/[0.01]">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center">
                   <MapPin className="h-3 w-3 text-blue-400" />
                 </div>
                 <h4 className="text-sm font-semibold text-white/80">Activities & Destinations</h4>
-                {day.location && (
-                  <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-full">
-                    in {day.location.name}
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-white/50">
-                {day.destinations.length} {day.destinations.length === 1 ? 'activity' : 'activities'}
+                <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-full">
+                  {day.destinations.length}
+                </span>
               </div>
             </div>
-          </div>
 
           {/* Activities List */}
-          <div className="p-4 space-y-3">
+          <div className="space-y-3">
             {day.destinations.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
@@ -258,8 +522,8 @@ export function DayCard({
                 </div>
                 <h4 className="text-sm font-medium text-white/60 mb-2">No activities yet</h4>
                 <p className="text-xs text-white/40 mb-4">
-                  {day.location 
-                    ? `Add places to visit in ${day.location.name}` 
+                  {day.baseLocations.length > 0 
+                    ? `Add places to visit in ${day.baseLocations[0].name}` 
                     : 'Set a base location first, then add activities'
                   }
                 </p>
@@ -275,74 +539,143 @@ export function DayCard({
               day.destinations.map((destination, index) => (
                 <div
                   key={destination.id}
-                  className="group relative p-4 rounded-xl border border-white/10 bg-white/[0.02] transition-all duration-200 hover:border-white/20 hover:bg-white/[0.05]"
+                  className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-indigo-500/5 border border-blue-400/20 transition-all duration-500 hover:border-blue-400/40 hover:shadow-xl hover:shadow-blue-500/10"
                 >
-                  {/* Activity Number */}
-                  <div className="absolute -left-2 -top-2 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white">
-                    {index + 1}
-                  </div>
+                  {/* Background Pattern */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-50"></div>
                   
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-1">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-                        <MapPin className="h-4 w-4 text-blue-400" />
-                      </div>
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-white text-sm mb-1">
-                            {destination.name}
-                          </h4>
-                          {destination.description && (
-                            <p className="text-xs text-white/60 leading-relaxed">
-                              {destination.description}
-                            </p>
-                          )}
-                        </div>
-                        
-                        {destination.rating && (
-                          <div className="flex items-center gap-1 ml-2">
-                            <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                            <span className="text-xs text-white/60 font-medium">{destination.rating.toFixed(1)}</span>
+                  {/* Content */}
+                  <div className="relative p-5">
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/30 to-purple-500/20 flex items-center justify-center shadow-lg border border-blue-400/30">
+                            <span className="text-lg font-bold text-blue-400">
+                              {String.fromCharCode(65 + index)}
+                            </span>
                           </div>
-                        )}
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
+                            <div className="w-2 h-2 bg-white rounded-full"></div>
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-white mb-1">{destination.name}</h4>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-blue-400 font-medium">
+                              {destination.city || 'Siena, Italy'}
+                            </span>
+                            <div className="w-1 h-1 bg-white/40 rounded-full"></div>
+                            <span className="text-xs text-white/60">Destination</span>
+                          </div>
+                        </div>
                       </div>
                       
-                      <div className="flex items-center gap-4 text-xs text-white/50">
+                    </div>
+                    
+                    {/* Metadata */}
+                    <div className="flex items-center gap-3 flex-wrap">
                         {destination.estimatedDuration && (
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            <span>{formatTime(destination.estimatedDuration)}</span>
+                        <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-xl border border-white/20 backdrop-blur-sm">
+                          <Clock className="h-4 w-4 text-blue-400" />
+                          <span className="text-sm text-white/80 font-medium">{formatTime(destination.estimatedDuration)}</span>
                           </div>
                         )}
                         {destination.cost && (
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            <span>€{destination.cost}</span>
+                        <div className="flex items-center gap-2 bg-green-500/20 px-3 py-2 rounded-xl border border-green-500/30 backdrop-blur-sm">
+                          <DollarSign className="h-4 w-4 text-green-400" />
+                          <span className="text-sm text-green-400 font-medium">€{destination.cost}</span>
                           </div>
                         )}
                         {destination.category && (
-                          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase">
-                            {destination.category}
-                          </span>
-                        )}
-                      </div>
+                        <div className="flex items-center gap-2 bg-purple-500/20 px-3 py-2 rounded-xl border border-purple-500/30 backdrop-blur-sm">
+                          <span className="text-sm text-purple-400 font-semibold uppercase tracking-wide">{destination.category}</span>
+                        </div>
+                      )}
                     </div>
                     
+                    {/* Notes */}
+                    {destination.notes && (
+                      <div className="mt-3 bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-sm">
+                        <p className="text-sm text-white/80 italic leading-relaxed">
+                          "{destination.notes}"
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Links */}
+                    {destination.links && destination.links.length > 0 && (
+                      <div className="mt-3 flex items-center gap-3">
+                        <span className="text-xs text-white/60 font-medium uppercase tracking-wide">Quick Access</span>
+                        <div className="flex items-center gap-2">
+                          {destination.links.slice(0, 2).map((link, linkIndex) => (
+                            <a
+                              key={link.id}
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 rounded-lg text-xs font-medium transition-all duration-200 border border-blue-500/30 hover:border-blue-400/50"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              {link.label}
+                            </a>
+                          ))}
+                          {destination.links.length > 2 && (
+                            <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-lg border border-white/10">
+                              +{destination.links.length - 2} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Action Buttons */}
+                    <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditDestination(destination)
+                        }}
+                        className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 backdrop-blur-sm"
+                        title="Edit destination"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     <button
                       onClick={() => handleRemoveDestination(destination.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 flex-shrink-0"
+                        className="p-2 rounded-xl bg-white/10 hover:bg-red-500/20 text-white/70 hover:text-red-400 transition-all duration-200 backdrop-blur-sm"
+                        title="Remove destination"
                     >
-                      <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-4 w-4" />
                     </button>
+                    </div>
                   </div>
                 </div>
               ))
             )}
           </div>
-        </div>
+          </div>
+        )}
+      </div>
+
+      {/* Edit Base Location Modal */}
+      {showEditModal && editingLocation && (
+        <BaseLocationEditModal
+          dayId={day.id}
+          locationIndex={editingLocation.index}
+          location={editingLocation.location}
+          onClose={handleCloseEditModal}
+        />
+      )}
+
+      {/* Edit Destination Modal */}
+      {showDestinationEditModal && editingDestination && (
+        <DestinationEditModal
+          dayId={day.id}
+          destination={editingDestination}
+          onClose={handleCloseDestinationEditModal}
+        />
       )}
     </div>
   )
