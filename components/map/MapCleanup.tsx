@@ -231,46 +231,7 @@ export function MapCleanup({
     }
   }, [map, hasTrip, tripDays, selectedDayId])
 
-  // Update selection highlight
-  useEffect(() => {
-    if (!map || !hasTrip || !map.getSource('selection-highlight')) return
-
-    let highlightFeature = null
-
-    if (selectedDestination) {
-      highlightFeature = {
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Point' as const,
-          coordinates: selectedDestination.coordinates
-        },
-        properties: {
-          type: 'destination',
-          id: selectedDestination.id
-        }
-      }
-    } else if (selectedDayId) {
-      const selectedDay = tripDays.find(day => day.id === selectedDayId)
-      if (selectedDay?.baseLocations && selectedDay.baseLocations.length > 0) {
-        highlightFeature = {
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Point' as const,
-            coordinates: selectedDay.baseLocations[0].coordinates
-          },
-          properties: {
-            type: 'base-location',
-            id: selectedDay.id
-          }
-        }
-      }
-    }
-
-    map.getSource('selection-highlight').setData({
-      type: 'FeatureCollection',
-      features: highlightFeature ? [highlightFeature] : []
-    })
-  }, [map, hasTrip, selectedDestination, selectedDayId, tripDays])
+  // Selection highlight disabled - using marker styling for selection feedback instead
 
   return null
 }

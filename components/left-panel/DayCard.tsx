@@ -16,13 +16,15 @@ import {
   X,
   Settings,
   Eye,
-  ExternalLink
+  ExternalLink,
+  Info
 } from 'lucide-react'
 import { TimelineDay, DayLocation, Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { useState, useRef, useEffect } from 'react'
 import { BaseLocationEditModal } from '../modals/BaseLocationEditModal'
 import { DestinationEditModal } from '../modals/DestinationEditModal'
+import { DestinationOverviewModal } from '../modals/DestinationOverviewModal'
 
 interface DayCardProps {
   day: TimelineDay
@@ -47,6 +49,8 @@ export function DayCard({
   const [editingLocation, setEditingLocation] = useState<{ location: DayLocation; index: number } | null>(null)
   const [showDestinationEditModal, setShowDestinationEditModal] = useState(false)
   const [editingDestination, setEditingDestination] = useState<Destination | null>(null)
+  const [showOverviewModal, setShowOverviewModal] = useState(false)
+  const [overviewDestination, setOverviewDestination] = useState<Destination | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const totalDuration = day.destinations.reduce((acc, dest) => acc + (dest.estimatedDuration || 2), 0)
@@ -115,6 +119,16 @@ export function DayCard({
   const handleCloseDestinationEditModal = () => {
     setShowDestinationEditModal(false)
     setEditingDestination(null)
+  }
+
+  const handleOpenOverview = (destination: Destination) => {
+    setOverviewDestination(destination)
+    setShowOverviewModal(true)
+  }
+
+  const handleCloseOverviewModal = () => {
+    setShowOverviewModal(false)
+    setOverviewDestination(null)
   }
 
   const handleDestinationClick = (destination: Destination) => {
@@ -412,6 +426,25 @@ export function DayCard({
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
+                      // Create a temporary destination for overview
+                      const tempDestination: Destination = {
+                        id: `temp-base-${day.baseLocations[0].name}`,
+                        name: day.baseLocations[0].name,
+                        description: day.baseLocations[0].context,
+                        coordinates: day.baseLocations[0].coordinates,
+                        city: day.baseLocations[0].city,
+                        category: 'city'
+                      }
+                      handleOpenOverview(tempDestination)
+                    }}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-400 transition-all duration-200 backdrop-blur-sm"
+                    title="View overview"
+                  >
+                    <Info className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
                       handleEditBaseLocation(day.baseLocations[0], 0)
                     }}
                     className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 backdrop-blur-sm"
@@ -481,16 +514,35 @@ export function DayCard({
                       
                       {/* Action Buttons */}
                       <div className="absolute bottom-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <button
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            // Create a temporary destination for overview
+                            const tempDestination: Destination = {
+                              id: `temp-base-${location.name}`,
+                              name: location.name,
+                              description: location.context,
+                              coordinates: location.coordinates,
+                              city: location.city,
+                              category: 'city'
+                            }
+                            handleOpenOverview(tempDestination)
+                          }}
+                          className="p-1.5 rounded-lg bg-white/10 hover:bg-blue-500/20 text-white/60 hover:text-blue-400 transition-all duration-200"
+                          title="View overview"
+                        >
+                          <Info className="h-3 w-3" />
+                        </button>
+                        <button
                           onClick={(e) => {
                             e.stopPropagation()
                             handleEditBaseLocation(location, index + 1)
                           }}
                           className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all duration-200"
                           title="Edit base location"
-            >
-              <Edit3 className="h-3 w-3" />
-            </button>
+                        >
+                          <Edit3 className="h-3 w-3" />
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -616,19 +668,19 @@ export function DayCard({
                     <div className="flex items-center gap-3 flex-wrap">
                         {destination.estimatedDuration && Number(destination.estimatedDuration) > 0 && (
                         <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-xl border border-white/20 backdrop-blur-sm">
-                          <Clock className="h-4 w-4 text-blue-400" />
-                          <span className="text-sm text-white/80 font-medium">{formatTime(Number(destination.estimatedDuration))}</span>
+                          <Clock className="h-3 w-3 text-blue-400" />
+                          <span className="text-xs text-white/80 font-medium">{formatTime(Number(destination.estimatedDuration))}</span>
                           </div>
                         )}
                         {destination.cost && Number(destination.cost) > 0 && (
                         <div className="flex items-center gap-2 bg-green-500/20 px-3 py-2 rounded-xl border border-green-500/30 backdrop-blur-sm">
-                          <DollarSign className="h-4 w-4 text-green-400" />
-                          <span className="text-sm text-green-400 font-medium">€{destination.cost}</span>
+                          <DollarSign className="h-3 w-3 text-green-400" />
+                          <span className="text-xs text-green-400 font-medium">€{destination.cost}</span>
                           </div>
                         )}
                         {destination.category && (
                         <div className="flex items-center gap-2 bg-purple-500/20 px-3 py-2 rounded-xl border border-purple-500/30 backdrop-blur-sm">
-                          <span className="text-sm text-purple-400 font-semibold uppercase tracking-wide">{destination.category}</span>
+                          <span className="text-xs text-purple-400 font-semibold capitalize tracking-wide">{destination.category}</span>
                         </div>
                       )}
                     </div>
@@ -674,6 +726,16 @@ export function DayCard({
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
+                          handleOpenOverview(destination)
+                        }}
+                        className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-400 transition-all duration-200 backdrop-blur-sm"
+                        title="View overview"
+                      >
+                        <Info className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
                           handleEditDestination(destination)
                         }}
                         className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 backdrop-blur-sm"
@@ -681,13 +743,13 @@ export function DayCard({
                       >
                         <Edit3 className="h-4 w-4" />
                       </button>
-                    <button
-                      onClick={() => handleRemoveDestination(destination.id)}
+                      <button
+                        onClick={() => handleRemoveDestination(destination.id)}
                         className="p-2 rounded-xl bg-white/10 hover:bg-red-500/20 text-white/70 hover:text-red-400 transition-all duration-200 backdrop-blur-sm"
                         title="Remove destination"
-                    >
+                      >
                         <Trash2 className="h-4 w-4" />
-                    </button>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -714,6 +776,14 @@ export function DayCard({
           dayId={day.id}
           destination={editingDestination}
           onClose={handleCloseDestinationEditModal}
+        />
+      )}
+
+      {/* Destination Overview Modal */}
+      {showOverviewModal && overviewDestination && (
+        <DestinationOverviewModal
+          destination={overviewDestination}
+          onClose={handleCloseOverviewModal}
         />
       )}
     </div>

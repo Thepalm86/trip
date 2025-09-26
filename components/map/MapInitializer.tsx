@@ -325,9 +325,9 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             ],
             'circle-color': [
               'case',
-              ['boolean', ['feature-state', 'selected'], false], '#34d399',
-              ['boolean', ['feature-state', 'hover'], false], '#22c55e',
-              ['get', 'isCardSelected'], '#34d399',
+              ['boolean', ['feature-state', 'selected'], false], '#3b82f6',
+              ['boolean', ['feature-state', 'hover'], false], '#60a5fa',
+              ['get', 'isCardSelected'], '#3b82f6',
               ['coalesce', ['get', 'markerColor'], '#3b82f6']
             ],
             'circle-stroke-width': [
@@ -400,22 +400,7 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
       }
 
 
-      // Add selection highlight layer
-      if (!map.getLayer('selection-highlight-layer')) {
-        map.addLayer({
-          id: 'selection-highlight-layer',
-          type: 'circle',
-          source: 'selection-highlight',
-          paint: {
-            'circle-radius': 25,
-            'circle-color': '#34d399',
-            'circle-opacity': 0.1,
-            'circle-stroke-width': 3,
-            'circle-stroke-color': '#34d399',
-            'circle-stroke-opacity': 0.6
-          }
-        })
-      }
+      // Selection highlight layer disabled - using marker styling for selection feedback instead
       
       console.log('MapInitializer: initializeMapSources completed successfully')
       } catch (error) {
