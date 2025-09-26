@@ -13,6 +13,7 @@ type MarkerEntry = {
 
 export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
   const activePlaces = useExploreStore((state) => state.activePlaces)
+  const showMarkers = useExploreStore((state) => state.showMarkers)
   const setSelectedPlace = useExploreStore((state) => state.setSelectedPlace)
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map())
 
@@ -22,9 +23,9 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
     const markers = markersRef.current
     const activeIds = new Set(activePlaces.map((place) => place.id))
 
-    // Remove markers that are no longer active
+    // Remove markers that are no longer active or if markers are hidden
     markers.forEach((entry, placeId) => {
-      if (!activeIds.has(placeId)) {
+      if (!activeIds.has(placeId) || !showMarkers) {
         const markerElement = entry.marker.getElement()
         markerElement.removeEventListener('click', entry.handleClick)
         markerElement.removeEventListener('mouseenter', entry.handleMouseEnter)
@@ -34,9 +35,10 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
       }
     })
 
-    // Add markers for new active places
-    activePlaces.forEach((place) => {
-      if (markers.has(place.id)) return
+    // Add markers for new active places (only if showMarkers is true)
+    if (showMarkers) {
+      activePlaces.forEach((place) => {
+        if (markers.has(place.id)) return
 
       const handleClick = () => {
         setSelectedPlace(place)
@@ -101,11 +103,10 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
       }
 
       markers.set(place.id, { marker, handleClick, handleMouseEnter, handleMouseLeave })
+      })
+    }
 
-      map.flyTo({ center: place.coordinates, zoom: 11, essential: true })
-    })
-
-  }, [map, activePlaces, setSelectedPlace])
+  }, [map, activePlaces, setSelectedPlace, showMarkers])
 
   useEffect(() => {
     return () => {

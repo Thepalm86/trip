@@ -14,6 +14,7 @@ interface ExploreStoreState {
   isSearching: boolean
   error: string | null
   isSyncing: boolean
+  showMarkers: boolean
   setQuery: (query: string) => void
   searchPlaces: (query: string) => Promise<void>
   setSelectedPlace: (place: ExplorePlace | null) => void
@@ -23,6 +24,7 @@ interface ExploreStoreState {
   removeActivePlace: (placeId: string) => Promise<void>
   syncWithSupabase: () => Promise<void>
   loadFromSupabase: () => Promise<void>
+  toggleMarkers: () => void
 }
 
 export const useExploreStore = create<ExploreStoreState>()(
@@ -36,6 +38,7 @@ export const useExploreStore = create<ExploreStoreState>()(
       isSearching: false,
       error: null,
       isSyncing: false,
+      showMarkers: true,
       setQuery: (query) => set({ query }),
       searchPlaces: async (query: string) => {
         const trimmed = query.trim()
@@ -131,13 +134,18 @@ export const useExploreStore = create<ExploreStoreState>()(
           set({ isSyncing: false })
         }
       },
+      toggleMarkers: () => {
+        const { showMarkers } = get()
+        set({ showMarkers: !showMarkers })
+      },
     }),
     {
       name: 'explore-store',
       partialize: (state) => ({
         recent: state.recent,
         activePlaces: state.activePlaces,
-        // Persist both recent and active places
+        showMarkers: state.showMarkers,
+        // Persist recent, active places, and marker visibility preference
       }),
     }
   )
