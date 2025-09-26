@@ -18,8 +18,10 @@ interface RouteData {
     type: 'base' | 'destination'
     name: string
     dayId: string
+    locationId?: string
   }>
-  segmentType?: 'base-to-destination' | 'destination-to-destination' | 'destination-to-base' | 'base-to-base'
+  segmentType?: 'base-to-destination' | 'destination-to-destination' | 'destination-to-base' | 'base-to-base' | 'inter-day'
+  visibility?: 'overview' | 'selected-inbound' | 'selected-outbound' | 'selected-intra-day'
 }
 
 interface RouteManagerProps {
@@ -56,49 +58,99 @@ export function RouteManager({
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360
   }, [])
 
-  // Check if two base locations are different (agnostic comparison)
-  const areBaseLocationsDifferent = useCallback((loc1: any, loc2: any) => {
-    if (!loc1 || !loc2) return true
-    return loc1.coordinates[0] !== loc2.coordinates[0] || 
-           loc1.coordinates[1] !== loc2.coordinates[1]
+  const coordinatesMatch = useCallback((a?: [number, number], b?: [number, number]) => {
+    if (!a || !b) return false
+    return a[0] === b[0] && a[1] === b[1]
   }, [])
 
-  // Build waypoints for inter-day route: fromDay base → toDay destinations → toDay base
-  const buildInterDayWaypoints = useCallback((fromDay: Trip['days'][0], toDay: Trip['days'][0]) => {
-    const waypoints: RouteData['waypoints'] = []
+  const toWaypoint = useCallback((dayId: string, role: 'base' | 'destination', payload: { name: string; coordinates: [number, number]; id?: string }) => ({
+    coordinates: payload.coordinates,
+    type: role,
+    name: payload.name,
+    dayId,
+    locationId: payload.id
+  }), [])
 
-    // Start from fromDay's base location
-    if (fromDay.baseLocations && fromDay.baseLocations.length > 0) {
-      waypoints.push({
-        coordinates: fromDay.baseLocations[0].coordinates,
-        type: 'base',
-        name: fromDay.baseLocations[0].name,
-        dayId: fromDay.id
-      })
+  const getDayStartAnchor = useCallback((day: Trip['days'][0]) => {
+    // For inbound routes, we want to connect to the first destination of the day
+    // not the base location (where we sleep)
+    const firstDestination = day.destinations[0]
+    if (firstDestination) {
+      return toWaypoint(day.id, 'destination', firstDestination)
     }
 
-    // Add all destinations from toDay (these are visited on the way to toDay's base location)
-    toDay.destinations.forEach(destination => {
-      waypoints.push({
-        coordinates: destination.coordinates,
-        type: 'destination',
-        name: destination.name,
-        dayId: toDay.id
-      })
-    })
-
-    // End at toDay's base location
-    if (toDay.baseLocations && toDay.baseLocations.length > 0) {
-      waypoints.push({
-        coordinates: toDay.baseLocations[0].coordinates,
-        type: 'base',
-        name: toDay.baseLocations[0].name,
-        dayId: toDay.id
-      })
+    // Fallback to base location only if no destinations exist
+    const base = day.baseLocations?.[0]
+    if (base) {
+      return toWaypoint(day.id, 'base', base)
     }
 
-    return waypoints
-  }, [])
+    return null
+  }, [toWaypoint])
+
+  const getDayEndAnchor = useCallback((day: Trip['days'][0]) => {
+    const base = day.baseLocations?.[0]
+    if (base) {
+      return toWaypoint(day.id, 'base', base)
+    }
+
+    const lastDestination = day.destinations[day.destinations.length - 1]
+    if (lastDestination) {
+      return toWaypoint(day.id, 'destination', lastDestination)
+    }
+
+    return null
+  }, [toWaypoint])
+
+  const buildInterDaySegment = useCallback((fromDay: Trip['days'][0], toDay: Trip['days'][0]) => {
+    const origin = getDayEndAnchor(fromDay)
+    const destination = getDayStartAnchor(toDay)
+
+    if (!origin || !destination) return null
+    if (coordinatesMatch(origin.coordinates, destination.coordinates)) return null
+
+    return { origin, destination }
+  }, [getDayEndAnchor, getDayStartAnchor, coordinatesMatch])
+
+  const buildIntraDaySegments = useCallback((day: Trip['days'][0]) => {
+    const segments: Array<{ key: string; from: RouteData['waypoints'][0]; to: RouteData['waypoints'][0]; segmentType: RouteData['segmentType'] }> = []
+    
+    // Build sequential route: previous day's end → destinations → current day's base
+    const destinations = day.destinations
+    if (destinations.length === 0) return segments
+
+    // Create sequential route through all destinations
+    for (let i = 0; i < destinations.length - 1; i++) {
+      const current = toWaypoint(day.id, 'destination', destinations[i])
+      const next = toWaypoint(day.id, 'destination', destinations[i + 1])
+      if (!coordinatesMatch(current.coordinates, next.coordinates)) {
+        segments.push({
+          key: `intra-${day.id}-sequence-${i}-${current.locationId ?? current.coordinates.join(',')}-${next.locationId ?? next.coordinates.join(',')}`,
+          from: current,
+          to: next,
+          segmentType: 'destination-to-destination'
+        })
+      }
+    }
+
+    // Add route from last destination to base (if base exists and is different)
+    const base = day.baseLocations?.[0]
+    if (base && destinations.length > 0) {
+      const lastDestination = toWaypoint(day.id, 'destination', destinations[destinations.length - 1])
+      const baseWaypoint = toWaypoint(day.id, 'base', base)
+      
+      if (!coordinatesMatch(lastDestination.coordinates, baseWaypoint.coordinates)) {
+        segments.push({
+          key: `intra-${day.id}-final-${lastDestination.locationId ?? lastDestination.coordinates.join(',')}-${baseWaypoint.locationId ?? baseWaypoint.coordinates.join(',')}`,
+          from: lastDestination,
+          to: baseWaypoint,
+          segmentType: 'destination-to-base'
+        })
+      }
+    }
+
+    return segments
+  }, [coordinatesMatch, toWaypoint])
 
   // Calculate individual segment route between two points
   const calculateSegmentRoute = useCallback(async (fromWaypoint: RouteData['waypoints'][0], toWaypoint: RouteData['waypoints'][0]) => {
@@ -143,96 +195,81 @@ export function RouteManager({
     return null
   }, [token])
 
-  // Determine which routes to show based on selected day
   const getRoutesToShow = useCallback(() => {
-    const routesToShow: Array<{
+    const interDayRoutes: Array<{
+      key: string
       fromDay: Trip['days'][0]
       toDay: Trip['days'][0]
-      type: 'inter-day' | 'intra-day'
+      origin: RouteData['waypoints'][0]
+      destination: RouteData['waypoints'][0]
+      visibility: RouteData['visibility']
+    }> = []
+    const intraDaySegments: Array<{
+      key: string
+      from: RouteData['waypoints'][0]
+      to: RouteData['waypoints'][0]
+      segmentType: RouteData['segmentType']
     }> = []
 
+    if (!tripDays.length) {
+      return { interDayRoutes, intraDaySegments }
+    }
+
     if (!selectedDayId) {
-      // No day selected - show all inter-day routes where base locations change and destination day has destinations
       for (let i = 0; i < tripDays.length - 1; i++) {
         const fromDay = tripDays[i]
         const toDay = tripDays[i + 1]
-        
-        if (fromDay.baseLocations && fromDay.baseLocations.length > 0 && 
-            toDay.baseLocations && toDay.baseLocations.length > 0 &&
-            areBaseLocationsDifferent(fromDay.baseLocations[0], toDay.baseLocations[0]) &&
-            toDay.destinations.length > 0) {
-          routesToShow.push({
+        const segment = buildInterDaySegment(fromDay, toDay)
+
+        if (segment) {
+          interDayRoutes.push({
+            key: `inter-${fromDay.id}-${toDay.id}`,
             fromDay,
             toDay,
-            type: 'inter-day'
-          })
-                  }
-                }
-              } else {
-      // Day selected - show routes to/from that day
-      const selectedDayIndex = tripDays.findIndex(day => day.id === selectedDayId)
-      
-      if (selectedDayIndex >= 0) {
-        // Route FROM previous day TO selected day (if base locations are different)
-        // Show route if: base locations are different AND (selected day has destinations OR it's a direct base change)
-        if (selectedDayIndex > 0) {
-          const fromDay = tripDays[selectedDayIndex - 1]
-          const toDay = tripDays[selectedDayIndex]
-          
-          if (fromDay.baseLocations && fromDay.baseLocations.length > 0 && 
-              toDay.baseLocations && toDay.baseLocations.length > 0 &&
-              areBaseLocationsDifferent(fromDay.baseLocations[0], toDay.baseLocations[0])) {
-            routesToShow.push({
-              fromDay,
-              toDay,
-              type: 'inter-day'
-            })
-          }
-        }
-
-        // Route FROM selected day TO next day (only if base locations are different AND next day has destinations)
-        // BUT: Don't show routes FROM a day that has no destinations
-        if (selectedDayIndex < tripDays.length - 1) {
-          const fromDay = tripDays[selectedDayIndex]
-          const toDay = tripDays[selectedDayIndex + 1]
-          
-          if (fromDay.baseLocations && fromDay.baseLocations.length > 0 && 
-              toDay.baseLocations && toDay.baseLocations.length > 0 &&
-              areBaseLocationsDifferent(fromDay.baseLocations[0], toDay.baseLocations[0]) &&
-              toDay.destinations.length > 0 &&
-              fromDay.destinations.length > 0) { // Only show routes FROM days that have destinations
-            routesToShow.push({
-              fromDay,
-              toDay,
-              type: 'inter-day'
-            })
-          }
-        }
-
-        // Intra-day routes within selected day (base to each destination)
-        // BUT: Only show intra-day routes if this is NOT a travel day (base location doesn't change)
-        const selectedDay = tripDays[selectedDayIndex]
-        const previousDay = tripDays[selectedDayIndex - 1]
-        const nextDay = tripDays[selectedDayIndex + 1]
-        
-        // Check if this is a travel day (base location changes from previous or to next day)
-        const isTravelDay = (previousDay?.baseLocations?.[0] && areBaseLocationsDifferent(selectedDay.baseLocations?.[0], previousDay.baseLocations[0])) ||
-                           (nextDay?.baseLocations?.[0] && areBaseLocationsDifferent(selectedDay.baseLocations?.[0], nextDay.baseLocations[0]))
-        
-        // Only show intra-day routes if this is NOT a travel day
-        if (selectedDay.baseLocations && selectedDay.baseLocations.length > 0 && 
-            selectedDay.destinations.length > 0 && !isTravelDay) {
-          routesToShow.push({
-            fromDay: selectedDay,
-            toDay: selectedDay,
-            type: 'intra-day'
+            origin: segment.origin,
+            destination: segment.destination,
+            visibility: 'overview'
           })
         }
       }
+
+      return { interDayRoutes, intraDaySegments }
     }
 
-    return routesToShow
-  }, [selectedDayId, tripDays, areBaseLocationsDifferent])
+    const selectedDayIndex = tripDays.findIndex(day => day.id === selectedDayId)
+
+    if (selectedDayIndex === -1) {
+      return { interDayRoutes, intraDaySegments }
+    }
+
+    const selectedDay = tripDays[selectedDayIndex]
+
+    if (selectedDayIndex > 0) {
+      const previousDay = tripDays[selectedDayIndex - 1]
+      const inbound = buildInterDaySegment(previousDay, selectedDay)
+
+      if (inbound) {
+        interDayRoutes.push({
+          key: `inter-${previousDay.id}-${selectedDay.id}`,
+          fromDay: previousDay,
+          toDay: selectedDay,
+          origin: inbound.origin,
+          destination: inbound.destination,
+          visibility: 'selected-inbound'
+        })
+      }
+    }
+
+    // Note: Outbound routes are not shown on the departing day
+    // Inter-day routes "belong" to the landing day, not the departing day
+    // The outbound route will be shown as an inbound route when viewing the next day
+
+    buildIntraDaySegments(selectedDay).forEach(segment => {
+      intraDaySegments.push(segment)
+    })
+
+    return { interDayRoutes, intraDaySegments }
+  }, [tripDays, selectedDayId, buildInterDaySegment, buildIntraDaySegments])
 
   // Main route calculation function
   const calculateRoutes = useCallback(async () => {
@@ -242,96 +279,48 @@ export function RouteManager({
     const newRoutes = new Map<string, RouteData>()
 
     try {
-      const routesToShow = getRoutesToShow()
-      
+      const { interDayRoutes, intraDaySegments } = getRoutesToShow()
+
       console.log('RouteManager: Calculating routes', {
         selectedDayId,
-        routesToShow: routesToShow.length,
-        routes: routesToShow.map(r => ({
-          from: r.fromDay.id,
-          to: r.toDay.id,
-          type: r.type,
-          fromDayDestinations: r.fromDay.destinations.length,
-          toDayDestinations: r.toDay.destinations.length,
-          fromBaseLocation: r.fromDay.baseLocations?.[0]?.name,
-          toBaseLocation: r.toDay.baseLocations?.[0]?.name,
-          baseLocationsDifferent: areBaseLocationsDifferent(r.fromDay.baseLocations?.[0], r.toDay.baseLocations?.[0])
+        interDayCount: interDayRoutes.length,
+        intraDayCount: intraDaySegments.length,
+        interDay: interDayRoutes.map(route => ({
+          key: route.key,
+          fromDayId: route.fromDay.id,
+          toDayId: route.toDay.id,
+          origin: route.origin.name,
+          destination: route.destination.name,
+          visibility: route.visibility
         })),
-        tripDays: tripDays.map(d => ({
-          id: d.id,
-          baseLocation: d.baseLocations?.[0]?.name,
-          destinations: d.destinations.map(dest => dest.name)
+        intraDay: intraDaySegments.map(segment => ({
+          key: segment.key,
+          fromDayId: segment.from.dayId,
+          toDayId: segment.to.dayId,
+          from: segment.from.name,
+          to: segment.to.name,
+          type: segment.segmentType
         }))
       })
 
-      // Create individual segments for all routes
-      for (const routeInfo of routesToShow) {
-        const { fromDay, toDay, type } = routeInfo
-        
-        if (type === 'inter-day') {
-          // Create segments: fromDay base → toDay destinations → toDay base
-          const waypoints = buildInterDayWaypoints(fromDay, toDay)
-          
-          console.log(`RouteManager: Building inter-day segments ${fromDay.id} → ${toDay.id}`, {
-            waypoints: waypoints.map(wp => ({
-              name: wp.name,
-              type: wp.type,
-              dayId: wp.dayId,
-              coordinates: wp.coordinates
-            }))
-          })
-          
-          // Create individual segments between consecutive waypoints
-          for (let i = 0; i < waypoints.length - 1; i++) {
-            const fromWaypoint = waypoints[i]
-            const toWaypoint = waypoints[i + 1]
-            
-            const routeData = await calculateSegmentRoute(fromWaypoint, toWaypoint)
-            
-            if (routeData) {
-              // Determine segment type
-              let segmentType: RouteData['segmentType'] = 'base-to-base'
-              if (fromWaypoint.type === 'base' && toWaypoint.type === 'destination') {
-                segmentType = 'base-to-destination'
-              } else if (fromWaypoint.type === 'destination' && toWaypoint.type === 'destination') {
-                segmentType = 'destination-to-destination'
-              } else if (fromWaypoint.type === 'destination' && toWaypoint.type === 'base') {
-                segmentType = 'destination-to-base'
-              }
-              
-              routeData.segmentType = segmentType
-              
-              const routeKey = `segment-${fromWaypoint.dayId}-${toWaypoint.dayId}-${i}`
-              newRoutes.set(routeKey, routeData)
-            }
-          }
-        } else if (type === 'intra-day') {
-          // Create segments: base → each destination
-          const baseLocation = fromDay.baseLocations![0]
-          
-          for (const destination of fromDay.destinations) {
-            const fromWaypoint = {
-              coordinates: baseLocation.coordinates,
-              type: 'base' as const,
-              name: baseLocation.name,
-              dayId: fromDay.id
-            }
-            const toWaypoint = {
-              coordinates: destination.coordinates,
-              type: 'destination' as const,
-              name: destination.name,
-              dayId: fromDay.id
-            }
-            
-            const routeData = await calculateSegmentRoute(fromWaypoint, toWaypoint)
-            
-            if (routeData) {
-              routeData.segmentType = 'base-to-destination'
-              
-              const routeKey = `segment-${fromDay.id}-${destination.id}`
-              newRoutes.set(routeKey, routeData)
-            }
-          }
+      for (const route of interDayRoutes) {
+        const routeData = await calculateSegmentRoute(route.origin, route.destination)
+
+        if (routeData) {
+          routeData.segmentType = 'inter-day'
+          routeData.visibility = route.visibility
+          newRoutes.set(route.key, routeData)
+        }
+      }
+
+      // Mark intra-day routes as part of the selected day context
+      for (const segment of intraDaySegments) {
+        const routeData = await calculateSegmentRoute(segment.from, segment.to)
+
+        if (routeData) {
+          routeData.segmentType = segment.segmentType
+          routeData.visibility = 'selected-intra-day'
+          newRoutes.set(segment.key, routeData)
         }
       }
 
@@ -346,6 +335,7 @@ export function RouteManager({
           id: key,
           routeType: 'segment',
           segmentType: route.segmentType,
+          visibility: route.visibility,
           duration: Math.round(route.duration / 60), // Convert to minutes
           distance: Math.round(route.distance / 1000), // Convert to km
           label: `${route.fromLocation} → ${route.toLocation}: ${Math.round(route.duration / 60)}min • ${Math.round(route.distance / 1000)}km`,
@@ -381,7 +371,7 @@ export function RouteManager({
       } finally {
         onLoadingChange(false)
       }
-  }, [map, hasTrip, token, tripDays, selectedDayId, getRoutesToShow, buildInterDayWaypoints, calculateSegmentRoute, calculateBearing, areBaseLocationsDifferent, onLoadingChange])
+  }, [map, hasTrip, token, tripDays, selectedDayId, getRoutesToShow, calculateSegmentRoute, calculateBearing, onLoadingChange])
 
   // Debounced route calculation
   useEffect(() => {

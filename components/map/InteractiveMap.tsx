@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 're
 import mapboxgl from 'mapbox-gl'
 import { MapIntegration } from './MapIntegration'
 import { MapControls } from './MapControls'
+import { ExploreSearchDock } from './ExploreSearchDock'
 
 export interface InteractiveMapRef {
   getMap: () => mapboxgl.Map | null
@@ -110,12 +111,18 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
       
       {/* Map Overlay - Header */}
       <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/50 to-transparent pointer-events-none z-10">
-        <h2 className="text-2xl font-semibold text-primary text-left leading-snug font-body">
-          Interactive Map
-        </h2>
-        <p className="text-secondary text-sm text-left leading-normal mt-2">
-          Explore destinations and plan your journey
-        </p>
+        <div className="pointer-events-auto space-y-4">
+          <div>
+            <h2 className="text-2xl font-semibold text-primary text-left leading-snug font-body">
+              Interactive Map
+            </h2>
+            <p className="text-secondary text-sm text-left leading-normal mt-2">
+              Explore destinations and plan your journey
+            </p>
+          </div>
+
+          <ExploreSearchDock />
+        </div>
       </div>
 
       {/* Map Integration */}

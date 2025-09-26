@@ -50,8 +50,8 @@ interface DestinationImage {
  * Cache and retrieve destination overviews using existing Supabase tables
  */
 export class DestinationCacheService {
-  private static readonly CACHE_TTL_HOURS = 24
-  private static readonly IMAGE_CACHE_TTL_DAYS = 7
+  private static readonly CACHE_TTL_HOURS = 720 // 30 days (30 * 24 hours)
+  private static readonly IMAGE_CACHE_TTL_DAYS = 45
   private static readonly QUALITY_THRESHOLD = 0.6
 
   /**

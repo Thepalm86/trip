@@ -594,18 +594,38 @@ export const tripApi = {
   async removeBaseLocation(dayId: string, locationIndex: number): Promise<void> {
     const { data: dayData, error: fetchError } = await supabase
       .from('trip_days')
-      .select('base_locations_json')
+      .select('base_locations_json, base_location_name, base_location_coordinates, base_location_context')
       .eq('id', dayId)
       .single()
 
     if (fetchError) throw fetchError
 
-    const existingBaseLocations = dayData?.base_locations_json || []
-    const updatedBaseLocations = existingBaseLocations.filter((_: any, index: number) => index !== locationIndex)
+    const existingBaseLocations = Array.isArray(dayData?.base_locations_json)
+      ? dayData.base_locations_json
+      : []
+
+    if (existingBaseLocations.length > 0) {
+      const updatedBaseLocations = existingBaseLocations.filter((_: any, index: number) => index !== locationIndex)
+
+      const { error } = await supabase
+        .from('trip_days')
+        .update({ base_locations_json: updatedBaseLocations })
+        .eq('id', dayId)
+
+      if (error) throw error
+      return
+    }
+
+    // Legacy fallback: clear old single-base fields
+    const update: Record<string, any> = {
+      base_location_name: null,
+      base_location_coordinates: null,
+      base_location_context: null,
+    }
 
     const { error } = await supabase
       .from('trip_days')
-      .update({ base_locations_json: updatedBaseLocations })
+      .update(update)
       .eq('id', dayId)
 
     if (error) throw error

@@ -93,10 +93,10 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           paint: {
             'line-color': [
               'case',
-              ['==', ['get', 'segmentType'], 'base-to-destination'], '#3b82f6', // Blue for base to destination
-              ['==', ['get', 'segmentType'], 'destination-to-destination'], '#8b5cf6', // Purple for destination to destination
-              ['==', ['get', 'segmentType'], 'destination-to-base'], '#10b981', // Green for destination to base
-              '#f59e0b' // Orange for base to base
+              ['==', ['get', 'visibility'], 'overview'], '#f59e0b',        // Orange for overview inter-day routes
+              ['==', ['get', 'visibility'], 'selected-inbound'], '#10b981', // Green for inbound routes
+              ['==', ['get', 'visibility'], 'selected-intra-day'], '#3b82f6', // Blue for intra-day routes
+              '#8b5cf6' // Default purple for other cases
             ],
             'line-width': 8,
             'line-opacity': 0.2,
@@ -116,10 +116,10 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           paint: {
             'line-color': [
               'case',
-              ['==', ['get', 'segmentType'], 'base-to-destination'], '#3b82f6', // Blue for base to destination
-              ['==', ['get', 'segmentType'], 'destination-to-destination'], '#8b5cf6', // Purple for destination to destination
-              ['==', ['get', 'segmentType'], 'destination-to-base'], '#10b981', // Green for destination to base
-              '#f59e0b' // Orange for base to base
+              ['==', ['get', 'visibility'], 'overview'], '#f59e0b',        // Orange for overview inter-day routes
+              ['==', ['get', 'visibility'], 'selected-inbound'], '#10b981', // Green for inbound routes
+              ['==', ['get', 'visibility'], 'selected-intra-day'], '#3b82f6', // Blue for intra-day routes
+              '#8b5cf6' // Default purple for other cases
             ],
             'line-width': [
               'case',
@@ -129,6 +129,7 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             'line-opacity': [
               'case',
               ['boolean', ['feature-state', 'hover'], false], 1,
+              ['==', ['get', 'visibility'], 'overview'], 0.6, // More subtle for overview routes
               0.8
             ]
           }
@@ -177,10 +178,10 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             'text-color': '#ffffff',
             'text-halo-color': [
               'case',
-              ['==', ['get', 'segmentType'], 'base-to-destination'], '#1e40af',
-              ['==', ['get', 'segmentType'], 'destination-to-destination'], '#7c3aed',
-              ['==', ['get', 'segmentType'], 'destination-to-base'], '#059669',
-              '#d97706'
+              ['==', ['get', 'visibility'], 'overview'], '#d97706',
+              ['==', ['get', 'visibility'], 'selected-inbound'], '#059669',
+              ['==', ['get', 'visibility'], 'selected-intra-day'], '#1e40af',
+              '#7c3aed'
             ],
             'text-halo-width': 3,
             'text-opacity': 0 // Hidden by default
@@ -449,18 +450,32 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
         'base-locations-outer'
       ]
       
-      layers.forEach(layerId => {
-        if (map && map.getLayer && map.getLayer(layerId)) {
-          map.removeLayer(layerId)
-        }
-      })
+      const canAccessStyle = typeof map?.getStyle === 'function' && !!map.getStyle()
 
-      const sources = ['selection-highlight', 'intra-day-routes', 'inter-day-routes', 'destinations', 'base-locations']
-      sources.forEach(sourceId => {
-        if (map && map.getSource && map.getSource(sourceId)) {
-          map.removeSource(sourceId)
-        }
-      })
+      if (canAccessStyle && typeof map.removeLayer === 'function') {
+        layers.forEach(layerId => {
+          try {
+            if (map.getLayer(layerId)) {
+              map.removeLayer(layerId)
+            }
+          } catch (error) {
+            console.debug('MapInitializer: ignore layer removal error', layerId, error)
+          }
+        })
+      }
+
+      if (canAccessStyle && typeof map.removeSource === 'function') {
+        const sources = ['selection-highlight', 'intra-day-routes', 'inter-day-routes', 'destinations', 'base-locations']
+        sources.forEach(sourceId => {
+          try {
+            if (map.getSource(sourceId)) {
+              map.removeSource(sourceId)
+            }
+          } catch (error) {
+            console.debug('MapInitializer: ignore source removal error', sourceId, error)
+          }
+        })
+      }
     }
   }, [map, hasTrip])
 

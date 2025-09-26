@@ -4,7 +4,6 @@ import {
   MapPin, 
   Plus, 
   Edit3, 
-  Trash2, 
   BookOpen,
   Map,
   MoreVertical,
@@ -13,7 +12,9 @@ import {
   Eye,
   ExternalLink,
   Info,
-  GripVertical
+  GripVertical,
+  Edit,
+  Trash2
 } from 'lucide-react'
 import { TimelineDay, DayLocation, Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
@@ -111,21 +112,60 @@ function DraggableDestination({
         onDestinationClick(destination)
       }}
     >
-      {/* Drag Handle */}
-      <div
-        {...attributes}
-        {...listeners}
-        className={`absolute top-3 right-3 p-2 rounded-lg transition-all duration-200 cursor-grab active:cursor-grabbing z-10 ${
-          isDragging 
-            ? 'bg-blue-500/60 border-2 border-blue-300 shadow-lg' 
-            : 'bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/50 hover:border-blue-300'
-        }`}
-        title="Drag to reorder"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className={`h-4 w-4 transition-colors duration-200 ${
-          isDragging ? 'text-blue-100' : 'text-blue-200'
-        }`} />
+      {/* Action Buttons - styled like drag handle */}
+      <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenOverview(destination)
+          }}
+          className={`p-2 rounded-lg transition-all duration-200 ${
+            'bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/50 hover:border-blue-300'
+          }`}
+          title="View Details"
+        >
+          <Eye className="h-4 w-4 text-blue-200" />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onEditDestination(destination)
+          }}
+          className={`p-2 rounded-lg transition-all duration-200 ${
+            'bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/50 hover:border-blue-300'
+          }`}
+          title="Edit Destination"
+        >
+          <Edit className="h-4 w-4 text-blue-200" />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemoveDestination(destination.id)
+          }}
+          className={`p-2 rounded-lg transition-all duration-200 ${
+            'bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/50 hover:border-blue-300'
+          }`}
+          title="Remove Destination"
+        >
+          <Trash2 className="h-4 w-4 text-blue-200" />
+        </button>
+        {/* Drag Handle - most right */}
+        <div
+          {...attributes}
+          {...listeners}
+          className={`p-2 rounded-lg transition-all duration-200 cursor-grab active:cursor-grabbing ${
+            isDragging 
+              ? 'bg-blue-500/60 border-2 border-blue-300 shadow-lg' 
+              : 'bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/50 hover:border-blue-300'
+          }`}
+          title="Drag to reorder"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className={`h-4 w-4 transition-colors duration-200 ${
+            isDragging ? 'text-blue-100' : 'text-blue-200'
+          }`} />
+        </div>
       </div>
 
       {/* Background Pattern */}
@@ -158,39 +198,6 @@ function DraggableDestination({
             </div>
           </div>
           
-          {/* Actions */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onOpenOverview(destination)
-              }}
-              className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
-              title="View Details"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onEditDestination(destination)
-              }}
-              className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
-              title="Edit Destination"
-            >
-              <Edit3 className="h-4 w-4" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onRemoveDestination(destination.id)
-              }}
-              className="p-2 rounded-lg text-white/60 hover:bg-red-500/20 hover:text-red-400 transition-all duration-200"
-              title="Remove Destination"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
         </div>
         
         
@@ -225,6 +232,7 @@ export function DayCard({
     setSelectedDestination, 
     selectedCardId, 
     setSelectedCard,
+    removeBaseLocation,
   } = useSupabaseTripStore()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -637,7 +645,7 @@ export function DayCard({
                     onClick={(e) => {
                       e.stopPropagation()
                       if (confirm('Are you sure you want to remove this base location?')) {
-                        // This will be handled by the store function
+                        removeBaseLocation(day.id, 0)
                       }
                     }}
                     className="p-2 rounded-xl bg-white/10 hover:bg-red-500/20 text-white/70 hover:text-red-400 transition-all duration-200 backdrop-blur-sm"
@@ -728,7 +736,7 @@ export function DayCard({
                           onClick={(e) => {
                             e.stopPropagation()
                             if (confirm('Are you sure you want to remove this base location?')) {
-                              // This will be handled by the store function
+                              removeBaseLocation(day.id, index + 1)
                             }
                           }}
                           className="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/20 text-white/60 hover:text-red-400 transition-all duration-200"

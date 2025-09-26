@@ -55,6 +55,18 @@ export interface MapViewport {
   zoom: number
 }
 
+export interface ExplorePlace {
+  id: string
+  name: string
+  fullName: string
+  coordinates: [number, number]
+  category?: string
+  context?: string
+  source: 'mapbox' | 'cache'
+  relevance?: number
+  metadata?: Record<string, unknown>
+}
+
 // Map marker types
 export interface MarkerData {
   id: string
