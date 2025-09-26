@@ -742,7 +742,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     const { currentTrip } = get()
     if (!currentTrip) return
 
-    set({ isLoading: true, error: null })
+    set({ error: null })
     try {
       // Find the destination
       const fromDay = currentTrip.days.find(day => day.id === fromDayId)
@@ -761,7 +761,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       if (!toDay) return
 
       const updatedToDayDestinations = [...toDay.destinations]
-      updatedToDayDestinations.splice(newIndex, 0, destination)
+      const targetIndex = Math.max(0, Math.min(updatedToDayDestinations.length, newIndex))
+      updatedToDayDestinations.splice(targetIndex, 0, destination)
       const updatedToDay = {
         ...toDay,
         destinations: updatedToDayDestinations
@@ -803,11 +804,10 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           : trip
       )
 
-      set({ currentTrip: updatedTrip, trips: updatedTrips, isLoading: false })
+      set({ currentTrip: updatedTrip, trips: updatedTrips, lastUpdate: Date.now() })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to move destination',
-        isLoading: false 
       })
     }
   },
@@ -817,17 +817,31 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     const { currentTrip } = get()
     if (!currentTrip) return
 
-    set({ isLoading: true, error: null })
+    if (startIndex === endIndex) {
+      return
+    }
+
+    set({ error: null })
     try {
       const day = currentTrip.days.find(day => day.id === dayId)
       if (!day) {
-        set({ isLoading: false })
         return
       }
 
       const destinations = [...day.destinations]
-      const [movedDestination] = destinations.splice(startIndex, 1)
-      destinations.splice(endIndex, 0, movedDestination)
+      const maxIndex = Math.max(destinations.length - 1, 0)
+      const safeStart = Math.max(0, Math.min(maxIndex, startIndex))
+      const safeEnd = Math.max(0, Math.min(maxIndex, endIndex))
+
+      if (safeStart === safeEnd) {
+        return
+      }
+
+      const [movedDestination] = destinations.splice(safeStart, 1)
+      if (!movedDestination) {
+        return
+      }
+      destinations.splice(safeEnd, 0, movedDestination)
 
       const updatedTrip = {
         ...currentTrip,
@@ -851,11 +865,10 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           : trip
       )
 
-      set({ currentTrip: updatedTrip, trips: updatedTrips, isLoading: false })
+      set({ currentTrip: updatedTrip, trips: updatedTrips, lastUpdate: Date.now() })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to reorder destinations',
-        isLoading: false 
       })
     }
   },

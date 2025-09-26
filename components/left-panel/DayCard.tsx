@@ -2,28 +2,32 @@
 
 import { 
   MapPin, 
-  Clock, 
   Plus, 
   Edit3, 
   Trash2, 
   BookOpen,
-  Navigation,
-  DollarSign,
-  Calendar,
   Map,
   MoreVertical,
   Copy,
   X,
-  Settings,
   Eye,
   ExternalLink,
-  Info
+  Info,
+  GripVertical
 } from 'lucide-react'
 import { TimelineDay, DayLocation, Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { useState, useRef, useEffect } from 'react'
 import { BaseLocationEditModal } from '../modals/BaseLocationEditModal'
 import { DestinationEditModal } from '../modals/DestinationEditModal'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { DestinationOverviewModal } from '../modals/DestinationOverviewModal'
 
 interface DayCardProps {
@@ -33,6 +37,174 @@ interface DayCardProps {
   onAddDestination: () => void
   onAddNotes: () => void
   onSetBaseLocation: () => void
+  activeDestinationId: string | null
+  activeTargetDayId: string | null
+  draggingFromDayId: string | null
+}
+
+interface DraggableDestinationProps {
+  dayId: string
+  destination: Destination
+  index: number
+  isSelected: boolean
+  activeDestinationId: string | null
+  onDestinationClick: (destination: Destination) => void
+  onEditDestination: (destination: Destination) => void
+  onRemoveDestination: (destinationId: string) => void
+  onOpenOverview: (destination: Destination) => void
+}
+
+function DraggableDestination({
+  dayId,
+  destination,
+  index,
+  isSelected,
+  activeDestinationId,
+  onDestinationClick,
+  onEditDestination,
+  onRemoveDestination,
+  onOpenOverview
+}: DraggableDestinationProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
+    id: `dest-${destination.id}`,
+    data: {
+      type: 'destination',
+      destinationId: destination.id,
+      dayId,
+      index,
+    },
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
+    boxShadow: isDragging ? '0 20px 40px rgba(37,99,235,0.35)' : isOver ? '0 0 0 2px rgba(59,130,246,0.35)' : 'none',
+  }
+
+  const isActiveDrag = activeDestinationId === destination.id
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-indigo-500/5 border transition-all duration-500 cursor-pointer hover:shadow-xl hover:shadow-blue-500/10 ${
+        isSelected 
+          ? 'border-blue-400 border-2 shadow-xl shadow-blue-500/20' 
+          : isOver
+          ? 'border-blue-300/80 ring-2 ring-blue-400/60'
+          : isActiveDrag
+          ? 'border-blue-400/70 shadow-lg shadow-blue-500/20'
+          : 'border-blue-400/20 hover:border-blue-400/40'
+      }`}
+      onClick={(e) => {
+        e.stopPropagation()
+        onDestinationClick(destination)
+      }}
+    >
+      {/* Drag Handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className={`absolute top-3 right-3 p-2 rounded-lg transition-all duration-200 cursor-grab active:cursor-grabbing z-10 ${
+          isDragging 
+            ? 'bg-blue-500/60 border-2 border-blue-300 shadow-lg' 
+            : 'bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/50 hover:border-blue-300'
+        }`}
+        title="Drag to reorder"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className={`h-4 w-4 transition-colors duration-200 ${
+          isDragging ? 'text-blue-100' : 'text-blue-200'
+        }`} />
+      </div>
+
+      {/* Background Pattern */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-50"></div>
+      
+      {/* Content */}
+      <div className="relative p-5">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/30 to-purple-500/20 flex items-center justify-center shadow-lg border border-blue-400/30">
+                <span className="text-lg font-bold text-blue-400">
+                  {String.fromCharCode(65 + index)}
+                </span>
+              </div>
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
+                <div className="w-2 h-2 bg-white rounded-full"></div>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-lg font-bold text-white mb-1">{destination.city || 'Siena, Italy'}</h4>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-blue-400 font-medium">
+                  {destination.name}
+                </span>
+                <div className="w-1 h-1 bg-white/40 rounded-full"></div>
+                <span className="text-xs text-white/60">Destination</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Actions */}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenOverview(destination)
+              }}
+              className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
+              title="View Details"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onEditDestination(destination)
+              }}
+              className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
+              title="Edit Destination"
+            >
+              <Edit3 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onRemoveDestination(destination.id)
+              }}
+              className="p-2 rounded-lg text-white/60 hover:bg-red-500/20 hover:text-red-400 transition-all duration-200"
+              title="Remove Destination"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        
+        
+        {/* Notes */}
+        {destination.notes && (
+          <div className="mt-3 p-2 rounded-lg bg-white/5 border border-white/10">
+            <p className="text-xs text-white/60 italic">
+              "{destination.notes}"
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function DayCard({ 
@@ -41,9 +213,19 @@ export function DayCard({
   isExpanded, 
   onAddDestination, 
   onAddNotes,
-  onSetBaseLocation
+  onSetBaseLocation,
+  activeDestinationId,
+  activeTargetDayId,
+  draggingFromDayId
 }: DayCardProps) {
-  const { removeDestinationFromDay, duplicateDay, removeDay, setSelectedDestination, selectedCardId, setSelectedCard } = useSupabaseTripStore()
+  const { 
+    removeDestinationFromDay, 
+    duplicateDay, 
+    removeDay, 
+    setSelectedDestination, 
+    selectedCardId, 
+    setSelectedCard,
+  } = useSupabaseTripStore()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingLocation, setEditingLocation] = useState<{ location: DayLocation; index: number } | null>(null)
@@ -53,17 +235,8 @@ export function DayCard({
   const [overviewDestination, setOverviewDestination] = useState<Destination | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const totalDuration = day.destinations.reduce((acc, dest) => acc + (dest.estimatedDuration || 2), 0)
-  const totalCost = day.destinations.reduce((acc, dest) => acc + (dest.cost || 0), 0)
-  const averageRating = day.destinations.length > 0 
-    ? day.destinations.reduce((acc, dest) => acc + (dest.rating || 0), 0) / day.destinations.length 
-    : 0
-
-  const formatTime = (hours: number) => {
-    if (hours < 1) return `${Math.round(hours * 60)}m`
-    if (hours === Math.floor(hours)) return `${Math.floor(hours)}h`
-    return `${Math.floor(hours)}h ${Math.round((hours % 1) * 60)}m`
-  }
+  const isTargetDay = activeTargetDayId === day.id
+  const isSourceDay = draggingFromDayId === day.id
 
   const handleRemoveDestination = (destinationId: string) => {
     removeDestinationFromDay(destinationId, day.id)
@@ -218,9 +391,17 @@ export function DayCard({
     }
   }, [])
 
+  const containerClasses = [
+    'h-full flex flex-col bg-white/[0.02] rounded-2xl border border-white/10 overflow-hidden hover:bg-white/[0.04] transition-all duration-200 cursor-pointer',
+    isTargetDay ? 'ring-2 ring-blue-400/60 border-blue-400/50 shadow-lg shadow-blue-500/20' : '',
+    isSourceDay && !isTargetDay ? 'border-blue-400/40' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
     <div 
-      className="h-full flex flex-col bg-white/[0.02] rounded-2xl border border-white/10 overflow-hidden hover:bg-white/[0.04] transition-all duration-200 cursor-pointer"
+      className={containerClasses}
       onClick={handleDayClick}
       title={day.destinations.length > 0 ? "Click to center map on destinations" : "No destinations to center on"}
     >
@@ -305,9 +486,9 @@ export function DayCard({
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide">
+      <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col">
         {/* Base Locations Section */}
-        <div className="p-4 border-b border-white/10 bg-white/[0.01]">
+        <div className="order-2 p-4 border-b border-white/10 bg-white/[0.01]">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-lg bg-green-500/20 flex items-center justify-center">
@@ -390,7 +571,7 @@ export function DayCard({
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-white/60 font-medium uppercase tracking-wide">Quick Access</span>
                       <div className="flex items-center gap-2">
-                        {day.baseLocations[0].links.slice(0, 2).map((link, linkIndex) => (
+                        {day.baseLocations[0].links.slice(0, 2).map((link, _linkIndex) => (
                           <a
                             key={link.id}
                             href={link.url}
@@ -583,7 +764,7 @@ export function DayCard({
 
         {/* Activities Section */}
         {isExpanded && (
-          <div className="p-4 border-b border-white/10 bg-white/[0.01]">
+          <div className="order-1 p-4 border-b border-white/10 bg-white/[0.01]">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center">
@@ -599,7 +780,13 @@ export function DayCard({
           {/* Activities List */}
           <div className="space-y-3">
             {day.destinations.length === 0 ? (
-              <div className="text-center py-12">
+              <div
+                className={`text-center py-12 border border-dashed rounded-2xl transition-colors duration-200 ${
+                  isTargetDay
+                    ? 'border-blue-400/70 bg-blue-500/10 text-blue-100 shadow-md shadow-blue-500/20'
+                    : 'border-white/10 text-white'
+                }`}
+              >
                 <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
                   <MapPin className="h-8 w-8 text-white/30" />
                 </div>
@@ -617,143 +804,33 @@ export function DayCard({
                   <Plus className="h-4 w-4" />
                   Add First Activity
                 </button>
+                {isTargetDay ? (
+                  <p className="mt-3 text-xs font-medium text-blue-100/80">
+                    Drop to move destination into this day
+                  </p>
+                ) : null}
               </div>
             ) : (
-              day.destinations.map((destination, index) => (
-                <div
-                  key={destination.id}
-                  className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-indigo-500/5 border transition-all duration-500 cursor-pointer hover:shadow-xl hover:shadow-blue-500/10 ${
-                    selectedCardId === `dest-${destination.id}` 
-                      ? 'border-blue-400 border-2 shadow-xl shadow-blue-500/20' 
-                      : 'border-blue-400/20 hover:border-blue-400/40'
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDestinationClick(destination)
-                  }}
-                >
-                  {/* Background Pattern */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-50"></div>
-                  
-                  {/* Content */}
-                  <div className="relative p-5">
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/30 to-purple-500/20 flex items-center justify-center shadow-lg border border-blue-400/30">
-                            <span className="text-lg font-bold text-blue-400">
-                              {String.fromCharCode(65 + index)}
-                            </span>
-                          </div>
-                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
-                            <div className="w-2 h-2 bg-white rounded-full"></div>
-                          </div>
-                        </div>
-                        <div>
-                          <h4 className="text-lg font-bold text-white mb-1">{destination.city || 'Siena, Italy'}</h4>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-blue-400 font-medium">
-                              {destination.name}
-                            </span>
-                            <div className="w-1 h-1 bg-white/40 rounded-full"></div>
-                            <span className="text-xs text-white/60">Destination</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                    </div>
-                    
-                    {/* Metadata */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                        {destination.estimatedDuration && Number(destination.estimatedDuration) > 0 && (
-                        <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-xl border border-white/20 backdrop-blur-sm">
-                          <Clock className="h-3 w-3 text-blue-400" />
-                          <span className="text-xs text-white/80 font-medium">{formatTime(Number(destination.estimatedDuration))}</span>
-                          </div>
-                        )}
-                        {destination.cost && Number(destination.cost) > 0 && (
-                        <div className="flex items-center gap-2 bg-green-500/20 px-3 py-2 rounded-xl border border-green-500/30 backdrop-blur-sm">
-                          <DollarSign className="h-3 w-3 text-green-400" />
-                          <span className="text-xs text-green-400 font-medium">€{destination.cost}</span>
-                          </div>
-                        )}
-                        {destination.category && (
-                        <div className="flex items-center gap-2 bg-purple-500/20 px-3 py-2 rounded-xl border border-purple-500/30 backdrop-blur-sm">
-                          <span className="text-xs text-purple-400 font-semibold capitalize tracking-wide">{destination.category}</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Notes */}
-                    {destination.notes && (
-                      <div className="mt-3 bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-sm">
-                        <p className="text-sm text-white/80 italic leading-relaxed">
-                          "{destination.notes}"
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Links */}
-                    {destination.links && destination.links.length > 0 && (
-                      <div className="mt-3 flex items-center gap-3">
-                        <span className="text-xs text-white/60 font-medium uppercase tracking-wide">Quick Access</span>
-                        <div className="flex items-center gap-2">
-                          {destination.links.slice(0, 2).map((link, linkIndex) => (
-                            <a
-                              key={link.id}
-                              href={link.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 rounded-lg text-xs font-medium transition-all duration-200 border border-blue-500/30 hover:border-blue-400/50"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              {link.label}
-                            </a>
-                          ))}
-                          {destination.links.length > 2 && (
-                            <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-lg border border-white/10">
-                              +{destination.links.length - 2} more
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Action Buttons */}
-                    <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleOpenOverview(destination)
-                        }}
-                        className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-400 transition-all duration-200 backdrop-blur-sm"
-                        title="View overview"
-                      >
-                        <Info className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleEditDestination(destination)
-                        }}
-                        className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 backdrop-blur-sm"
-                        title="Edit destination"
-                      >
-                        <Edit3 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleRemoveDestination(destination.id)}
-                        className="p-2 rounded-xl bg-white/10 hover:bg-red-500/20 text-white/70 hover:text-red-400 transition-all duration-200 backdrop-blur-sm"
-                        title="Remove destination"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
+              <SortableContext
+                id={`day-${day.id}`}
+                items={day.destinations.map(dest => `dest-${dest.id}`)}
+                strategy={verticalListSortingStrategy}
+              >
+                {day.destinations.map((destination, index) => (
+                  <DraggableDestination
+                    key={destination.id}
+                    dayId={day.id}
+                    destination={destination}
+                    index={index}
+                    isSelected={selectedCardId === `dest-${destination.id}`}
+                    activeDestinationId={activeDestinationId}
+                    onDestinationClick={handleDestinationClick}
+                    onEditDestination={handleEditDestination}
+                    onRemoveDestination={handleRemoveDestination}
+                    onOpenOverview={handleOpenOverview}
+                  />
+                ))}
+              </SortableContext>
             )}
           </div>
           </div>

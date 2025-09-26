@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { X, ChevronUp, ChevronDown, MapPin, Loader2, Camera, User } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { X, Loader2 } from 'lucide-react'
 import { Destination } from '@/types'
 
 interface DestinationOverviewModalProps {
@@ -27,13 +27,9 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
   const [isLoadingOverview, setIsLoadingOverview] = useState(true)
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(true)
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [overviewSource, setOverviewSource] = useState<'cache' | 'api' | null>(null)
-  const [photosSource, setPhotosSource] = useState<'cache' | 'api' | null>(null)
-
   const contentRef = useRef<HTMLDivElement>(null)
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Fetch destination overview from LLM
   useEffect(() => {
@@ -58,13 +54,11 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
 
         const data = await response.json()
         setOverview(data.overview)
-        setOverviewSource(data.source || 'api')
       } catch (error) {
         console.error('Error fetching overview:', error)
         setError('Failed to load destination information')
         // Fallback to basic description
         setOverview(destination.description || `Discover ${destination.name}${destination.city ? ` in ${destination.city}` : ''}, a ${destination.category || 'destination'} worth exploring.`)
-        setOverviewSource(null)
       } finally {
         setIsLoadingOverview(false)
       }
@@ -80,7 +74,7 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
         setIsLoadingPhotos(true)
         const searchQuery = `${destination.name}${destination.city ? ` ${destination.city}` : ''} travel`
 
-        const response = await fetch(`/api/destination/photos?query=${encodeURIComponent(searchQuery)}&count=6`)
+        const response = await fetch(`/api/destination/photos?query=${encodeURIComponent(searchQuery)}&count=10`)
 
         if (!response.ok) {
           throw new Error('Failed to fetch photos')
@@ -88,7 +82,6 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
 
         const data = await response.json()
         setPhotos(data.photos)
-        setPhotosSource(data.source || 'api')
       } catch (error) {
         console.error('Error fetching photos:', error)
         // Fallback to a single placeholder image
@@ -103,7 +96,6 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
           width: 1200,
           height: 800,
         }])
-        setPhotosSource(null)
       } finally {
         setIsLoadingPhotos(false)
       }
@@ -114,13 +106,13 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
 
   // Auto-advance photo gallery
   useEffect(() => {
-    if (photos.length > 1) {
-      const interval = setInterval(() => {
-        setCurrentPhotoIndex((prev) => (prev + 1) % photos.length)
-      }, 5000) // Change photo every 5 seconds
+    if (photos.length <= 1) return
 
-      return () => clearInterval(interval)
-    }
+    const interval = setInterval(() => {
+      setCurrentPhotoIndex((prev) => (prev + 1) % photos.length)
+    }, 8000)
+
+    return () => clearInterval(interval)
   }, [photos.length])
 
   // Keyboard navigation
@@ -139,27 +131,6 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose, photos.length])
 
-  // Handle scroll to expand/collapse
-  const handleScroll = () => {
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current)
-    }
-
-    scrollTimeoutRef.current = setTimeout(() => {
-      if (contentRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = contentRef.current
-        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10
-        const isAtTop = scrollTop <= 10
-
-        if (isAtBottom && !isExpanded) {
-          setIsExpanded(true)
-        } else if (isAtTop && isExpanded) {
-          setIsExpanded(false)
-        }
-      }
-    }, 100)
-  }
-
   // Handle photo navigation
   const nextPhoto = () => {
     setCurrentPhotoIndex((prev) => (prev + 1) % photos.length)
@@ -169,204 +140,370 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
     setCurrentPhotoIndex((prev) => (prev - 1 + photos.length) % photos.length)
   }
 
+  interface OverviewSection {
+    title?: string
+    body: string
+  }
+
+  const overviewSections = useMemo<OverviewSection[]>(() => {
+    const paragraphs = overview
+      .split('\n\n')
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean)
+
+    if (paragraphs.length === 0) {
+      const trimmed = overview.trim()
+      return trimmed ? [{ body: trimmed }] : []
+    }
+
+    return paragraphs.map((paragraph) => {
+      const headingMatch = paragraph.match(/^([A-Z][^:\u2013\u2014-]{2,80})([:\u2013\u2014-])\s+/)
+      if (headingMatch) {
+        const [, rawTitle, separator] = headingMatch
+        const remainder = paragraph.slice(headingMatch[0].length).trim()
+        return {
+          title: rawTitle.trim(),
+          body: remainder.length > 0 ? remainder : paragraph.replace(`${rawTitle}${separator}`, '').trim(),
+        }
+      }
+      return { body: paragraph }
+    })
+  }, [overview])
+
+  const enrichedSections = useMemo(() => {
+    const fallbackTitles = ['Overview', 'Highlights', "Why You'll Love It", 'Practical Notes', 'Insider Tips']
+    return overviewSections.map((section, index) => {
+      if (section.title && section.title.trim().length > 0) {
+        return section
+      }
+      const fallback = fallbackTitles[index] || `Section ${index + 1}`
+      return { ...section, title: fallback }
+    })
+  }, [overviewSections])
+
+  const displaySections = enrichedSections
+
   return (
-    <>
-      {/* Background Photo Gallery - Full viewport behind modal */}
-      <div className="fixed inset-0 z-40">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-        {photos.length > 0 && (
-          <div className="absolute inset-0">
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 60,
+        backgroundColor: '#060a16',
+        overflow: 'hidden',
+        cursor: 'pointer'
+      }}
+      aria-modal="true"
+      role="dialog"
+      aria-labelledby="destination-overview-title"
+    >
+      {/* Background Image Stack */}
+      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+        {photos.length > 0 ? (
+          photos.map((photo, index) => (
             <img
-              src={photos[currentPhotoIndex].url}
-              alt={photos[currentPhotoIndex].alt}
-              className="w-full h-full object-cover"
-              loading="eager"
+              key={photo.id || `${photo.url}-${index}`}
+              src={photo.url}
+              alt={photo.alt}
+              loading={index === currentPhotoIndex ? 'eager' : 'lazy'}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                opacity: index === currentPhotoIndex ? 1 : 0,
+                transition: 'opacity 1.4s ease',
+                transform: index === currentPhotoIndex ? 'scale(1)' : 'scale(1.01)'
+              }}
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-black/60"></div>
-          </div>
+          ))
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(135deg, rgba(27,38,59,1) 0%, rgba(40,54,82,1) 50%, rgba(17,24,39,0.85) 100%)'
+            }}
+          />
         )}
-
-        {/* Photo Navigation Dots */}
-        {photos.length > 1 && (
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-2 z-50">
-            {photos.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentPhotoIndex(index)}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                  index === currentPhotoIndex
-                    ? 'bg-white w-6'
-                    : 'bg-white/50 hover:bg-white/75'
-                }`}
-                aria-label={`View photo ${index + 1} of ${photos.length}`}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Photo Navigation Arrows */}
-        {photos.length > 1 && (
-          <>
-            <button
-              onClick={prevPhoto}
-              className="absolute left-6 top-1/2 transform -translate-y-1/2 w-12 h-12 bg-black/20 hover:bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white/80 hover:text-white transition-all duration-300 z-50"
-              aria-label="Previous photo"
-            >
-              <ChevronUp className="h-6 w-6 rotate-[-90deg]" />
-            </button>
-            <button
-              onClick={nextPhoto}
-              className="absolute right-6 top-1/2 transform -translate-y-1/2 w-12 h-12 bg-black/20 hover:bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white/80 hover:text-white transition-all duration-300 z-50"
-              aria-label="Next photo"
-            >
-              <ChevronUp className="h-6 w-6 rotate-90" />
-            </button>
-          </>
-        )}
-
-        {/* Photo Attribution */}
-        {photos.length > 0 && photos[currentPhotoIndex].photographer && (
-          <div className="absolute bottom-16 left-6 bg-black/20 backdrop-blur-sm rounded-lg px-3 py-2 text-white/80 text-sm z-50">
-            <a
-              href={photos[currentPhotoIndex].photographerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 hover:text-white transition-colors duration-200"
-            >
-              <Camera className="h-4 w-4" />
-              <span>{photos[currentPhotoIndex].photographer}</span>
-            </a>
-          </div>
-        )}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'radial-gradient(circle at 20% 20%, rgba(8,15,30,0.18) 0%, rgba(7,11,22,0.55) 70%)'
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'linear-gradient(120deg, rgba(5,9,20,0.28) 0%, rgba(6,11,24,0.18) 45%, rgba(6,10,22,0.32) 100%)'
+          }}
+        />
       </div>
 
-      {/* Main Modal Container - Top Left Position */}
-      <div className="fixed inset-0 z-50 flex items-start justify-start p-8">
-        <div
-          className="w-[70%] max-w-4xl h-[80vh] bg-black/20 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
-          role="dialog"
-          aria-labelledby="modal-title"
-          aria-modal="true"
-        >
-          {/* Modal Header */}
-          <div className="relative p-6 border-b border-white/10 bg-gradient-to-r from-white/5 to-transparent">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-4">
-                {/* Location Icon */}
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/30 to-purple-500/20 flex items-center justify-center border border-blue-400/30 shadow-lg">
-                  <MapPin className="h-6 w-6 text-blue-400" />
-                </div>
-
-                {/* Title Section */}
-                <div className="flex-1">
-                  <div className="text-xs font-bold uppercase tracking-wider text-white/60 mb-1">
-                    {destination.city || 'Location'}
-                  </div>
-                  <h1 id="modal-title" className="text-2xl font-bold text-white mb-2">
-                    {destination.name}
-                  </h1>
-                  <div className="text-sm font-semibold uppercase tracking-wide text-blue-400">
-                    {destination.category || 'Destination'}
-                  </div>
-
-                  {/* Data Source Indicators */}
-                  <div className="flex items-center gap-3 mt-2">
-                    {overviewSource && (
-                      <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
-                        overviewSource === 'cache'
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                          : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                      }`}>
-                        <div className={`w-2 h-2 rounded-full ${
-                          overviewSource === 'cache' ? 'bg-green-400' : 'bg-blue-400'
-                        }`}></div>
-                        {overviewSource === 'cache' ? 'Cached' : 'Live'}
-                      </div>
-                    )}
-                    {photosSource && (
-                      <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
-                        photosSource === 'cache'
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                          : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                      }`}>
-                        <Camera className="h-3 w-3" />
-                        <div className={`w-2 h-2 rounded-full ${
-                          photosSource === 'cache' ? 'bg-green-400' : 'bg-blue-400'
-                        }`}></div>
-                        {photosSource === 'cache' ? 'Cached' : 'Live'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Close Button */}
-              <button
-                onClick={onClose}
-                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-all duration-200"
-                aria-label="Close modal"
+      {/* Floating Card */}
+      <div
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          position: 'absolute',
+          top: 40,
+          left: 40,
+          width: 'min(500px, calc(100vw - 80px))',
+          maxHeight: 'calc(100vh - 80px)',
+          padding: '32px',
+          borderRadius: '28px',
+          background: 'rgba(7, 10, 22, 0.72)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          boxShadow: '0 40px 120px rgba(15, 23, 42, 0.55)',
+          backdropFilter: 'blur(22px)',
+          color: 'white',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '24px',
+          cursor: 'default'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: '11px',
+                letterSpacing: '0.28em',
+                textTransform: 'uppercase',
+                fontWeight: 600,
+                color: 'rgba(148, 163, 184, 0.9)',
+                marginBottom: '12px'
+              }}
+            >
+              {destination.city || destination.category || 'Destination'}
+            </div>
+            <h1
+              id="destination-overview-title"
+              style={{
+                fontSize: '42px',
+                lineHeight: 1.05,
+                fontWeight: 300,
+                margin: 0,
+                color: 'rgba(255,255,255,0.96)'
+              }}
+            >
+              {destination.name}
+            </h1>
+            {destination.category && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  fontSize: '13px',
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(167, 243, 208, 0.8)'
+                }}
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+                {destination.category}
+              </div>
+            )}
           </div>
-
-          {/* Content Area */}
-          <div className="flex-1 overflow-hidden">
-            <div className="h-full flex">
-              {/* Text Content Column */}
-              <div className="flex-1 p-6 overflow-y-auto scrollbar-hide">
-                <div
-                  ref={contentRef}
-                  onScroll={handleScroll}
-                  className="max-w-2xl prose prose-invert prose-lg"
-                >
-                  {isLoadingOverview ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />
-                      <span className="ml-3 text-white/80">Loading destination information...</span>
-                    </div>
-                  ) : error ? (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                      <p className="text-red-400 text-sm">{error}</p>
-                    </div>
-                  ) : (
-                    <div className="text-white/90 leading-relaxed">
-                      {overview.split('\n\n').map((paragraph, index) => (
-                        <p key={index} className="mb-4 last:mb-0">
-                          {paragraph}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Expand/Collapse Indicator */}
-              <div className="w-12 flex items-center justify-center border-l border-white/10">
-                <button
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all duration-200"
-                  aria-label={isExpanded ? 'Collapse content' : 'Expand content'}
-                >
-                  {isExpanded ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={(event) => {
+                event.stopPropagation()
+                setIsCollapsed((value) => !value)
+              }}
+              aria-label={isCollapsed ? 'Expand overview panel' : 'Collapse overview panel'}
+              style={{
+                flexShrink: 0,
+                width: 44,
+                height: 44,
+                borderRadius: '14px',
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(15,23,42,0.28)',
+                color: 'rgba(255,255,255,0.75)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              className="transition-colors duration-200 hover:bg-slate-700/60 hover:text-white"
+            >
+              {isCollapsed ? '+' : '–'}
+            </button>
+            <button
+              onClick={(event) => {
+                event.stopPropagation()
+                onClose()
+              }}
+              aria-label="Close overview"
+              style={{
+                flexShrink: 0,
+                width: 44,
+                height: 44,
+                borderRadius: '14px',
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(15,23,42,0.35)',
+                color: 'rgba(255,255,255,0.75)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              className="transition-colors duration-200 hover:bg-slate-700/60 hover:text-white"
+            >
+              <X size={20} />
+            </button>
           </div>
         </div>
+
+        <div style={{ height: '1px', width: '100%', background: 'linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }} />
+
+        <div style={{ position: 'relative' }}>
+          {isCollapsed ? null : isLoadingOverview ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'rgba(148,163,184,0.85)' }}>
+              <Loader2 className="animate-spin" size={20} />
+              <span>Composing cinematic overview...</span>
+            </div>
+          ) : error ? (
+            <div
+              style={{
+                padding: '14px 16px',
+                borderRadius: '16px',
+                border: '1px solid rgba(248,113,113,0.25)',
+                background: 'rgba(127,29,29,0.25)',
+                color: 'rgba(254,202,202,0.95)',
+                fontSize: '14px'
+              }}
+            >
+              {error}
+            </div>
+          ) : (
+            <>
+              <div
+                ref={contentRef}
+                style={{
+                  maxHeight: isCollapsed ? '0px' : '52vh',
+                  overflowY: 'auto',
+                  paddingRight: '4px',
+                  transition: 'max-height 0.6s ease',
+                  color: 'rgba(226, 232, 240, 0.92)',
+                  lineHeight: 1.6,
+                  fontSize: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '20px'
+                }}
+              >
+                {displaySections.length === 0 ? (
+                  <p style={{ margin: 0 }}>{overview}</p>
+                ) : (
+                  displaySections.map((section, index) => (
+                    <div key={index}>
+                      {section.title && (
+                        <div
+                          style={{
+                            fontSize: '12px',
+                            letterSpacing: '0.14em',
+                            textTransform: 'uppercase',
+                            color: 'rgba(148,163,184,0.85)',
+                            marginBottom: '10px'
+                          }}
+                        >
+                          {section.title}
+                        </div>
+                      )}
+                      <div>
+                        {section.body.split('\n').map((line, lineIdx, arr) => (
+                          <p
+                            key={lineIdx}
+                            style={{
+                              margin: 0,
+                              marginBottom: lineIdx === arr.length - 1 ? 0 : 12
+                            }}
+                          >
+                            {line}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {!isCollapsed && isLoadingPhotos && (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 14px',
+              borderRadius: '14px',
+              background: 'rgba(15, 23, 42, 0.35)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              fontSize: '13px',
+              color: 'rgba(148,163,184,0.85)'
+            }}
+          >
+            <Loader2 className="animate-spin" size={16} />
+            <span>Loading cinematic imagery…</span>
+          </div>
+        )}
+
       </div>
 
-      {/* Click Outside to Close */}
-      <div
-        className="fixed inset-0 z-40"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-    </>
+      {/* Optional manual controls (hidden unless multiple photos) */}
+      {photos.length > 1 && !isLoadingPhotos && !isCollapsed && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 40,
+            left: 40,
+            display: 'flex',
+            gap: '12px'
+          }}
+        >
+          <button
+            onClick={(event) => {
+              event.stopPropagation()
+              prevPhoto()
+            }}
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: '14px',
+              border: '1px solid rgba(255,255,255,0.18)',
+              background: 'rgba(15,23,42,0.45)',
+              color: 'rgba(255,255,255,0.75)',
+              backdropFilter: 'blur(20px)'
+            }}
+            aria-label="Previous scene image"
+          >
+            ‹
+          </button>
+          <button
+            onClick={(event) => {
+              event.stopPropagation()
+              nextPhoto()
+            }}
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: '14px',
+              border: '1px solid rgba(255,255,255,0.18)',
+              background: 'rgba(15,23,42,0.45)',
+              color: 'rgba(255,255,255,0.75)',
+              backdropFilter: 'blur(20px)'
+            }}
+            aria-label="Next scene image"
+          >
+            ›
+          </button>
+        </div>
+      )}
+    </div>
   )
 }

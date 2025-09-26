@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     query = searchParams.get('query')
-    count = parseInt(searchParams.get('count') || '6')
+    count = parseInt(searchParams.get('count') || '10')
 
     if (!query) {
       return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 })
@@ -230,7 +230,7 @@ export async function GET(request: NextRequest) {
     // Log the error
     await DestinationCacheService.logApiCall(
       'destination/photos',
-      { query: query || '', count: 6 },
+      { query: query || '', count: 10 },
       Date.now() - startTime,
       false,
       error instanceof Error ? error.message : 'Unknown error'
