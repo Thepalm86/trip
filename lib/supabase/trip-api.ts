@@ -84,7 +84,7 @@ function formatDateOnly(date: Date): string {
 }
 
 // Map Mapbox geocoder categories to our allowed categories
-function mapCategoryToAllowed(category: string): 'city' | 'attraction' | 'restaurant' | 'hotel' | 'activity' {
+function mapCategoryToAllowed(category: string): string {
   const categoryMap: Record<string, 'city' | 'attraction' | 'restaurant' | 'hotel' | 'activity'> = {
     'locality': 'city',
     'place': 'city',
@@ -117,7 +117,8 @@ function mapCategoryToAllowed(category: string): 'city' | 'attraction' | 'restau
     'hiking': 'activity'
   }
   
-  return categoryMap[category.toLowerCase()] || 'attraction' // Default to 'attraction' for unknown categories
+  // Return mapped category if found, otherwise return the original category (for custom categories)
+  return categoryMap[category.toLowerCase()] || category
 }
 
 function dbDestinationToDestination(dest: DatabaseDestination): Destination {

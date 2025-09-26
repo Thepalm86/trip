@@ -6,7 +6,7 @@ export interface Destination {
   description?: string
   coordinates: [number, number] // [longitude, latitude]
   city?: string
-  category?: 'city' | 'attraction' | 'restaurant' | 'hotel' | 'activity'
+  category?: 'city' | 'attraction' | 'restaurant' | 'hotel' | 'activity' | string
   rating?: number
   imageUrl?: string
   estimatedDuration?: number // in hours

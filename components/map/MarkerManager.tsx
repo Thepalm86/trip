@@ -8,6 +8,7 @@ interface MarkerManagerProps {
   hasTrip: boolean
   tripDays: Trip['days']
   selectedDayId: string | null
+  selectedCardId: string | null
 }
 
 const DAY_COLORS = [
@@ -26,7 +27,8 @@ export function MarkerManager({
   map, 
   hasTrip, 
   tripDays, 
-  selectedDayId 
+  selectedDayId,
+  selectedCardId
 }: MarkerManagerProps) {
 
   // Update base location markers with enhanced data
@@ -91,7 +93,10 @@ export function MarkerManager({
             isSelected: selectedDayId === day.id,
             isDeparturePoint: selectedDayId === day.id ? false : true, // Previous day's location is departure point
             destinationCount: day.destinations.length,
-            totalBaseLocations: day.baseLocations!.length
+            totalBaseLocations: day.baseLocations!.length,
+            city: firstBaseLocation.city || 'Unknown City',
+            cardId: `base-${day.id}-0`,
+            isCardSelected: selectedCardId === `base-${day.id}-0`
           }
         }
       })
@@ -133,7 +138,7 @@ export function MarkerManager({
     }, 50)
 
     return () => clearTimeout(timeoutId)
-  }, [map, hasTrip, tripDays, selectedDayId])
+  }, [map, hasTrip, tripDays, selectedDayId, selectedCardId])
 
   // Destination markers update - SIMPLIFIED
   useEffect(() => {
@@ -171,7 +176,10 @@ export function MarkerManager({
             destIndex,
             activityLetter: String.fromCharCode(65 + destIndex), // Convert to letters: A, B, C, etc.
             destinationId: destination.id,
-            markerColor: markerColor // Consistent blue color for all destination markers
+            markerColor: markerColor, // Consistent blue color for all destination markers
+            city: destination.city || 'Unknown City',
+            cardId: `dest-${destination.id}`,
+            isCardSelected: selectedCardId === `dest-${destination.id}`
           }
         }))
       })
@@ -193,7 +201,7 @@ export function MarkerManager({
     } else {
       map.once('styledata', updateDestinations)
     }
-  }, [map, hasTrip, tripDays, selectedDayId])
+  }, [map, hasTrip, tripDays, selectedDayId, selectedCardId])
 
   return null
 }

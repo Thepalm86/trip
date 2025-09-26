@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MapPin, Info, ChevronDown, ChevronUp } from 'lucide-react'
+import { MapPin, Info, ChevronDown, ChevronUp, Home, Navigation, ArrowRight } from 'lucide-react'
 
 interface MapControlsProps {
   map: any
@@ -71,31 +71,55 @@ export function MapControls({ map }: MapControlsProps) {
                 </div>
               </div>
 
-              {/* Inter-Day Routes */}
+              {/* Route Segments */}
               <div className="space-y-2">
+                <div className="text-xs font-medium text-white/80 mb-2">Route Segments</div>
+                
+                {/* Base to Destination */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center flex-shrink-0">
+                    <div className="w-4 h-1 bg-blue-500 rounded"></div>
+                    <Home className="h-3 w-3 text-white/60 ml-1" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-white">Base to Destination</p>
+                    <p className="text-xs text-white/50">From accommodation to attractions</p>
+                  </div>
+                </div>
+
+                {/* Destination to Destination */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center flex-shrink-0">
+                    <div className="w-4 h-1 bg-purple-500 rounded"></div>
+                    <MapPin className="h-3 w-3 text-white/60 ml-1" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-white">Destination to Destination</p>
+                    <p className="text-xs text-white/50">Between attractions</p>
+                  </div>
+                </div>
+
+                {/* Destination to Base */}
                 <div className="flex items-center gap-2">
                   <div className="flex items-center flex-shrink-0">
                     <div className="w-4 h-1 bg-green-500 rounded"></div>
+                    <ArrowRight className="h-3 w-3 text-white/60 ml-1" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-white">Inter-Day Routes</p>
-                    <p className="text-xs text-white/50">Between cities (driving)</p>
+                    <p className="text-xs font-medium text-white">Destination to Base</p>
+                    <p className="text-xs text-white/50">From attractions to accommodation</p>
                   </div>
                 </div>
-              </div>
 
-              {/* Intra-Day Routes */}
-              <div className="space-y-2">
+                {/* Base to Base */}
                 <div className="flex items-center gap-2">
                   <div className="flex items-center flex-shrink-0">
-                    <div className="w-4 h-1 bg-blue-500 rounded" style={{ 
-                      backgroundImage: 'repeating-linear-gradient(90deg, #3b82f6, #3b82f6 1px, transparent 1px, transparent 2px)',
-                      backgroundSize: '4px 1px'
-                    }}></div>
+                    <div className="w-4 h-1 bg-orange-500 rounded"></div>
+                    <Navigation className="h-3 w-3 text-white/60 ml-1" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-white">Intra-Day Routes</p>
-                    <p className="text-xs text-white/50">Within cities (walking)</p>
+                    <p className="text-xs font-medium text-white">Base to Base</p>
+                    <p className="text-xs text-white/50">Between accommodations</p>
                   </div>
                 </div>
               </div>

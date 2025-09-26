@@ -25,11 +25,23 @@ export function MapEventHandler({
 }: MapEventHandlerProps) {
   const [activePopups, setActivePopups] = useState<mapboxgl.Popup[]>([])
 
+  // Format duration from minutes to hours/minutes
+  const formatDuration = (minutes: number) => {
+    if (minutes < 60) return `${minutes}min`
+    const hours = Math.floor(minutes / 60)
+    const remainingMinutes = minutes % 60
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}min` : `${hours}h`
+  }
+
   // Clear all popups
   const clearPopups = useCallback(() => {
-    activePopups.forEach(popup => popup.remove())
-    setActivePopups([])
-  }, [activePopups])
+    console.log('clearPopups called')
+    setActivePopups(prev => {
+      console.log('Clearing popups, current count:', prev.length)
+      prev.forEach(popup => popup.remove())
+      return []
+    })
+  }, [])
 
   // Add enhanced click handlers with bidirectional interactions
   useEffect(() => {
@@ -224,34 +236,62 @@ export function MapEventHandler({
       }
     })
 
-    // Route click handlers for distance/time popup
-    map.on('click', 'inter-day-routes-layer', (e: any) => {
+    // Route segment click handlers for distance/time popup
+    map.on('click', 'route-segments-layer', (e: any) => {
       const feature = e.features[0]
       if (feature && feature.properties.label) {
-        new mapboxgl.Popup()
+        console.log('Route segment clicked, clearing existing popups')
+        // Clear any existing popups first
+        clearPopups()
+        
+        const segmentType = feature.properties.segmentType
+        const segmentTypeLabel = {
+          'base-to-destination': 'Base to Destination',
+          'destination-to-destination': 'Destination to Destination', 
+          'destination-to-base': 'Destination to Base',
+          'base-to-base': 'Base to Base'
+        }[segmentType] || 'Route Segment'
+        
+        console.log('Creating new route segment popup')
+        const popup = new mapboxgl.Popup({
+          closeButton: true,
+          closeOnClick: false, // Disable closeOnClick to prevent conflicts
+          className: 'route-segment-popup'
+        })
           .setLngLat(e.lngLat)
           .setHTML(`
-            <div class="route-popup">
-              <strong>Inter-Day Route</strong><br>
-              ${feature.properties.label}
+            <div class="route-popup-content">
+              <div class="route-popup-header">
+                <div class="route-popup-icon ${segmentType}"></div>
+                <div class="route-popup-title">${segmentTypeLabel}</div>
+              </div>
+              <div class="route-popup-route">${feature.properties.fromLocation} → ${feature.properties.toLocation}</div>
+              <div class="route-popup-details">
+                <div class="route-popup-duration">⏱️ ${formatDuration(feature.properties.duration)}</div>
+                <div class="route-popup-distance">📏 ${feature.properties.distance} km</div>
+              </div>
             </div>
           `)
           .addTo(map)
+        
+        // Add to active popups for tracking
+        setActivePopups(prev => {
+          console.log('Adding popup to active popups, current count:', prev.length)
+          return [...prev, popup]
+        })
       }
     })
 
-    map.on('click', 'intra-day-routes-layer', (e: any) => {
-      const feature = e.features[0]
-      if (feature && feature.properties.label) {
-        new mapboxgl.Popup()
-          .setLngLat(e.lngLat)
-          .setHTML(`
-            <div class="route-popup">
-              <strong>Intra-Day Route</strong><br>
-              ${feature.properties.label}
-            </div>
-          `)
-          .addTo(map)
+    // Close popups when clicking on empty areas (not on route segments)
+    map.on('click', (e) => {
+      // Check if the click is on a route segment
+      const features = map.queryRenderedFeatures(e.point, {
+        layers: ['route-segments-layer']
+      })
+      
+      // Only clear popups if not clicking on a route segment
+      if (features.length === 0) {
+        clearPopups()
       }
     })
 
@@ -268,6 +308,8 @@ export function MapEventHandler({
       map.off('mouseleave', 'intra-day-routes-layer')
       map.off('click', 'inter-day-routes-layer')
       map.off('click', 'intra-day-routes-layer')
+      map.off('click', 'route-segments-layer')
+      map.off('click') // Remove general click handler
     }
   }, [map, hasTrip, tripDays, selectedDayId, selectedDestination, setSelectedDay, setSelectedDestination, clearPopups])
 

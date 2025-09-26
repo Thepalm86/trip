@@ -67,6 +67,7 @@ export function MapIntegration({ map }: MapIntegrationProps) {
     setSelectedDay, 
     selectedDestination, 
     setSelectedDestination,
+    selectedCardId,
   } = useSupabaseTripStore()
 
   const emptyTrip: Trip = {
@@ -113,6 +114,7 @@ export function MapIntegration({ map }: MapIntegrationProps) {
         hasTrip={hasTrip}
         tripDays={tripDays}
         selectedDayId={selectedDayId}
+        selectedCardId={selectedCardId}
       />
       <MapEventHandler
         map={map}

@@ -21,21 +21,35 @@ const linkTypeOptions = [
   { value: 'other', label: 'Other', icon: '🔗' }
 ]
 
+const categoryOptions = [
+  { value: 'city', label: 'City', icon: '🏙️' },
+  { value: 'attraction', label: 'Attraction', icon: '🎯' },
+  { value: 'restaurant', label: 'Restaurant', icon: '🍽️' },
+  { value: 'hotel', label: 'Hotel', icon: '🏨' },
+  { value: 'activity', label: 'Activity', icon: '🎪' },
+  { value: 'other', label: 'Other', icon: '📍' }
+]
+
 export function DestinationEditModal({ dayId, destination, onClose }: DestinationEditModalProps) {
   const { updateDestination } = useSupabaseTripStore()
-  const [editedDestination, setEditedDestination] = useState<Destination>(destination)
   const [isLoading, setIsLoading] = useState(false)
   const [showAddLink, setShowAddLink] = useState(false)
   const [newLink, setNewLink] = useState({ type: 'website', label: '', url: '' })
+  
+  // Initialize category states
+  const predefinedCategories = ['city', 'attraction', 'restaurant', 'hotel', 'activity']
+  const isCustomCategory = !predefinedCategories.includes(destination.category || '')
+  
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    return isCustomCategory ? 'other' : (destination.category || 'city')
+  })
+  const [customCategory, setCustomCategory] = useState<string>(() => {
+    return isCustomCategory ? (destination.category || '') : ''
+  })
+  
+  const [editedDestination, setEditedDestination] = useState<Destination>(destination)
 
   const handleSave = async () => {
-    console.log('DestinationEditModal: handleSave called', {
-      dayId,
-      destinationId: editedDestination.id,
-      destination: editedDestination,
-      originalDestination: destination
-    })
-    
     setIsLoading(true)
     try {
       await updateDestination(dayId, editedDestination.id, editedDestination)
@@ -86,6 +100,33 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
       ...prev,
       links: (prev.links || []).filter(link => link.id !== linkId)
     }))
+  }
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category)
+    if (category === 'other') {
+      // When switching to "other", preserve any existing custom category text
+      const currentCategory = editedDestination.category || ''
+      const isCurrentlyCustom = !predefinedCategories.includes(currentCategory)
+      if (isCurrentlyCustom) {
+        // Already has custom text, keep it
+        setCustomCategory(currentCategory)
+        setEditedDestination(prev => ({ ...prev, category: currentCategory }))
+      } else {
+        // Switching from predefined to custom, clear the custom text
+        setCustomCategory('')
+        setEditedDestination(prev => ({ ...prev, category: '' }))
+      }
+    } else {
+      // Clear custom category and set predefined category
+      setCustomCategory('')
+      setEditedDestination(prev => ({ ...prev, category }))
+    }
+  }
+
+  const handleCustomCategoryChange = (value: string) => {
+    setCustomCategory(value)
+    setEditedDestination(prev => ({ ...prev, category: value }))
   }
 
   return (
@@ -179,17 +220,36 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
             <label className="block text-sm font-medium text-white">
               Category
             </label>
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <MapPin className="h-4 w-4 text-purple-400" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <MapPin className="h-4 w-4 text-purple-400" />
+                </div>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-slate-800 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-green-400/50 focus:ring-1 focus:ring-green-400/20 transition-all duration-200"
+                >
+                  {categoryOptions.map(option => (
+                    <option key={option.value} value={option.value} className="bg-slate-800 text-white">
+                      {option.icon} {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <input
-                type="text"
-                value={editedDestination.category || ''}
-                onChange={(e) => setEditedDestination(prev => ({ ...prev, category: e.target.value }))}
-                placeholder="e.g., Museum, Restaurant, Park"
-                className="flex-1 px-3 py-2 bg-slate-800 border border-white/20 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-green-400/20 focus:border-green-400/50 transition-all duration-200"
-              />
+              
+              {/* Custom category input - only show when "other" is selected */}
+              {selectedCategory === 'other' && (
+                <div className="ml-11">
+                  <input
+                    type="text"
+                    value={customCategory}
+                    onChange={(e) => handleCustomCategoryChange(e.target.value)}
+                    placeholder="Enter custom category (e.g., Museum, Park, Theater)"
+                    className="w-full px-3 py-2 bg-slate-800 border border-white/20 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-green-400/20 focus:border-green-400/50 transition-all duration-200"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

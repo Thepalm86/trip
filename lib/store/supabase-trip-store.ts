@@ -15,6 +15,9 @@ interface SupabaseTripStore {
   error: string | null
   lastUpdate: number // Force re-renders
   
+  // Selection state
+  selectedCardId: string | null
+  
   // Actions
   loadTrips: () => Promise<void>
   loadTrip: (tripId: string) => Promise<void>
@@ -41,6 +44,9 @@ interface SupabaseTripStore {
   reorderDestinations: (dayId: string, startIndex: number, endIndex: number) => Promise<void>
   updateTripDates: (startDate: Date, endDate: Date) => Promise<void>
   
+  // Selection actions
+  setSelectedCard: (cardId: string | null) => void
+  
   
   // Utility
   setError: (error: string | null) => void
@@ -56,6 +62,9 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   isLoading: false,
   error: null,
   lastUpdate: Date.now(),
+  
+  // Selection state
+  selectedCardId: null,
 
   // Load all trips for the user
   loadTrips: async () => {
@@ -883,6 +892,11 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   // Clear error
   clearError: () => {
     set({ error: null })
+  },
+
+  // Set selected card
+  setSelectedCard: (cardId: string | null) => {
+    set({ selectedCardId: cardId })
   },
 
 }))

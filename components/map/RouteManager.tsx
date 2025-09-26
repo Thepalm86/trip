@@ -8,7 +8,7 @@ interface RouteData {
   coordinates: [number, number][]
   duration: number
   distance: number
-  routeType: 'inter-day' | 'intra-day'
+  routeType: 'segment'
   fromDayId: string
   toDayId: string
   fromLocation: string
@@ -19,6 +19,7 @@ interface RouteData {
     name: string
     dayId: string
   }>
+  segmentType?: 'base-to-destination' | 'destination-to-destination' | 'destination-to-base' | 'base-to-base'
 }
 
 interface RouteManagerProps {
@@ -99,12 +100,10 @@ export function RouteManager({
     return waypoints
   }, [])
 
-  // Calculate route between multiple waypoints
-  const calculateMultiWaypointRoute = useCallback(async (waypoints: RouteData['waypoints'], routeType: 'inter-day' | 'intra-day') => {
-    if (waypoints.length < 2) return null
-
-    const coordinates = waypoints.map(wp => wp.coordinates)
-    const cacheKey = `${coordinates.map(coord => `${coord[0]},${coord[1]}`).join('-')}-${routeType}`
+  // Calculate individual segment route between two points
+  const calculateSegmentRoute = useCallback(async (fromWaypoint: RouteData['waypoints'][0], toWaypoint: RouteData['waypoints'][0]) => {
+    const coordinates = [fromWaypoint.coordinates, toWaypoint.coordinates]
+    const cacheKey = `${coordinates.map(coord => `${coord[0]},${coord[1]}`).join('-')}-segment`
     
     // Check cache first
     if (routeCache.current.has(cacheKey)) {
@@ -112,33 +111,33 @@ export function RouteManager({
     }
 
     try {
-      const profile = routeType === 'inter-day' ? 'driving' : 'walking'
-                    const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates.map(coord => `${coord[0]},${coord[1]}`).join(';')}?access_token=${token}&geometries=geojson&overview=full`
-                    )
+      // Always use driving profile for all routes
+      const response = await fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates.map(coord => `${coord[0]},${coord[1]}`).join(';')}?access_token=${token}&geometries=geojson&overview=full`
+      )
 
-                    if (response.ok) {
-                      const data = await response.json()
-                      const route = data.routes[0]
+      if (response.ok) {
+        const data = await response.json()
+        const route = data.routes[0]
 
         const routeData: RouteData = {
-                        coordinates: route.geometry.coordinates,
-                        duration: route.duration,
-                        distance: route.distance,
-          routeType,
-          fromDayId: waypoints[0].dayId,
-          toDayId: waypoints[waypoints.length - 1].dayId,
-          fromLocation: waypoints[0].name,
-          toLocation: waypoints[waypoints.length - 1].name,
-          waypoints: waypoints
+          coordinates: route.geometry.coordinates,
+          duration: route.duration,
+          distance: route.distance,
+          routeType: 'segment',
+          fromDayId: fromWaypoint.dayId,
+          toDayId: toWaypoint.dayId,
+          fromLocation: fromWaypoint.name,
+          toLocation: toWaypoint.name,
+          waypoints: [fromWaypoint, toWaypoint]
         }
 
         // Cache the result
         routeCache.current.set(cacheKey, routeData)
         return routeData
-                    }
-                  } catch (error) {
-      console.error('Error calculating route:', error)
+      }
+    } catch (error) {
+      console.error('Error calculating segment route:', error)
     }
 
     return null
@@ -265,14 +264,15 @@ export function RouteManager({
         }))
       })
 
+      // Create individual segments for all routes
       for (const routeInfo of routesToShow) {
         const { fromDay, toDay, type } = routeInfo
         
         if (type === 'inter-day') {
-          // Inter-day route: fromDay base → toDay destinations → toDay base
+          // Create segments: fromDay base → toDay destinations → toDay base
           const waypoints = buildInterDayWaypoints(fromDay, toDay)
           
-          console.log(`RouteManager: Building inter-day route ${fromDay.id} → ${toDay.id}`, {
+          console.log(`RouteManager: Building inter-day segments ${fromDay.id} → ${toDay.id}`, {
             waypoints: waypoints.map(wp => ({
               name: wp.name,
               type: wp.type,
@@ -281,114 +281,98 @@ export function RouteManager({
             }))
           })
           
-          if (waypoints.length >= 2) {
-            const routeData = await calculateMultiWaypointRoute(waypoints, 'inter-day')
+          // Create individual segments between consecutive waypoints
+          for (let i = 0; i < waypoints.length - 1; i++) {
+            const fromWaypoint = waypoints[i]
+            const toWaypoint = waypoints[i + 1]
+            
+            const routeData = await calculateSegmentRoute(fromWaypoint, toWaypoint)
             
             if (routeData) {
-              const routeKey = `inter-day-${fromDay.id}-${toDay.id}`
+              // Determine segment type
+              let segmentType: RouteData['segmentType'] = 'base-to-base'
+              if (fromWaypoint.type === 'base' && toWaypoint.type === 'destination') {
+                segmentType = 'base-to-destination'
+              } else if (fromWaypoint.type === 'destination' && toWaypoint.type === 'destination') {
+                segmentType = 'destination-to-destination'
+              } else if (fromWaypoint.type === 'destination' && toWaypoint.type === 'base') {
+                segmentType = 'destination-to-base'
+              }
+              
+              routeData.segmentType = segmentType
+              
+              const routeKey = `segment-${fromWaypoint.dayId}-${toWaypoint.dayId}-${i}`
               newRoutes.set(routeKey, routeData)
             }
           }
         } else if (type === 'intra-day') {
-          // Intra-day routes: base → each destination
+          // Create segments: base → each destination
           const baseLocation = fromDay.baseLocations![0]
           
           for (const destination of fromDay.destinations) {
-            const waypoints = [
-              {
-                coordinates: baseLocation.coordinates,
-                type: 'base' as const,
-                name: baseLocation.name,
-                dayId: fromDay.id
-              },
-              {
-                coordinates: destination.coordinates,
-                type: 'destination' as const,
-                name: destination.name,
-                dayId: fromDay.id
-              }
-            ]
+            const fromWaypoint = {
+              coordinates: baseLocation.coordinates,
+              type: 'base' as const,
+              name: baseLocation.name,
+              dayId: fromDay.id
+            }
+            const toWaypoint = {
+              coordinates: destination.coordinates,
+              type: 'destination' as const,
+              name: destination.name,
+              dayId: fromDay.id
+            }
             
-            const routeData = await calculateMultiWaypointRoute(waypoints, 'intra-day')
+            const routeData = await calculateSegmentRoute(fromWaypoint, toWaypoint)
             
             if (routeData) {
-              const routeKey = `intra-day-${fromDay.id}-${destination.id}`
+              routeData.segmentType = 'base-to-destination'
+              
+              const routeKey = `segment-${fromDay.id}-${destination.id}`
               newRoutes.set(routeKey, routeData)
             }
           }
         }
       }
 
-      // Update map sources
-      const interDayRoutes = Array.from(newRoutes.entries())
-        .filter(([key]) => key.startsWith('inter-day'))
-        .map(([key, route]) => ({
-          type: 'Feature' as const,
-          geometry: {
-            type: 'LineString' as const,
-            coordinates: route.coordinates
-          },
-          properties: {
-            id: key,
-            routeType: 'inter-day',
-            duration: Math.round(route.duration / 3600 * 10) / 10,
-            distance: Math.round(route.distance / 1000),
-            label: `${route.fromLocation} → ${route.toLocation}: ${Math.round(route.duration / 3600 * 10) / 10}h • ${Math.round(route.distance / 1000)}km`,
-            fromDayId: route.fromDayId,
-            toDayId: route.toDayId,
-            bearing: calculateBearing(route.coordinates[0], route.coordinates[route.coordinates.length - 1])
-          }
-        }))
-
-      const intraDayRoutes = Array.from(newRoutes.entries())
-        .filter(([key]) => key.startsWith('intra-day'))
-        .map(([key, route]) => ({
-            type: 'Feature' as const,
-            geometry: {
-            type: 'LineString' as const,
-            coordinates: route.coordinates
-            },
-            properties: {
-              id: key,
-            routeType: 'intra-day',
-            duration: Math.round(route.duration / 60), // Minutes for walking
-            distance: Math.round(route.distance),
-            label: `${route.fromLocation} → ${route.toLocation}: ${Math.round(route.duration / 60)}min • ${Math.round(route.distance)}m`,
-            fromDayId: route.fromDayId,
-            toDayId: route.toDayId,
-            bearing: calculateBearing(route.coordinates[0], route.coordinates[route.coordinates.length - 1])
-          }
-        }))
+      // Update map sources with all segments
+      const allSegments = Array.from(newRoutes.entries()).map(([key, route]) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: route.coordinates
+        },
+        properties: {
+          id: key,
+          routeType: 'segment',
+          segmentType: route.segmentType,
+          duration: Math.round(route.duration / 60), // Convert to minutes
+          distance: Math.round(route.distance / 1000), // Convert to km
+          label: `${route.fromLocation} → ${route.toLocation}: ${Math.round(route.duration / 60)}min • ${Math.round(route.distance / 1000)}km`,
+          fromDayId: route.fromDayId,
+          toDayId: route.toDayId,
+          fromLocation: route.fromLocation,
+          toLocation: route.toLocation,
+          bearing: calculateBearing(route.coordinates[0], route.coordinates[route.coordinates.length - 1])
+        }
+      }))
 
       // Update map sources
-      if (map.getSource('inter-day-routes')) {
-        map.getSource('inter-day-routes').setData({
+      if (map.getSource('route-segments')) {
+        map.getSource('route-segments').setData({
           type: 'FeatureCollection',
-          features: interDayRoutes
+          features: allSegments
         })
       }
 
-      if (map.getSource('intra-day-routes')) {
-        map.getSource('intra-day-routes').setData({
-            type: 'FeatureCollection',
-          features: intraDayRoutes
-        })
-      }
-
-      console.log('RouteManager: Routes updated', {
-        interDayRoutes: interDayRoutes.length,
-        intraDayRoutes: intraDayRoutes.length,
-        interDayRouteDetails: interDayRoutes.map(r => ({
-          id: r.properties.id,
-          label: r.properties.label,
-          fromDayId: r.properties.fromDayId,
-          toDayId: r.properties.toDayId
-        })),
-        intraDayRouteDetails: intraDayRoutes.map(r => ({
-          id: r.properties.id,
-          label: r.properties.label,
-          fromDayId: r.properties.fromDayId,
-          toDayId: r.properties.toDayId
+      console.log('RouteManager: Segments updated', {
+        totalSegments: allSegments.length,
+        segmentDetails: allSegments.map(s => ({
+          id: s.properties.id,
+          label: s.properties.label,
+          segmentType: s.properties.segmentType,
+          fromDayId: s.properties.fromDayId,
+          toDayId: s.properties.toDayId
         }))
       })
 
@@ -397,7 +381,7 @@ export function RouteManager({
       } finally {
         onLoadingChange(false)
       }
-  }, [map, hasTrip, token, tripDays, selectedDayId, getRoutesToShow, buildInterDayWaypoints, calculateMultiWaypointRoute, calculateBearing, areBaseLocationsDifferent, onLoadingChange])
+  }, [map, hasTrip, token, tripDays, selectedDayId, getRoutesToShow, buildInterDayWaypoints, calculateSegmentRoute, calculateBearing, areBaseLocationsDifferent, onLoadingChange])
 
   // Debounced route calculation
   useEffect(() => {

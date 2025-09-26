@@ -1041,3 +1041,90 @@ button:active {
   image-rendering: -webkit-optimize-contrast; /* Prevent blurring during resize */
   image-rendering: crisp-edges;
 }
+
+/* Route Segment Popup Styles */
+.route-segment-popup .mapboxgl-popup-content {
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0;
+}
+
+.route-segment-popup .mapboxgl-popup-tip {
+  border-top-color: rgba(15, 23, 42, 0.95);
+}
+
+.route-popup-content {
+  padding: 16px;
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.route-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.route-popup-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.route-popup-icon.base-to-destination {
+  background: #3b82f6;
+}
+
+.route-popup-icon.destination-to-destination {
+  background: #8b5cf6;
+}
+
+.route-popup-icon.destination-to-base {
+  background: #10b981;
+}
+
+.route-popup-icon.base-to-base {
+  background: #f59e0b;
+}
+
+.route-popup-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #f8fafc;
+}
+
+.route-popup-route {
+  font-size: 13px;
+  color: #cbd5e1;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.route-popup-details {
+  display: flex;
+  gap: 16px;
+}
+
+.route-popup-duration,
+.route-popup-distance {
+  font-size: 12px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.route-popup-duration {
+  color: #60a5fa;
+}
+
+.route-popup-distance {
+  color: #34d399;
+}

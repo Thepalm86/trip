@@ -41,7 +41,7 @@ export function DayCard({
   onAddNotes,
   onSetBaseLocation
 }: DayCardProps) {
-  const { removeDestinationFromDay, duplicateDay, removeDay, setSelectedDestination } = useSupabaseTripStore()
+  const { removeDestinationFromDay, duplicateDay, removeDay, setSelectedDestination, selectedCardId, setSelectedCard } = useSupabaseTripStore()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingLocation, setEditingLocation] = useState<{ location: DayLocation; index: number } | null>(null)
@@ -75,16 +75,26 @@ export function DayCard({
     setShowDropdown(false)
   }
 
-  const handleBaseLocationClick = (location: DayLocation) => {
-    // Create a temporary destination to show on map
-    const tempDestination = {
-      id: `temp-${location.name}`,
-      name: location.name,
-      description: location.context,
-      coordinates: location.coordinates,
-      category: 'city' as const,
+  const handleBaseLocationClick = (location: DayLocation, index: number) => {
+    const cardId = `base-${day.id}-${index}`
+    
+    // Toggle selection
+    if (selectedCardId === cardId) {
+      setSelectedCard(null)
+      setSelectedDestination(null)
+    } else {
+      setSelectedCard(cardId)
+      
+      // Create a temporary destination to show on map
+      const tempDestination = {
+        id: `temp-${location.name}`,
+        name: location.name,
+        description: location.context,
+        coordinates: location.coordinates,
+        category: 'city' as const,
+      }
+      setSelectedDestination(tempDestination)
     }
-    setSelectedDestination(tempDestination)
   }
 
   const handleEditBaseLocation = (location: DayLocation, index: number) => {
@@ -105,6 +115,19 @@ export function DayCard({
   const handleCloseDestinationEditModal = () => {
     setShowDestinationEditModal(false)
     setEditingDestination(null)
+  }
+
+  const handleDestinationClick = (destination: Destination) => {
+    const cardId = `dest-${destination.id}`
+    
+    // Toggle selection
+    if (selectedCardId === cardId) {
+      setSelectedCard(null)
+      setSelectedDestination(null)
+    } else {
+      setSelectedCard(cardId)
+      setSelectedDestination(destination)
+    }
   }
 
   const handleDayClick = () => {
@@ -297,10 +320,14 @@ export function DayCard({
             {/* Default Base Location */}
             <div className="relative group">
               <div 
-                className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500/15 via-green-500/10 to-emerald-500/5 border border-green-400/20 cursor-pointer hover:border-green-400/40 hover:shadow-xl hover:shadow-green-500/10 transition-all duration-500"
+                className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500/15 via-green-500/10 to-emerald-500/5 border transition-all duration-500 cursor-pointer hover:shadow-xl hover:shadow-green-500/10 ${
+                  selectedCardId === `base-${day.id}-0` 
+                    ? 'border-green-400 border-2 shadow-xl shadow-green-500/20' 
+                    : 'border-green-400/20 hover:border-green-400/40'
+                }`}
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleBaseLocationClick(day.baseLocations[0])
+                  handleBaseLocationClick(day.baseLocations[0], 0)
                 }}
               >
                 {/* Background Pattern */}
@@ -319,16 +346,16 @@ export function DayCard({
                           <div className="w-2 h-2 bg-white rounded-full"></div>
                         </div>
               </div>
-              <div>
-                        <h3 className="text-lg font-bold text-white mb-1">{day.baseLocations[0].name}</h3>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-green-400 font-medium">
-                            {day.baseLocations[0].city || 'Rome, Italy'}
-                          </span>
-                          <div className="w-1 h-1 bg-white/40 rounded-full"></div>
-                          <span className="text-xs text-white/60">Base Location</span>
+                        <div>
+                          <h3 className="text-lg font-bold text-white mb-1">{day.baseLocations[0].city || 'Rome, Italy'}</h3>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-green-400 font-medium">
+                              {day.baseLocations[0].name}
+                            </span>
+                            <div className="w-1 h-1 bg-white/40 rounded-full"></div>
+                            <span className="text-xs text-white/60">Base Location</span>
+                          </div>
                         </div>
-                      </div>
                     </div>
                     
                   </div>
@@ -414,10 +441,14 @@ export function DayCard({
                 {day.baseLocations.slice(1).map((location, index) => (
                   <div key={index} className="relative group">
                     <div 
-                      className="relative overflow-hidden rounded-xl bg-gradient-to-br from-white/8 via-white/5 to-white/3 border border-white/15 cursor-pointer hover:border-white/25 hover:shadow-lg hover:shadow-white/5 transition-all duration-300"
+                      className={`relative overflow-hidden rounded-xl bg-gradient-to-br from-white/8 via-white/5 to-white/3 border transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-white/5 ${
+                        selectedCardId === `base-${day.id}-${index + 1}` 
+                          ? 'border-white/40 border-2 shadow-lg shadow-white/10' 
+                          : 'border-white/15 hover:border-white/25'
+                      }`}
                       onClick={(e) => {
                         e.stopPropagation()
-                        handleBaseLocationClick(location)
+                        handleBaseLocationClick(location, index + 1)
                       }}
                     >
                       {/* Content */}
@@ -427,10 +458,10 @@ export function DayCard({
                             <Map className="h-5 w-5 text-white/70" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-semibold text-white/95 mb-1">{location.name}</h4>
+                            <h4 className="text-sm font-semibold text-white/95 mb-1">{location.city || 'Rome, Italy'}</h4>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-white/70 font-medium">
-                                {location.city || 'Rome, Italy'}
+                                {location.name}
                               </span>
                               <div className="w-1 h-1 bg-white/40 rounded-full"></div>
                               <span className="text-xs text-white/50">Alternative</span>
@@ -539,7 +570,15 @@ export function DayCard({
               day.destinations.map((destination, index) => (
                 <div
                   key={destination.id}
-                  className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-indigo-500/5 border border-blue-400/20 transition-all duration-500 hover:border-blue-400/40 hover:shadow-xl hover:shadow-blue-500/10"
+                  className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-indigo-500/5 border transition-all duration-500 cursor-pointer hover:shadow-xl hover:shadow-blue-500/10 ${
+                    selectedCardId === `dest-${destination.id}` 
+                      ? 'border-blue-400 border-2 shadow-xl shadow-blue-500/20' 
+                      : 'border-blue-400/20 hover:border-blue-400/40'
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDestinationClick(destination)
+                  }}
                 >
                   {/* Background Pattern */}
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-50"></div>
@@ -560,10 +599,10 @@ export function DayCard({
                           </div>
                         </div>
                         <div>
-                          <h4 className="text-lg font-bold text-white mb-1">{destination.name}</h4>
+                          <h4 className="text-lg font-bold text-white mb-1">{destination.city || 'Siena, Italy'}</h4>
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-blue-400 font-medium">
-                              {destination.city || 'Siena, Italy'}
+                              {destination.name}
                             </span>
                             <div className="w-1 h-1 bg-white/40 rounded-full"></div>
                             <span className="text-xs text-white/60">Destination</span>

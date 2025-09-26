@@ -54,20 +54,9 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
         }
 
 
-        // Inter-day routes source (between different days)
-        if (!map.getSource('inter-day-routes')) {
-          map.addSource('inter-day-routes', {
-            type: 'geojson',
-            data: {
-              type: 'FeatureCollection',
-              features: []
-            }
-          })
-        }
-
-        // Intra-day routes source (within the same day)
-        if (!map.getSource('intra-day-routes')) {
-          map.addSource('intra-day-routes', {
+        // Route segments source (all individual segments)
+        if (!map.getSource('route-segments')) {
+          map.addSource('route-segments', {
             type: 'geojson',
             data: {
               type: 'FeatureCollection',
@@ -90,36 +79,48 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
 
 
 
-      // Add inter-day routes layer (between different days - driving routes)
-      if (!map.getLayer('inter-day-routes-layer')) {
-        // Inter-day route shadow/glow effect
+      // Add route segments layer (all individual segments - driving routes)
+      if (!map.getLayer('route-segments-shadow')) {
+        // Route segment shadow/glow effect
         map.addLayer({
-          id: 'inter-day-routes-shadow',
+          id: 'route-segments-shadow',
           type: 'line',
-          source: 'inter-day-routes',
+          source: 'route-segments',
           layout: {
             'line-join': 'round',
             'line-cap': 'round'
           },
           paint: {
-            'line-color': '#10b981',
+            'line-color': [
+              'case',
+              ['==', ['get', 'segmentType'], 'base-to-destination'], '#3b82f6', // Blue for base to destination
+              ['==', ['get', 'segmentType'], 'destination-to-destination'], '#8b5cf6', // Purple for destination to destination
+              ['==', ['get', 'segmentType'], 'destination-to-base'], '#10b981', // Green for destination to base
+              '#f59e0b' // Orange for base to base
+            ],
             'line-width': 8,
             'line-opacity': 0.2,
             'line-blur': 2
           }
         })
 
-        // Main inter-day route line
+        // Main route segment line
         map.addLayer({
-          id: 'inter-day-routes-layer',
+          id: 'route-segments-layer',
           type: 'line',
-          source: 'inter-day-routes',
+          source: 'route-segments',
           layout: {
             'line-join': 'round',
             'line-cap': 'round'
           },
           paint: {
-            'line-color': '#10b981',
+            'line-color': [
+              'case',
+              ['==', ['get', 'segmentType'], 'base-to-destination'], '#3b82f6', // Blue for base to destination
+              ['==', ['get', 'segmentType'], 'destination-to-destination'], '#8b5cf6', // Purple for destination to destination
+              ['==', ['get', 'segmentType'], 'destination-to-base'], '#10b981', // Green for destination to base
+              '#f59e0b' // Orange for base to base
+            ],
             'line-width': [
               'case',
               ['boolean', ['feature-state', 'hover'], false], 6,
@@ -133,11 +134,20 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           }
         })
 
-        // Inter-day route direction arrows
+        // Add cursor pointer for route segments
+        map.on('mouseenter', 'route-segments-layer', () => {
+          map.getCanvas().style.cursor = 'pointer'
+        })
+
+        map.on('mouseleave', 'route-segments-layer', () => {
+          map.getCanvas().style.cursor = ''
+        })
+
+        // Route segment direction arrows
         map.addLayer({
-          id: 'inter-day-routes-arrows',
+          id: 'route-segments-arrows',
           type: 'symbol',
-          source: 'inter-day-routes',
+          source: 'route-segments',
           layout: {
             'symbol-placement': 'line',
             'symbol-spacing': 200,
@@ -149,15 +159,15 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           }
         })
 
-        // Inter-day route labels (distance/duration)
+        // Route segment labels (distance/duration) - hidden by default
         map.addLayer({
-          id: 'inter-day-routes-labels',
+          id: 'route-segments-labels',
           type: 'symbol',
-          source: 'inter-day-routes',
+          source: 'route-segments',
           layout: {
             'text-field': ['get', 'label'],
             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-            'text-size': 11,
+            'text-size': 12,
             'text-anchor': 'center',
             'symbol-placement': 'line',
             'text-offset': [0, 0],
@@ -165,84 +175,15 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           },
           paint: {
             'text-color': '#ffffff',
-            'text-halo-color': '#10b981',
-            'text-halo-width': 2,
-            'text-opacity': [
+            'text-halo-color': [
               'case',
-              ['boolean', ['feature-state', 'hover'], false], 1,
-              0.9
-            ]
-          }
-        })
-      }
-
-      // Add intra-day routes layer (within the same day - walking routes)
-      if (!map.getLayer('intra-day-routes-layer')) {
-        // Intra-day route shadow
-        map.addLayer({
-          id: 'intra-day-routes-shadow',
-          type: 'line',
-          source: 'intra-day-routes',
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-          },
-          paint: {
-            'line-color': '#3b82f6',
-            'line-width': 6,
-            'line-opacity': 0.15,
-            'line-blur': 1
-          }
-        })
-
-        // Main intra-day route line (dashed for walking)
-        map.addLayer({
-          id: 'intra-day-routes-layer',
-          type: 'line',
-          source: 'intra-day-routes',
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-          },
-          paint: {
-            'line-color': '#3b82f6',
-            'line-width': [
-              'case',
-              ['boolean', ['feature-state', 'hover'], false], 4,
-              3
+              ['==', ['get', 'segmentType'], 'base-to-destination'], '#1e40af',
+              ['==', ['get', 'segmentType'], 'destination-to-destination'], '#7c3aed',
+              ['==', ['get', 'segmentType'], 'destination-to-base'], '#059669',
+              '#d97706'
             ],
-            'line-opacity': [
-              'case',
-              ['boolean', ['feature-state', 'hover'], false], 0.8,
-              0.6
-            ],
-            'line-dasharray': [2, 2] // Dashed line for walking routes
-          }
-        })
-
-        // Intra-day route labels (distance/duration)
-        map.addLayer({
-          id: 'intra-day-routes-labels',
-          type: 'symbol',
-          source: 'intra-day-routes',
-          layout: {
-            'text-field': ['get', 'label'],
-            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-            'text-size': 10,
-            'text-anchor': 'center',
-            'symbol-placement': 'line',
-            'text-offset': [0, 0],
-            'text-optional': true
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': '#3b82f6',
-            'text-halo-width': 2,
-            'text-opacity': [
-              'case',
-              ['boolean', ['feature-state', 'hover'], false], 1,
-              0.9
-            ]
+            'text-halo-width': 3,
+            'text-opacity': 0 // Hidden by default
           }
         })
       }
@@ -273,18 +214,21 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               'case',
               ['boolean', ['feature-state', 'hover'], false], 16,
               ['boolean', ['feature-state', 'selected'], false], 14,
+              ['get', 'isCardSelected'], 16,
               12
             ],
             'circle-color': [
               'case',
               ['boolean', ['feature-state', 'selected'], false], '#34d399',
               ['boolean', ['feature-state', 'hover'], false], '#22c55e',
+              ['get', 'isCardSelected'], '#34d399',
               '#10b981'
             ],
             'circle-stroke-width': [
               'case',
               ['boolean', ['feature-state', 'selected'], false], 4,
               ['boolean', ['feature-state', 'hover'], false], 3,
+              ['get', 'isCardSelected'], 4,
               2
             ],
             'circle-stroke-color': '#ffffff',
@@ -317,12 +261,21 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           type: 'symbol',
           source: 'base-locations',
           layout: {
-            'text-field': ['get', 'name'],
+            'text-field': [
+              'format',
+              ['get', 'city'],
+              { 'font-scale': 1.0 },
+              '\n',
+              {},
+              ['get', 'name'],
+              { 'font-scale': 0.8, 'text-color': '#e5e7eb' }
+            ],
             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
             'text-size': 12,
             'text-anchor': 'top',
-            'text-offset': [0, 2.5],
-            'text-optional': true
+            'text-offset': [0, 1.5],
+            'text-optional': true,
+            'text-line-height': 1.2
           },
           paint: {
             'text-color': '#ffffff',
@@ -367,18 +320,21 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               'case',
               ['boolean', ['feature-state', 'hover'], false], 16,
               ['boolean', ['feature-state', 'selected'], false], 14,
+              ['get', 'isCardSelected'], 16,
               12
             ],
             'circle-color': [
               'case',
               ['boolean', ['feature-state', 'selected'], false], '#34d399',
               ['boolean', ['feature-state', 'hover'], false], '#22c55e',
+              ['get', 'isCardSelected'], '#34d399',
               ['coalesce', ['get', 'markerColor'], '#3b82f6']
             ],
             'circle-stroke-width': [
               'case',
               ['boolean', ['feature-state', 'selected'], false], 4,
               ['boolean', ['feature-state', 'hover'], false], 3,
+              ['get', 'isCardSelected'], 4,
               2
             ],
             'circle-stroke-color': '#ffffff',
@@ -411,12 +367,21 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           type: 'symbol',
           source: 'destinations',
           layout: {
-            'text-field': ['get', 'name'],
+            'text-field': [
+              'format',
+              ['get', 'city'],
+              { 'font-scale': 1.0 },
+              '\n',
+              {},
+              ['get', 'name'],
+              { 'font-scale': 0.8, 'text-color': '#e5e7eb' }
+            ],
             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
             'text-size': 12,
             'text-anchor': 'top',
-            'text-offset': [0, 2.5],
-            'text-optional': true
+            'text-offset': [0, 1.5],
+            'text-optional': true,
+            'text-line-height': 1.2
           },
           paint: {
             'text-color': '#ffffff',
