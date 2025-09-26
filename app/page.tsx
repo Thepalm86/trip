@@ -4,7 +4,6 @@ import { useRef, useEffect, useState } from 'react'
 import { InteractiveMap, InteractiveMapRef } from '@/components/map/InteractiveMap'
 import { LeftPanel } from '@/components/left-panel/LeftPanel'
 import { AuthGuard } from '@/components/auth/auth-guard'
-import { UserProfile } from '@/components/auth/user-profile'
 import { TripLoader } from '@/components/trip/TripLoader'
 import { GripVertical } from 'lucide-react'
 
@@ -118,10 +117,6 @@ export default function HomePage() {
     <AuthGuard>
       <TripLoader />
       <div className="h-screen bg-gradient-dark map-viewport-container page-container overflow-hidden">
-        {/* Header with User Profile */}
-        <div className="absolute top-4 right-4 z-50">
-          <UserProfile />
-        </div>
 
         {/* Main Layout Container */}
         <div className="flex h-full max-h-full overflow-hidden">

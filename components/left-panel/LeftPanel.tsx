@@ -5,6 +5,7 @@ import { Calendar, MapPin, Clock, Share2, Settings, Edit3 } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
+import { UserProfile } from '@/components/auth/user-profile'
 
 export function LeftPanel() {
   const { currentTrip, updateTrip } = useSupabaseTripStore()
@@ -76,9 +77,7 @@ export function LeftPanel() {
             <button className="p-2 rounded-lg bg-white/5 text-white/60 hover:bg-white/10 transition-all duration-200">
               <Share2 className="h-4 w-4" />
             </button>
-            <button className="p-2 rounded-lg bg-white/5 text-white/60 hover:bg-white/10 transition-all duration-200">
-              <Settings className="h-4 w-4" />
-            </button>
+            <UserProfile />
           </div>
         </div>
       </div>

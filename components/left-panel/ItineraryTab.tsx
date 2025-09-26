@@ -76,14 +76,14 @@ function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget }: 
 
   const baseClasses = 'w-full p-3 rounded-lg text-left transition-all duration-200'
   const stateClasses = isSelected
-    ? 'bg-blue-500/20 border border-blue-400/30'
+    ? 'bg-purple-500/20 border border-purple-400/30'
     : isTarget
-    ? 'bg-blue-500/25 border border-blue-300/70 shadow-lg shadow-blue-500/30'
+    ? 'bg-purple-500/25 border border-purple-300/70 shadow-lg shadow-purple-500/30'
     : isOver
     ? 'bg-green-500/20 border border-green-400/50 shadow-lg shadow-green-500/20'
     : 'bg-white/5 hover:bg-white/10 border border-transparent'
 
-  const sourceClass = isSource && !isSelected ? 'ring-1 ring-blue-400/60' : ''
+  const sourceClass = isSource && !isSelected ? 'ring-1 ring-purple-400/60' : ''
 
   return (
     <button
@@ -93,7 +93,7 @@ function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget }: 
     >
       <div className="flex items-center gap-3">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
-          isSelected ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/80'
+          isSelected ? 'bg-purple-500 text-white' : 'bg-white/10 text-white/80'
         }`}>
           {index + 1}
         </div>

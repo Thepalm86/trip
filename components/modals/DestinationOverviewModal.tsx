@@ -31,6 +31,16 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
   const [error, setError] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    const originalStyle = window.getComputedStyle(document.body).overflow
+    document.body.style.overflow = 'hidden'
+    
+    return () => {
+      document.body.style.overflow = originalStyle
+    }
+  }, [])
+
   // Fetch destination overview from LLM
   useEffect(() => {
     const fetchOverview = async () => {
@@ -214,8 +224,9 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
                 height: '100%',
                 objectFit: 'cover',
                 opacity: index === currentPhotoIndex ? 1 : 0,
-                transition: 'opacity 1.4s ease',
-                transform: index === currentPhotoIndex ? 'scale(1)' : 'scale(1.01)'
+                transition: 'opacity 0.8s ease-in-out',
+                transform: 'scale(1)',
+                willChange: 'opacity'
               }}
             />
           ))
@@ -459,15 +470,18 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
       {photos.length > 1 && !isLoadingPhotos && !isCollapsed && (
         <div
           style={{
-            position: 'absolute',
+            position: 'fixed',
             bottom: 40,
             left: 40,
             display: 'flex',
-            gap: '12px'
+            gap: '12px',
+            zIndex: 70,
+            pointerEvents: 'auto'
           }}
         >
           <button
             onClick={(event) => {
+              event.preventDefault()
               event.stopPropagation()
               prevPhoto()
             }}
@@ -478,7 +492,22 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
               border: '1px solid rgba(255,255,255,0.18)',
               background: 'rgba(15,23,42,0.45)',
               color: 'rgba(255,255,255,0.75)',
-              backdropFilter: 'blur(20px)'
+              backdropFilter: 'blur(20px)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(15,23,42,0.65)'
+              e.currentTarget.style.color = 'rgba(255,255,255,0.95)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(15,23,42,0.45)'
+              e.currentTarget.style.color = 'rgba(255,255,255,0.75)'
             }}
             aria-label="Previous scene image"
           >
@@ -486,6 +515,7 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
           </button>
           <button
             onClick={(event) => {
+              event.preventDefault()
               event.stopPropagation()
               nextPhoto()
             }}
@@ -496,7 +526,22 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
               border: '1px solid rgba(255,255,255,0.18)',
               background: 'rgba(15,23,42,0.45)',
               color: 'rgba(255,255,255,0.75)',
-              backdropFilter: 'blur(20px)'
+              backdropFilter: 'blur(20px)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(15,23,42,0.65)'
+              e.currentTarget.style.color = 'rgba(255,255,255,0.95)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(15,23,42,0.45)'
+              e.currentTarget.style.color = 'rgba(255,255,255,0.75)'
             }}
             aria-label="Next scene image"
           >
