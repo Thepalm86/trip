@@ -89,10 +89,10 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
       }
     }
 
-    window.addEventListener('centerMapOnDestinations', handleCenterMapOnDestinations as EventListener)
+    window.addEventListener('centerMapOnDestinations', handleCenterMapOnDestinations as any)
 
     return () => {
-      window.removeEventListener('centerMapOnDestinations', handleCenterMapOnDestinations as EventListener)
+      window.removeEventListener('centerMapOnDestinations', handleCenterMapOnDestinations as any)
     }
   }, [])
 

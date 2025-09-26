@@ -1,14 +1,56 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Export the createClient function for use in other services
+export const createClient = () => createSupabaseClient(supabaseUrl, supabaseAnonKey)
+
+// Export a default client instance for backward compatibility
+export const supabase = createClient()
 
 // Database types for TypeScript
 export interface Database {
   public: {
     Tables: {
+      explore_places: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          full_name: string
+          longitude: number
+          latitude: number
+          category: string | null
+          context: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          full_name: string
+          longitude: number
+          latitude: number
+          category?: string | null
+          context?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          full_name?: string
+          longitude?: number
+          latitude?: number
+          category?: string | null
+          context?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       user_trips: {
         Row: {
           id: string

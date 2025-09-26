@@ -8,6 +8,7 @@ import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 interface AddDestinationModalProps {
   dayId: string
   onClose: () => void
+  onAddToMaybe?: (destination: Destination) => void
 }
 
 interface SearchResult {
@@ -40,7 +41,7 @@ function getCategoryLabel(category: string): string {
   return categoryLabels[category] || 'Location'
 }
 
-export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps) {
+export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestinationModalProps) {
   const { addDestinationToDay } = useSupabaseTripStore()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -137,7 +138,11 @@ export function AddDestinationModal({ dayId, onClose }: AddDestinationModalProps
       rating: selectedDestination.rating,
     }
 
-    addDestinationToDay(destination, dayId)
+    if (dayId === 'maybe' && onAddToMaybe) {
+      onAddToMaybe(destination)
+    } else {
+      addDestinationToDay(destination, dayId)
+    }
     onClose()
   }
 

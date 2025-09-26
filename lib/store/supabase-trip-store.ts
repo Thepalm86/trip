@@ -18,6 +18,9 @@ interface SupabaseTripStore {
   // Selection state
   selectedCardId: string | null
   
+  // Maybe locations state
+  maybeLocations: Destination[]
+  
   // Actions
   loadTrips: () => Promise<void>
   loadTrip: (tripId: string) => Promise<void>
@@ -47,6 +50,11 @@ interface SupabaseTripStore {
   // Selection actions
   setSelectedCard: (cardId: string | null) => void
   
+  // Maybe locations actions
+  addMaybeLocation: (destination: Destination) => void
+  removeMaybeLocation: (destinationId: string) => void
+  moveMaybeToDay: (destinationId: string, dayId: string) => Promise<void>
+  
   
   // Utility
   setError: (error: string | null) => void
@@ -65,6 +73,9 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   
   // Selection state
   selectedCardId: null,
+  
+  // Maybe locations state
+  maybeLocations: [],
 
   // Load all trips for the user
   loadTrips: async () => {
@@ -910,6 +921,37 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   // Set selected card
   setSelectedCard: (cardId: string | null) => {
     set({ selectedCardId: cardId })
+  },
+
+  // Maybe locations actions
+  addMaybeLocation: (destination: Destination) => {
+    const { maybeLocations } = get()
+    const exists = maybeLocations.some(loc => loc.id === destination.id)
+    if (!exists) {
+      set({ maybeLocations: [...maybeLocations, destination] })
+    }
+  },
+
+  removeMaybeLocation: (destinationId: string) => {
+    const { maybeLocations } = get()
+    set({ maybeLocations: maybeLocations.filter(loc => loc.id !== destinationId) })
+  },
+
+  moveMaybeToDay: async (destinationId: string, dayId: string) => {
+    const { maybeLocations, currentTrip } = get()
+    const destination = maybeLocations.find(loc => loc.id === destinationId)
+    
+    if (!destination || !currentTrip) return
+
+    try {
+      // Add destination to the day
+      await get().addDestinationToDay(destination, dayId)
+      
+      // Remove from maybe locations
+      get().removeMaybeLocation(destinationId)
+    } catch (error) {
+      console.error('Error moving maybe location to day:', error)
+    }
   },
 
 }))

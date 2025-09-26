@@ -7,8 +7,10 @@ import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
 
 export function LeftPanel() {
-  const { currentTrip } = useSupabaseTripStore()
+  const { currentTrip, updateTrip } = useSupabaseTripStore()
   const [showDateSelector, setShowDateSelector] = useState(false)
+  const [isEditingTripName, setIsEditingTripName] = useState(false)
+  const [tripName, setTripName] = useState(currentTrip?.name || '')
 
   if (!currentTrip) {
     return (
@@ -18,27 +20,50 @@ export function LeftPanel() {
     )
   }
 
-  const totalDestinations = currentTrip.days.reduce((acc, day) => acc + day.destinations.length, 0)
-  const totalDuration = currentTrip.days.reduce((acc, day) => 
-    acc + day.destinations.reduce((dayAcc, dest) => dayAcc + (dest.estimatedDuration || 2), 0), 0
-  )
+  const handleTripNameSave = async () => {
+    if (tripName.trim() && tripName !== currentTrip.name) {
+      await updateTrip(currentTrip.id, { name: tripName.trim() })
+    }
+    setIsEditingTripName(false)
+  }
 
-  const formatTime = (hours: number) => {
-    if (hours < 1) return `${Math.round(hours * 60)}m`
-    if (hours === Math.floor(hours)) return `${Math.floor(hours)}h`
-    return `${Math.floor(hours)}h ${Math.round((hours % 1) * 60)}m`
+  const handleTripNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleTripNameSave()
+    } else if (e.key === 'Escape') {
+      setTripName(currentTrip.name)
+      setIsEditingTripName(false)
+    }
   }
 
   return (
     <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
       {/* Header */}
       <div className="p-6 border-b border-white/10 bg-white/[0.02]">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-semibold text-white">{currentTrip.name}</h2>
+            {isEditingTripName ? (
+              <input
+                type="text"
+                value={tripName}
+                onChange={(e) => setTripName(e.target.value)}
+                onBlur={handleTripNameSave}
+                onKeyDown={handleTripNameKeyDown}
+                className="text-xl font-semibold text-white bg-transparent border-none outline-none focus:outline-none"
+                autoFocus
+              />
+            ) : (
+              <button
+                onClick={() => setIsEditingTripName(true)}
+                className="text-xl font-semibold text-white hover:text-blue-300 transition-colors duration-200 group flex items-center gap-2"
+              >
+                {currentTrip.name}
+                <Edit3 className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+              </button>
+            )}
             <button
               onClick={() => setShowDateSelector(true)}
-              className="flex items-center gap-2 text-white/60 hover:text-white transition-all duration-200 group"
+              className="flex items-center gap-2 text-white/60 hover:text-white transition-all duration-200 group mt-2"
             >
               <Calendar className="h-4 w-4" />
               <span className="text-sm">
@@ -54,21 +79,6 @@ export function LeftPanel() {
             <button className="p-2 rounded-lg bg-white/5 text-white/60 hover:bg-white/10 transition-all duration-200">
               <Settings className="h-4 w-4" />
             </button>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-6 text-sm text-white/60">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            <span>{currentTrip.days.length} days planned</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
-            <span>{totalDestinations} destinations</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            <span>{formatTime(totalDuration)} total</span>
           </div>
         </div>
       </div>

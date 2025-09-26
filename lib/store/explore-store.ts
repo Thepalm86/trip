@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { ExplorePlace } from '@/types'
+import { exploreApiService } from '@/lib/supabase/explore-api'
 
 interface ExploreStoreState {
   query: string
@@ -12,13 +13,16 @@ interface ExploreStoreState {
   activePlaces: ExplorePlace[]
   isSearching: boolean
   error: string | null
+  isSyncing: boolean
   setQuery: (query: string) => void
   searchPlaces: (query: string) => Promise<void>
   setSelectedPlace: (place: ExplorePlace | null) => void
   clearResults: () => void
   addRecent: (place: ExplorePlace) => void
-  addActivePlace: (place: ExplorePlace) => void
-  removeActivePlace: (placeId: string) => void
+  addActivePlace: (place: ExplorePlace) => Promise<void>
+  removeActivePlace: (placeId: string) => Promise<void>
+  syncWithSupabase: () => Promise<void>
+  loadFromSupabase: () => Promise<void>
 }
 
 export const useExploreStore = create<ExploreStoreState>()(
@@ -31,6 +35,7 @@ export const useExploreStore = create<ExploreStoreState>()(
       activePlaces: [],
       isSearching: false,
       error: null,
+      isSyncing: false,
       setQuery: (query) => set({ query }),
       searchPlaces: async (query: string) => {
         const trimmed = query.trim()
@@ -66,26 +71,73 @@ export const useExploreStore = create<ExploreStoreState>()(
         const updated = [place, ...filtered].slice(0, 6)
         set({ recent: updated })
       },
-      addActivePlace: (place) => {
+      addActivePlace: async (place) => {
         const { activePlaces } = get()
         const exists = activePlaces.some((item) => item.id === place.id)
         if (exists) return
-        set({ activePlaces: [...activePlaces, place] })
+
+        try {
+          // Add to Supabase
+          await exploreApiService.addExplorePlace(place)
+          
+          // Update local state
+          set({ activePlaces: [...activePlaces, place] })
+        } catch (error) {
+          console.error('ExploreStore: Error adding active place to Supabase', error)
+          // Still add to local state even if Supabase fails
+          set({ activePlaces: [...activePlaces, place] })
+        }
       },
-      removeActivePlace: (placeId) => {
+      removeActivePlace: async (placeId) => {
         const { activePlaces, selectedPlace } = get()
+        
+        try {
+          // Remove from Supabase
+          await exploreApiService.removeExplorePlace(placeId)
+        } catch (error) {
+          console.error('ExploreStore: Error removing active place from Supabase', error)
+        }
+
+        // Update local state regardless of Supabase result
         const updated = activePlaces.filter((place) => place.id !== placeId)
         set({
           activePlaces: updated,
           selectedPlace: selectedPlace?.id === placeId ? null : selectedPlace,
         })
       },
+      syncWithSupabase: async () => {
+        const { activePlaces } = get()
+        set({ isSyncing: true, error: null })
+        
+        try {
+          await exploreApiService.syncExplorePlaces(activePlaces)
+        } catch (error) {
+          console.error('ExploreStore: Error syncing with Supabase', error)
+          set({ error: error instanceof Error ? error.message : 'Sync failed' })
+        } finally {
+          set({ isSyncing: false })
+        }
+      },
+      loadFromSupabase: async () => {
+        set({ isSyncing: true, error: null })
+        
+        try {
+          const places = await exploreApiService.getExplorePlaces()
+          set({ activePlaces: places })
+        } catch (error) {
+          console.error('ExploreStore: Error loading from Supabase', error)
+          set({ error: error instanceof Error ? error.message : 'Load failed' })
+        } finally {
+          set({ isSyncing: false })
+        }
+      },
     }),
     {
       name: 'explore-store',
       partialize: (state) => ({
         recent: state.recent,
-        // Only persist the recent places list, not temporary state like query, results, etc.
+        activePlaces: state.activePlaces,
+        // Persist both recent and active places
       }),
     }
   )

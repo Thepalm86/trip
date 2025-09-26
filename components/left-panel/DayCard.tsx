@@ -699,6 +699,35 @@ export function DayCard({
                             </p>
                           </div>
                         )}
+                        
+                        {/* Links */}
+                        {location.links && location.links.length > 0 && (
+                          <div className="mt-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs text-white/60 font-medium uppercase tracking-wide">Quick Access</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {location.links.slice(0, 2).map((link, _linkIndex) => (
+                                <a
+                                  key={link.id}
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 rounded-lg text-xs font-medium transition-all duration-200 border border-blue-500/30 hover:border-blue-400/50"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  {link.label}
+                                </a>
+                              ))}
+                              {location.links.length > 2 && (
+                                <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-lg border border-white/10">
+                                  +{location.links.length - 2} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       
                       {/* Action Buttons */}
