@@ -96,15 +96,25 @@ function mapCategoryToAllowed(category: string): 'city' | 'attraction' | 'restau
     'attraction': 'attraction',
     'museum': 'attraction',
     'landmark': 'attraction',
+    'gallery': 'attraction',
+    'monument': 'attraction',
+    'church': 'attraction',
+    'cathedral': 'attraction',
+    'palace': 'attraction',
+    'castle': 'attraction',
     'restaurant': 'restaurant',
     'food': 'restaurant',
     'cafe': 'restaurant',
+    'bar': 'restaurant',
     'hotel': 'hotel',
     'accommodation': 'hotel',
+    'hostel': 'hotel',
     'activity': 'activity',
     'entertainment': 'activity',
     'park': 'activity',
-    'nature': 'activity'
+    'nature': 'activity',
+    'beach': 'activity',
+    'hiking': 'activity'
   }
   
   return categoryMap[category.toLowerCase()] || 'attraction' // Default to 'attraction' for unknown categories
@@ -494,6 +504,11 @@ export const tripApi = {
     }
 
     console.log('TripAPI: Update data being sent', updateData)
+    console.log('TripAPI: Category mapping debug', {
+      originalCategory: destination.category,
+      mappedCategory: destination.category ? mapCategoryToAllowed(destination.category) : 'attraction',
+      finalCategory: updateData.category
+    })
 
     const { data, error } = await supabase
       .from('trip_destinations')
@@ -515,7 +530,9 @@ export const tripApi = {
     }
     
     console.log('TripAPI: Destination updated successfully', data)
-    return dbDestinationToDestination(data)
+    const convertedDestination = dbDestinationToDestination(data)
+    console.log('TripAPI: Converted destination for return', convertedDestination)
+    return convertedDestination
   },
 
   async moveDestination(destinationId: string, toDayId: string): Promise<void> {

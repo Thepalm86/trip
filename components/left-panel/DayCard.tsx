@@ -575,13 +575,13 @@ export function DayCard({
                     
                     {/* Metadata */}
                     <div className="flex items-center gap-3 flex-wrap">
-                        {destination.estimatedDuration && (
+                        {destination.estimatedDuration && Number(destination.estimatedDuration) > 0 && (
                         <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-xl border border-white/20 backdrop-blur-sm">
                           <Clock className="h-4 w-4 text-blue-400" />
-                          <span className="text-sm text-white/80 font-medium">{formatTime(destination.estimatedDuration)}</span>
+                          <span className="text-sm text-white/80 font-medium">{formatTime(Number(destination.estimatedDuration))}</span>
                           </div>
                         )}
-                        {destination.cost && (
+                        {destination.cost && Number(destination.cost) > 0 && (
                         <div className="flex items-center gap-2 bg-green-500/20 px-3 py-2 rounded-xl border border-green-500/30 backdrop-blur-sm">
                           <DollarSign className="h-4 w-4 text-green-400" />
                           <span className="text-sm text-green-400 font-medium">€{destination.cost}</span>
