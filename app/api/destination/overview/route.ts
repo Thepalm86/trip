@@ -248,7 +248,9 @@ function getContextKeywords(type: string): string[] {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  let destination: string, city: string | undefined, category: string | undefined
+  let destination: string = ''
+  let city: string | undefined
+  let category: string | undefined
 
   try {
     await requireAuthenticatedUser(request)
