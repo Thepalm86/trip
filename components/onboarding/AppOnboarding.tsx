@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useAuth } from '@/lib/auth/auth-context'
 
 interface OnboardingStep {
   id: string
@@ -20,6 +21,7 @@ export function AppOnboarding() {
   const [stepIndex, setStepIndex] = useState(0)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
   const [highlightedElement, setHighlightedElement] = useState<HTMLElement | null>(null)
+  const { user, loading: authLoading } = useAuth()
 
   const steps = useMemo<OnboardingStep[]>(
     () => [
@@ -89,16 +91,34 @@ export function AppOnboarding() {
 
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted) return
     if (typeof window === 'undefined') return
 
     const seen = window.localStorage.getItem(STORAGE_KEY)
-    const timer = !seen
-      ? window.setTimeout(() => {
-          startTour()
-        }, 1500)
-      : undefined
+    if (authLoading || !user || seen) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      startTour()
+    }, 1500)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [authLoading, mounted, startTour, user])
+
+  useEffect(() => {
+    if (!mounted) return
+    if (typeof window === 'undefined') return
 
     const handleManualStart = () => {
+      if (!user) {
+        return
+      }
       window.localStorage.removeItem(STORAGE_KEY)
       startTour()
     }
@@ -106,12 +126,9 @@ export function AppOnboarding() {
     window.addEventListener('trip3:start-onboarding', handleManualStart)
 
     return () => {
-      if (timer) {
-        window.clearTimeout(timer)
-      }
       window.removeEventListener('trip3:start-onboarding', handleManualStart)
     }
-  }, [startTour])
+  }, [mounted, startTour, user])
 
   useEffect(() => {
     if (!isRunning) {
