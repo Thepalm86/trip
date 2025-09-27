@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, Playfair_Display } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/lib/auth/auth-context'
+import { ExploreSyncProvider } from '@/components/providers/ExploreSyncProvider'
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -32,7 +33,9 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${inter.variable} ${playfairDisplay.variable} font-body bg-gradient-dark min-h-screen antialiased`}>
         <AuthProvider>
-          {children}
+          <ExploreSyncProvider>
+            {children}
+          </ExploreSyncProvider>
         </AuthProvider>
       </body>
     </html>

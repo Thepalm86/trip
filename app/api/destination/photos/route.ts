@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DestinationCacheService } from '@/lib/server/destination-cache'
+import { requireAuthenticatedUser, UnauthorizedError } from '@/lib/server/auth'
 
 // Enhanced photo quality scoring system
 interface PhotoQualityMetrics {
@@ -88,6 +89,8 @@ export async function GET(request: NextRequest) {
   let cacheHit = false
 
   try {
+    await requireAuthenticatedUser(request)
+
     const { searchParams } = new URL(request.url)
     query = searchParams.get('query')
     count = parseInt(searchParams.get('count') || '10')
@@ -225,6 +228,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ photos: photos.slice(0, count), source: 'api' })
 
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return NextResponse.json({ error: error.message }, { status: 401 })
+    }
     console.error('Error fetching destination photos:', error)
 
     // Log the error

@@ -11,6 +11,7 @@ import { MapCleanup } from './MapCleanup'
 import { ExplorePreviewDrawer } from './ExplorePreviewDrawer'
 import { ExplorePreviewMarker } from './ExplorePreviewMarker'
 import { ExploreMarkersToggle } from './ExploreMarkersToggle'
+import { ItineraryPreviewDrawer } from './ItineraryPreviewDrawer'
 
 /**
  * MapIntegration - Orchestrates all map-related components
@@ -31,38 +32,6 @@ interface MapIntegrationProps {
   map: any
 }
 
-const DAY_COLORS = [
-  '#3b82f6', // Blue
-  '#10b981', // Green
-  '#f59e0b', // Orange
-  '#ef4444', // Red
-  '#8b5cf6', // Purple
-  '#06b6d4', // Cyan
-  '#84cc16', // Lime
-  '#f97316', // Orange-red
-]
-
-interface RouteData {
-  coordinates: [number, number][]
-  duration: number
-  distance: number
-  isDayMarker?: boolean
-  dayId?: string
-  dayColor?: string
-  dayNumber?: number
-  isRouteDestination?: boolean
-  destinationId?: string
-  destinationName?: string
-  dayIndex?: number
-  destIndex?: number
-  activityNumber?: number
-  hasDestinationsOnRoute?: boolean
-  destinationsOnRoute?: Array<{destination: any, dayIndex: number, destIndex: number}>
-  segmentName?: string
-  segmentType?: string
-  segmentIndex?: number
-}
-
 export function MapIntegration({ map }: MapIntegrationProps) {
   const { 
     currentTrip: storeTrip, 
@@ -71,6 +40,9 @@ export function MapIntegration({ map }: MapIntegrationProps) {
     selectedDestination, 
     setSelectedDestination,
     selectedCardId,
+    setSelectedCard,
+    selectedBaseLocation,
+    setSelectedBaseLocation,
   } = useSupabaseTripStore()
 
   const emptyTrip: Trip = {
@@ -127,6 +99,9 @@ export function MapIntegration({ map }: MapIntegrationProps) {
         selectedDestination={selectedDestination}
         setSelectedDay={setSelectedDay}
         setSelectedDestination={setSelectedDestination}
+        selectedBaseLocation={selectedBaseLocation}
+        setSelectedBaseLocation={setSelectedBaseLocation}
+        setSelectedCard={setSelectedCard}
       />
       <MapCleanup
         map={map}
@@ -149,6 +124,7 @@ export function MapIntegration({ map }: MapIntegrationProps) {
       </div>
 
       <ExplorePreviewDrawer />
+      <ItineraryPreviewDrawer />
     </>
   )
 }

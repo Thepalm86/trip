@@ -4,6 +4,8 @@ import { useEffect, useRef, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
 import type { Trip } from '@/types'
 
+const isMapDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_MAP === 'true'
+
 interface RouteData {
   coordinates: [number, number][]
   duration: number
@@ -42,7 +44,7 @@ export function RouteManager({
   onLoadingChange 
 }: RouteManagerProps) {
   const routeCalculationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const routeCache = useRef<Map<string, RouteData>>(new Map())
+const routeCache = useRef<Map<string, RouteData>>(new Map())
 
   // Calculate bearing between two points
   const calculateBearing = useCallback((start: [number, number], end: [number, number]) => {
@@ -281,48 +283,45 @@ export function RouteManager({
     try {
       const { interDayRoutes, intraDaySegments } = getRoutesToShow()
 
-      console.log('RouteManager: Calculating routes', {
-        selectedDayId,
-        interDayCount: interDayRoutes.length,
-        intraDayCount: intraDaySegments.length,
-        interDay: interDayRoutes.map(route => ({
-          key: route.key,
-          fromDayId: route.fromDay.id,
-          toDayId: route.toDay.id,
-          origin: route.origin.name,
-          destination: route.destination.name,
-          visibility: route.visibility
-        })),
-        intraDay: intraDaySegments.map(segment => ({
-          key: segment.key,
-          fromDayId: segment.from.dayId,
-          toDayId: segment.to.dayId,
-          from: segment.from.name,
-          to: segment.to.name,
-          type: segment.segmentType
-        }))
+      if (isMapDebugEnabled) {
+        console.debug('RouteManager: calculating routes', {
+          selectedDayId,
+          interDayCount: interDayRoutes.length,
+          intraDayCount: intraDaySegments.length,
+        })
+      }
+
+      const routePromises: Promise<void>[] = []
+
+      interDayRoutes.forEach(route => {
+        routePromises.push(
+          calculateSegmentRoute(route.origin, route.destination).then(routeData => {
+            if (!routeData) return
+
+            newRoutes.set(route.key, {
+              ...routeData,
+              segmentType: 'inter-day',
+              visibility: route.visibility,
+            })
+          })
+        )
       })
 
-      for (const route of interDayRoutes) {
-        const routeData = await calculateSegmentRoute(route.origin, route.destination)
+      intraDaySegments.forEach(segment => {
+        routePromises.push(
+          calculateSegmentRoute(segment.from, segment.to).then(routeData => {
+            if (!routeData) return
 
-        if (routeData) {
-          routeData.segmentType = 'inter-day'
-          routeData.visibility = route.visibility
-          newRoutes.set(route.key, routeData)
-        }
-      }
+            newRoutes.set(segment.key, {
+              ...routeData,
+              segmentType: segment.segmentType,
+              visibility: 'selected-intra-day',
+            })
+          })
+        )
+      })
 
-      // Mark intra-day routes as part of the selected day context
-      for (const segment of intraDaySegments) {
-        const routeData = await calculateSegmentRoute(segment.from, segment.to)
-
-        if (routeData) {
-          routeData.segmentType = segment.segmentType
-          routeData.visibility = 'selected-intra-day'
-          newRoutes.set(segment.key, routeData)
-        }
-      }
+      await Promise.all(routePromises)
 
       // Update map sources with all segments
       const allSegments = Array.from(newRoutes.entries()).map(([key, route]) => ({
@@ -355,16 +354,11 @@ export function RouteManager({
         })
       }
 
-      console.log('RouteManager: Segments updated', {
-        totalSegments: allSegments.length,
-        segmentDetails: allSegments.map(s => ({
-          id: s.properties.id,
-          label: s.properties.label,
-          segmentType: s.properties.segmentType,
-          fromDayId: s.properties.fromDayId,
-          toDayId: s.properties.toDayId
-        }))
-      })
+      if (isMapDebugEnabled) {
+        console.debug('RouteManager: segments updated', {
+          totalSegments: allSegments.length,
+        })
+      }
 
       } catch (error) {
         console.error('Error calculating routes:', error)

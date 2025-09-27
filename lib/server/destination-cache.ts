@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/server/supabase-admin'
 
 // Types for existing Supabase tables
 interface DestinationModalContent {
@@ -63,10 +63,7 @@ export class DestinationCacheService {
     category?: string
   ): Promise<{ overview: string; source: 'cache' | 'api' } | null> {
     try {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+      const supabase = supabaseAdmin
 
       // Create a unique key for the destination
       const destinationKey = `${destinationName}${city ? `_${city}` : ''}${category ? `_${category}` : ''}`
@@ -122,10 +119,7 @@ export class DestinationCacheService {
     } = {}
   ): Promise<void> {
     try {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+      const supabase = supabaseAdmin
 
       const destinationKey = `${destinationName}${city ? `_${city}` : ''}${category ? `_${category}` : ''}`
       const expiresAt = new Date()
@@ -180,10 +174,7 @@ export class DestinationCacheService {
     city?: string
   ): Promise<{ images: any[]; source: 'cache' | 'api' } | null> {
     try {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+      const supabase = supabaseAdmin
 
       const destinationKey = `${destinationName}${city ? `_${city}` : ''}`
 
@@ -242,10 +233,7 @@ export class DestinationCacheService {
     images: any[]
   ): Promise<void> {
     try {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+      const supabase = supabaseAdmin
 
       const destinationKey = `${destinationName}${city ? `_${city}` : ''}`
       const expiresAt = new Date()
@@ -300,10 +288,7 @@ export class DestinationCacheService {
     errorMessage?: string
   ): Promise<void> {
     try {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+      const supabase = supabaseAdmin
 
       const { error } = await supabase
         .from('export_history') // Using existing table for logging
@@ -333,10 +318,7 @@ export class DestinationCacheService {
    */
   static async incrementViewCount(destinationName: string): Promise<void> {
     try {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+      const supabase = supabaseAdmin
 
       const { error } = await supabase.rpc('increment_destination_view_count', {
         destination_name_param: destinationName
@@ -361,10 +343,7 @@ export class DestinationCacheService {
     cacheHitRate: number
   } | null> {
     try {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+      const supabase = supabaseAdmin
 
       const { data, error } = await supabase.rpc('get_content_quality_stats')
 
@@ -391,10 +370,7 @@ export class DestinationCacheService {
    */
   static async cleanupExpiredContent(): Promise<number> {
     try {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+      const supabase = supabaseAdmin
 
       const { data, error } = await supabase.rpc('cleanup_expired_destination_content')
 

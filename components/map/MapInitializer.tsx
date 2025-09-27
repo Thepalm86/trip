@@ -7,26 +7,27 @@ interface MapInitializerProps {
   hasTrip: boolean
 }
 
+const isMapDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_MAP === 'true'
+
 export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
   
   // Initialize map sources and layers
   useEffect(() => {
-    console.log('MapInitializer: useEffect triggered', { map: !!map, hasTrip })
     if (!map || !hasTrip) {
-      console.log('MapInitializer: Skipping initialization', { map: !!map, hasTrip })
       return
     }
 
     // Style load handler - SIMPLIFIED (no conflicting updates)
     const handleStyleLoad = () => {
-      console.log('MapInitializer: Map style loaded')
+      if (isMapDebugEnabled) {
+        console.debug('MapInitializer: map style loaded')
+      }
     }
 
     map.on('styledata', handleStyleLoad)
 
     // Initialize sources and layers immediately
     const initializeMapSources = () => {
-      console.log('🎯🎯🎯 MapInitializer: initializeMapSources called', { map: !!map, hasTrip })
       try {
         // Base location markers source
         if (!map.getSource('base-locations')) {
@@ -42,7 +43,6 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
 
         // Destination markers source - SIMPLIFIED
         if (!map.getSource('destinations')) {
-          console.log('🎯 Creating SIMPLE destinations source')
           map.addSource('destinations', {
             type: 'geojson',
             data: {
@@ -50,7 +50,6 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               features: []
             }
           })
-          console.log('✅ Simple destinations source created')
         }
 
 
@@ -291,12 +290,16 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           }
         })
         
-        console.log('✅ Base location layers created')
+        if (isMapDebugEnabled) {
+          console.debug('MapInitializer: base location layers created')
+        }
       }
 
       // Destination markers - MATCHING BASE LOCATIONS EXACTLY
       if (!map.getLayer('destinations-layer')) {
-        console.log('🎯 Creating destinations layers matching base locations')
+        if (isMapDebugEnabled) {
+          console.debug('MapInitializer: creating destination layers')
+        }
         
         // Destination outer ring (consistent blue)
         map.addLayer({
@@ -397,28 +400,37 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           }
         })
         
-        console.log('✅ Destination layers created matching base locations')
+        if (isMapDebugEnabled) {
+          console.debug('MapInitializer: destination layers created')
+        }
       }
 
 
       // Selection highlight layer disabled - using marker styling for selection feedback instead
       
-      console.log('MapInitializer: initializeMapSources completed successfully')
+      if (isMapDebugEnabled) {
+        console.debug('MapInitializer: initializeMapSources completed successfully')
+      }
       } catch (error) {
         console.error('Map initialization failed:', error)
       }
     }
 
     // Initialize sources and layers immediately
-    console.log('🚀🚀🚀 MapInitializer: About to call initializeMapSources', { map: !!map, hasTrip })
-    console.log('🚀🚀🚀 MapInitializer: Calling initializeMapSources from useEffect')
+    if (isMapDebugEnabled) {
+      console.debug('MapInitializer: initializing map sources', { map: !!map, hasTrip })
+    }
     initializeMapSources()
-    console.log('🚀🚀🚀 MapInitializer: initializeMapSources call completed')
+    if (isMapDebugEnabled) {
+      console.debug('MapInitializer: initializeMapSources call completed')
+    }
     
     // Also listen for style load in case it wasn't ready
     if (!map.isStyleLoaded()) {
       map.on('style.load', () => {
-        console.log('MapInitializer: Style loaded, re-initializing sources')
+        if (isMapDebugEnabled) {
+          console.debug('MapInitializer: style loaded, re-initializing sources')
+        }
         initializeMapSources()
       })
     }
@@ -459,7 +471,9 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               map.removeLayer(layerId)
             }
           } catch (error) {
-            console.debug('MapInitializer: ignore layer removal error', layerId, error)
+            if (isMapDebugEnabled) {
+              console.debug('MapInitializer: ignore layer removal error', layerId, error)
+            }
           }
         })
       }
@@ -472,7 +486,9 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               map.removeSource(sourceId)
             }
           } catch (error) {
-            console.debug('MapInitializer: ignore source removal error', sourceId, error)
+            if (isMapDebugEnabled) {
+              console.debug('MapInitializer: ignore source removal error', sourceId, error)
+            }
           }
         })
       }

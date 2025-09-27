@@ -5,12 +5,16 @@ import { Destination, Trip, DayLocation } from '@/types'
 import { addDays } from '@/lib/utils'
 import { tripApi } from '@/lib/supabase/trip-api'
 
+type SelectionOrigin = 'map' | 'timeline'
+
 interface SupabaseTripStore {
   // State
   currentTrip: Trip | null
   trips: Trip[]
   selectedDestination: Destination | null
+  selectedBaseLocation: { dayId: string; index: number } | null
   selectedDayId: string | null
+  selectionOrigin: SelectionOrigin | null
   isLoading: boolean
   error: string | null
   lastUpdate: number // Force re-renders
@@ -35,20 +39,21 @@ interface SupabaseTripStore {
   duplicateDay: (dayId: string) => Promise<void>
   removeDay: (dayId: string) => Promise<void>
   
-  setSelectedDestination: (destination: Destination | null) => void
+  setSelectedDestination: (destination: Destination | null, origin?: SelectionOrigin) => void
   setSelectedDay: (dayId: string) => void
   setDayLocation: (dayId: string, location: DayLocation | null) => Promise<void>
   addBaseLocation: (dayId: string, location: DayLocation) => Promise<void>
   removeBaseLocation: (dayId: string, locationIndex: number) => Promise<void>
   updateBaseLocation: (dayId: string, locationIndex: number, location: DayLocation) => Promise<void>
   reorderBaseLocations: (dayId: string, fromIndex: number, toIndex: number) => Promise<void>
-  
+
   moveDestination: (destinationId: string, fromDayId: string, toDayId: string, newIndex: number) => Promise<void>
   reorderDestinations: (dayId: string, startIndex: number, endIndex: number) => Promise<void>
   updateTripDates: (startDate: Date, endDate: Date) => Promise<void>
-  
+
   // Selection actions
   setSelectedCard: (cardId: string | null) => void
+  setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin?: SelectionOrigin) => void
   
   // Maybe locations actions
   addMaybeLocation: (destination: Destination) => void
@@ -66,7 +71,9 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   currentTrip: null,
   trips: [],
   selectedDestination: null,
+  selectedBaseLocation: null,
   selectedDayId: null,
+  selectionOrigin: null,
   isLoading: false,
   error: null,
   lastUpdate: Date.now(),
@@ -99,6 +106,9 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         trips, 
         currentTrip: newCurrentTrip,
         selectedDayId: isValidSelectedDay ? currentSelectedDayId : (newCurrentTrip?.days[0]?.id || null),
+        selectedDestination: null,
+        selectedBaseLocation: null,
+        selectionOrigin: null,
         isLoading: false 
       })
     } catch (error) {
@@ -123,6 +133,9 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       set({ 
         currentTrip: trip,
         selectedDayId: isValidSelectedDay ? currentSelectedDayId : (trip?.days[0]?.id ?? null),
+        selectedDestination: null,
+        selectedBaseLocation: null,
+        selectionOrigin: null,
         isLoading: false 
       })
     } catch (error) {
@@ -146,6 +159,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       set({ 
         currentTrip: newTrip ?? null,
         selectedDayId: newTrip?.days[0]?.id ?? null,
+        selectionOrigin: null,
         isLoading: false 
       })
       return tripId
@@ -208,7 +222,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       const createdDestination = await tripApi.addDestinationToDay(dayId, destination)
       console.log('SupabaseTripStore: Destination created in database', createdDestination)
 
-      const { currentTrip, trips } = get()
+      const { currentTrip, trips, selectedBaseLocation, selectedDestination } = get()
       if (currentTrip) {
         const updatedTrip = {
           ...currentTrip,
@@ -271,7 +285,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.log('SupabaseTripStore: Destination updated in database', updatedDestination)
 
       // Update local state
-      const { currentTrip, trips } = get()
+      const { currentTrip, trips, selectedBaseLocation, selectedDestination } = get()
       if (currentTrip) {
         const updatedTrip = {
           ...currentTrip,
@@ -312,7 +326,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       await tripApi.removeDestinationFromDay(destinationId)
       
       // Update local state
-      const { currentTrip, trips } = get()
+      const { currentTrip, trips, selectedBaseLocation, selectedDestination } = get()
       if (currentTrip) {
         const updatedTrip = {
           ...currentTrip,
@@ -419,7 +433,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
 
   // Remove day
   removeDay: async (dayId: string) => {
-    const { currentTrip } = get()
+    const { currentTrip, selectedBaseLocation, selectedDestination } = get()
     if (!currentTrip || currentTrip.days.length <= 1) return
 
     set({ isLoading: true, error: null })
@@ -432,10 +446,18 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         ? trips.map(trip => (trip.id === currentTrip.id ? refreshedTrip : trip))
         : trips
 
+      const shouldClearBaseSelection = selectedBaseLocation?.dayId === dayId
+      const remainingTrip = refreshedTrip ?? currentTrip
+      const destinationStillExists = selectedDestination
+        ? remainingTrip.days.some(day => day.destinations.some(dest => dest.id === selectedDestination.id))
+        : false
+
       set({ 
-        currentTrip: refreshedTrip ?? currentTrip,
+        currentTrip: remainingTrip,
         trips: updatedTrips,
         selectedDayId: refreshedTrip?.days[0]?.id ?? null,
+        selectedBaseLocation: shouldClearBaseSelection ? null : selectedBaseLocation,
+        selectedDestination: destinationStillExists ? selectedDestination : null,
         isLoading: false 
       })
     } catch (error) {
@@ -447,13 +469,25 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   },
 
   // Set selected destination
-  setSelectedDestination: (destination: Destination | null) => {
-    set({ selectedDestination: destination })
+  setSelectedDestination: (destination: Destination | null, origin: SelectionOrigin = 'timeline') => {
+    set((state) => ({
+      selectedDestination: destination,
+      selectedBaseLocation: destination ? null : state.selectedBaseLocation,
+      selectionOrigin: destination ? origin : null,
+    }))
   },
 
   // Set selected day
   setSelectedDay: (dayId: string) => {
     set({ selectedDayId: dayId })
+  },
+
+  setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin: SelectionOrigin = 'timeline') => {
+    set((state) => ({
+      selectedBaseLocation: payload,
+      selectedDestination: payload ? null : state.selectedDestination,
+      selectionOrigin: payload ? origin : null,
+    }))
   },
 
   // Set day location (for backward compatibility - sets first base location)
@@ -465,7 +499,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.log('SupabaseTripStore: Day location updated in database')
       
       // Update local state
-      const { currentTrip, trips } = get()
+      const { currentTrip, trips, selectedBaseLocation, selectedDestination } = get()
       if (currentTrip) {
         const updatedTrip = {
           ...currentTrip,
@@ -494,6 +528,14 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
             : trip
         )
         
+        const { selectedBaseLocation } = get()
+        let nextSelectedBaseLocation = selectedBaseLocation
+        if (location) {
+          nextSelectedBaseLocation = { dayId, index: 0 }
+        } else if (selectedBaseLocation?.dayId === dayId) {
+          nextSelectedBaseLocation = null
+        }
+
         console.log('SupabaseTripStore: Updating local state with new location', { 
           dayId, 
           locationName: location?.name 
@@ -502,6 +544,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         set({ 
           currentTrip: updatedTrip, 
           trips: updatedTrips, 
+          selectedBaseLocation: nextSelectedBaseLocation,
+          selectedDestination: nextSelectedBaseLocation ? null : get().selectedDestination,
           isLoading: false,
           lastUpdate: Date.now()
         })
@@ -527,7 +571,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.log('SupabaseTripStore: Base location added to database')
       
       // Update local state
-      const { currentTrip, trips } = get()
+      const { currentTrip, trips, selectedBaseLocation, selectedDestination } = get()
       if (currentTrip) {
         const updatedTrip = {
           ...currentTrip,
@@ -559,6 +603,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         set({
           currentTrip: updatedTrip,
           trips: updatedTrips,
+          selectedBaseLocation,
+          selectedDestination: selectedBaseLocation ? null : selectedDestination,
           isLoading: false,
           lastUpdate: Date.now()
         })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { Trip } from '@/types'
 
 interface MarkerManagerProps {
@@ -11,17 +11,7 @@ interface MarkerManagerProps {
   selectedCardId: string | null
 }
 
-const DAY_COLORS = [
-  '#3b82f6', // Blue
-  '#10b981', // Green
-  '#f59e0b', // Orange
-  '#ef4444', // Red
-  '#8b5cf6', // Purple
-  '#06b6d4', // Cyan
-  '#84cc16', // Lime
-  '#f97316', // Orange-red
-]
-
+const isMapDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_MAP === 'true'
 
 export function MarkerManager({ 
   map, 
@@ -31,20 +21,12 @@ export function MarkerManager({
   selectedCardId
 }: MarkerManagerProps) {
 
+  const baseLocationFeaturesRef = useRef<string | null>(null)
+  const destinationFeaturesRef = useRef<string | null>(null)
+
   // Update base location markers with enhanced data
   useEffect(() => {
     if (!map || !hasTrip) return
-
-    console.log('MarkerManager: Updating base location markers', { 
-      tripDaysCount: tripDays.length,
-      daysWithBaseLocations: tripDays.filter(day => day.baseLocations?.length > 0).length,
-      tripDays: tripDays.map(day => ({ 
-        id: day.id, 
-        hasBaseLocations: day.baseLocations?.length > 0,
-        baseLocationCount: day.baseLocations?.length || 0,
-        firstBaseLocationName: day.baseLocations?.[0]?.name
-      }))
-    })
 
     // Add a small delay to ensure sources are initialized
     const timeoutId = setTimeout(() => {
@@ -89,6 +71,7 @@ export function MarkerManager({
             dayIndex: dayIndex,
             dayNumber: dayIndex + 1,
             dayId: day.id,
+            baseIndex: 0,
             context: firstBaseLocation.context,
             isSelected: selectedDayId === day.id,
             isDeparturePoint: selectedDayId === day.id ? false : true, // Previous day's location is departure point
@@ -101,24 +84,15 @@ export function MarkerManager({
         }
       })
 
-      console.log('MarkerManager: Setting base location features on map', { 
-        selectedDayId,
-        daysToShowCount: daysToShow.length,
-        daysToShow: daysToShow.map(d => ({ 
-          dayId: d.id, 
-          baseLocationName: d.baseLocations?.[0]?.name,
-          totalBaseLocations: d.baseLocations?.length || 0,
-          isSelectedDay: d.id === selectedDayId
-        })),
-        featureCount: baseLocationFeatures.length,
-        features: baseLocationFeatures.map(f => ({ 
-          name: f.properties.name, 
-          dayId: f.properties.dayId,
-          isSelected: f.properties.isSelected,
-          isDeparturePoint: f.properties.isDeparturePoint,
-          totalBaseLocations: f.properties.totalBaseLocations
-        }))
-      })
+      const serializedFeatures = JSON.stringify(baseLocationFeatures)
+      if (baseLocationFeaturesRef.current === serializedFeatures) {
+        if (isMapDebugEnabled) {
+          console.debug('MarkerManager: Skipping base location update – no changes detected')
+        }
+        return
+      }
+
+      baseLocationFeaturesRef.current = serializedFeatures
 
       map.getSource('base-locations').setData({
         type: 'FeatureCollection',
@@ -142,13 +116,11 @@ export function MarkerManager({
 
   // Destination markers update - SIMPLIFIED
   useEffect(() => {
-    console.log('🚀 MarkerManager: SIMPLE destination update triggered', { map: !!map, hasTrip, tripDaysCount: tripDays.length })
     if (!map || !hasTrip) return
 
     // Simple, direct update
     const updateDestinations = () => {
       if (!map.getSource('destinations') || !map.getLayer('destinations-layer')) {
-        console.warn('⚠️ Source or layer not ready')
         return
       }
 
@@ -184,15 +156,20 @@ export function MarkerManager({
         }))
       })
 
-      console.log('🎯 MarkerManager: Setting SIMPLE destination features', { count: features.length })
+      const serializedFeatures = JSON.stringify(features)
+      if (destinationFeaturesRef.current === serializedFeatures) {
+        if (isMapDebugEnabled) {
+          console.debug('MarkerManager: Skipping destination update – no changes detected')
+        }
+        return
+      }
 
-      // Update source directly
+      destinationFeaturesRef.current = serializedFeatures
+
       map.getSource('destinations').setData({
         type: 'FeatureCollection',
         features
       })
-
-      console.log('✅ MarkerManager: SIMPLE destination markers updated')
     }
 
     // Wait for map to be ready

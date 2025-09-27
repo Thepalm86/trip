@@ -35,19 +35,19 @@ export function TripLoader() {
                 id: 'temp-day-1',
                 date: today,
                 destinations: [],
-                location: undefined,
+                baseLocations: [],
               },
               {
                 id: 'temp-day-2',
                 date: addDays(today, 1),
                 destinations: [],
-                location: undefined,
+                baseLocations: [],
               },
               {
                 id: 'temp-day-3',
                 date: addDays(today, 2),
                 destinations: [],
-                location: undefined,
+                baseLocations: [],
               },
             ],
           }

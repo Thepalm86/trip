@@ -33,6 +33,8 @@ Your trip planning app now has a complete Supabase database setup with the follo
 - **Automatic timestamps** - `created_at` and `updated_at` fields
 - **Optimized indexes** - Fast queries for common operations
 
+> ℹ️ Before calling the Supabase store, copy `.env.example` to `.env.local` and populate each placeholder with project secrets (Supabase URL, anon key, service role key, Mapbox token, etc.). Keep `SUPABASE_SERVICE_ROLE_KEY` and other private keys on the server only.
+
 ## 🚀 **How to Use**
 
 ### **1. Switch to Supabase Store**
@@ -74,7 +76,7 @@ const handleCreateTrip = async () => {
         id: generateId(),
         date: new Date(),
         destinations: [],
-        location: undefined
+        baseLocations: []
       }
     ]
   })
@@ -111,7 +113,7 @@ const handleAddDestination = async (dayId: string) => {
 - `addNewDay()` - Add new day to current trip
 - `duplicateDay(dayId)` - Duplicate a day
 - `removeDay(dayId)` - Remove a day
-- `setDayLocation(dayId, location)` - Set base location for day
+- `setDayLocation(dayId, location)` - Set or clear the primary base location (`baseLocations[0]`) for a day
 
 ### **Destination Management:**
 - `addDestinationToDay(dayId, destination)` - Add destination

@@ -8,7 +8,9 @@ interface TripStore {
   // State
   currentTrip: Trip
   selectedDestination: Destination | null
+  selectedBaseLocation: { dayId: string; index: number } | null
   selectedDayId: string | null
+  selectionOrigin: 'map' | 'timeline' | null
   
   // Actions
   addDestinationToDay: (destination: Destination, dayId: string) => void
@@ -16,8 +18,9 @@ interface TripStore {
   addNewDay: () => void
   duplicateDay: (dayId: string) => void
   removeDay: (dayId: string) => void
-  setSelectedDestination: (destination: Destination | null) => void
+  setSelectedDestination: (destination: Destination | null, origin?: 'map' | 'timeline') => void
   setSelectedDay: (dayId: string) => void
+  setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin?: 'map' | 'timeline') => void
   setDayLocation: (dayId: string, location: DayLocation | null) => void
   moveDestination: (destinationId: string, fromDayId: string, toDayId: string, newIndex: number) => void
   reorderDestinations: (dayId: string, startIndex: number, endIndex: number) => void
@@ -35,19 +38,19 @@ const createInitialTrip = (): Trip => ({
       id: generateId(),
       date: new Date(),
       destinations: [],
-      location: undefined,
+      baseLocations: [],
     },
     {
       id: generateId(),
       date: addDays(new Date(), 1),
       destinations: [],
-      location: undefined,
+      baseLocations: [],
     },
     {
       id: generateId(),
       date: addDays(new Date(), 2),
       destinations: [],
-      location: undefined,
+      baseLocations: [],
     }
   ]
 })
@@ -58,7 +61,9 @@ export const useTripStore = create<TripStore>((set, get) => ({
   // Initial state
   currentTrip: initialTrip,
   selectedDestination: null,
+  selectedBaseLocation: null,
   selectedDayId: initialTrip.days[0]?.id ?? null,
+  selectionOrigin: null,
 
   // Actions
   addDestinationToDay: (destination: Destination, dayId: string) => {
@@ -93,7 +98,7 @@ export const useTripStore = create<TripStore>((set, get) => ({
         id: generateId(),
         date: addDays(state.currentTrip.startDate, state.currentTrip.days.length),
         destinations: [],
-        location: undefined,
+        baseLocations: [],
       }
       return {
         currentTrip: {
@@ -119,9 +124,9 @@ export const useTripStore = create<TripStore>((set, get) => ({
           ...dest,
           id: generateId() // Generate new IDs for destinations
         })),
-        location: dayToDuplicate.location ? {
-          ...dayToDuplicate.location
-        } : undefined,
+        baseLocations: dayToDuplicate.baseLocations
+          ? dayToDuplicate.baseLocations.map(baseLocation => ({ ...baseLocation }))
+          : [],
       }
 
       // Insert the duplicated day right after the original
@@ -168,12 +173,24 @@ export const useTripStore = create<TripStore>((set, get) => ({
     })
   },
 
-  setSelectedDestination: (destination: Destination | null) => {
-    set({ selectedDestination: destination })
+  setSelectedDestination: (destination: Destination | null, origin: 'map' | 'timeline' = 'timeline') => {
+    set((state) => ({
+      selectedDestination: destination,
+      selectedBaseLocation: destination ? null : state.selectedBaseLocation,
+      selectionOrigin: destination ? origin : null,
+    }))
   },
 
   setSelectedDay: (dayId: string) => {
     set({ selectedDayId: dayId })
+  },
+
+  setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin: 'map' | 'timeline' = 'timeline') => {
+    set((state) => ({
+      selectedBaseLocation: payload,
+      selectedDestination: payload ? null : state.selectedDestination,
+      selectionOrigin: payload ? origin : null,
+    }))
   },
 
   setDayLocation: (dayId: string, location: DayLocation | null) => {
@@ -182,7 +199,7 @@ export const useTripStore = create<TripStore>((set, get) => ({
         ...state.currentTrip,
         days: state.currentTrip.days.map(day =>
           day.id === dayId
-            ? { ...day, location: location ?? undefined }
+            ? { ...day, baseLocations: location ? [location] : [] }
             : day
         )
       }
@@ -265,7 +282,7 @@ export const useTripStore = create<TripStore>((set, get) => ({
             id: generateId(),
             date: addDays(startDate, i),
             destinations: [],
-            location: undefined,
+            baseLocations: [],
           })
         }
       }

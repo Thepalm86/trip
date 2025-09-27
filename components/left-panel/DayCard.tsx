@@ -233,6 +233,7 @@ export function DayCard({
     selectedCardId, 
     setSelectedCard,
     removeBaseLocation,
+    setSelectedBaseLocation,
   } = useSupabaseTripStore()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -267,18 +268,21 @@ export function DayCard({
     if (selectedCardId === cardId) {
       setSelectedCard(null)
       setSelectedDestination(null)
+      setSelectedBaseLocation(null)
     } else {
       setSelectedCard(cardId)
-      
-      // Create a temporary destination to show on map
-      const tempDestination = {
-        id: `temp-${location.name}`,
-        name: location.name,
-        description: location.context,
-        coordinates: location.coordinates,
-        category: 'city' as const,
+      setSelectedDestination(null)
+      setSelectedBaseLocation({ dayId: day.id, index }, 'timeline')
+
+      if (location.coordinates) {
+        const [lng, lat] = location.coordinates
+        window.dispatchEvent(new CustomEvent('centerMapOnDestinations', {
+          detail: {
+            center: { lng, lat },
+            zoom: 13,
+          },
+        }))
       }
-      setSelectedDestination(tempDestination)
     }
   }
 
@@ -319,9 +323,21 @@ export function DayCard({
     if (selectedCardId === cardId) {
       setSelectedCard(null)
       setSelectedDestination(null)
+      setSelectedBaseLocation(null)
     } else {
       setSelectedCard(cardId)
-      setSelectedDestination(destination)
+      setSelectedBaseLocation(null)
+      setSelectedDestination(destination, 'timeline')
+
+      if (destination.coordinates) {
+        const [lng, lat] = destination.coordinates
+        window.dispatchEvent(new CustomEvent('centerMapOnDestinations', {
+          detail: {
+            center: { lng, lat },
+            zoom: 13,
+          },
+        }))
+      }
     }
   }
 

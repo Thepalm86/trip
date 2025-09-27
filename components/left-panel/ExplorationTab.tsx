@@ -124,7 +124,7 @@ function MaybeLocationCard({ destination, index }: { destination: Destination; i
       setSelectedDestination(null)
     } else {
       setSelectedCard(cardId)
-      setSelectedDestination(destination)
+      setSelectedDestination(destination, 'timeline')
     }
   }
 

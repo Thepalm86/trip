@@ -3,6 +3,20 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { Destination } from '@/types'
+import { supabase } from '@/lib/supabase/client'
+
+async function getAuthHeaders() {
+  const { data } = await supabase.auth.getSession()
+  const accessToken = data.session?.access_token
+
+  if (!accessToken) {
+    throw new Error('Unable to authenticate request')
+  }
+
+  return {
+    Authorization: `Bearer ${accessToken}`,
+  }
+}
 
 interface DestinationOverviewModalProps {
   destination: Destination
@@ -50,6 +64,7 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...(await getAuthHeaders()),
           },
           body: JSON.stringify({
             destination: destination.name,
@@ -83,8 +98,10 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
       try {
         setIsLoadingPhotos(true)
         const searchQuery = `${destination.name}${destination.city ? ` ${destination.city}` : ''} travel`
-
-        const response = await fetch(`/api/destination/photos?query=${encodeURIComponent(searchQuery)}&count=10`)
+        const authHeaders = await getAuthHeaders()
+        const response = await fetch(`/api/destination/photos?query=${encodeURIComponent(searchQuery)}&count=10`, {
+          headers: authHeaders,
+        })
 
         if (!response.ok) {
           throw new Error('Failed to fetch photos')

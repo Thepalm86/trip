@@ -58,7 +58,12 @@ Following Traveal2.0's premium design system:
    ```
 
 2. **Set up environment variables**:
-   - Copy `.env.local` from Traveal2.0 (includes Mapbox token and other credentials)
+   ```bash
+   cp .env.example .env.local
+   ```
+   - Replace every placeholder with credentials from your secrets manager (Vercel, Netlify, 1Password, etc.).
+   - Keep `SUPABASE_SERVICE_ROLE_KEY` and other private keys server-side only—never expose them with a `NEXT_PUBLIC_` prefix.
+   - Commit only the template file (`.env.example`); do not commit filled `.env.local` files.
 
 3. **Run development server**:
    ```bash

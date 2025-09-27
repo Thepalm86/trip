@@ -31,29 +31,14 @@ export function MapCleanup({
       const selectedDay = tripDays.find(day => day.id === selectedDayId)
       const selectedDayIndex = tripDays.findIndex(day => day.id === selectedDayId)
       
-      console.log('MapCleanup: Day selection debug', {
-        selectedDayId,
-        selectedDayIndex,
-        selectedDay: selectedDay ? {
-          id: selectedDay.id,
-          hasBaseLocation: selectedDay.baseLocations && selectedDay.baseLocations.length > 0,
-          baseLocationName: selectedDay.baseLocations?.[0]?.name,
-          destinationCount: selectedDay.destinations.length,
-          destinations: selectedDay.destinations.map(d => d.name)
-        } : null,
-        tripDaysCount: tripDays.length
-      })
-      
       if (selectedDay) {
         // Add the current day's base location
         if (selectedDay.baseLocations && selectedDay.baseLocations.length > 0) {
           coordinatesToFit.push(selectedDay.baseLocations[0].coordinates)
-          console.log('MapCleanup: Added current day base location', selectedDay.baseLocations[0].name, selectedDay.baseLocations[0].coordinates)
         }
         
         // Add destinations for this day
         coordinatesToFit.push(...selectedDay.destinations.map(dest => dest.coordinates))
-        console.log('MapCleanup: Added destinations', selectedDay.destinations.map(d => d.name))
         
         // Agnostic travel day detection - collect all relevant base locations
         const nextDay = tripDays[selectedDayIndex + 1]
@@ -108,22 +93,9 @@ export function MapCleanup({
           )
         )
         
-        console.log('MapCleanup: Travel day analysis', {
-          selectedDayId,
-          selectedDayBaseLocation: selectedDay.baseLocations?.[0]?.name,
-          previousDayBaseLocation: previousDay?.baseLocations?.[0]?.name,
-          nextDayBaseLocation: nextDay?.baseLocations?.[0]?.name,
-          baseLocationsToInclude: uniqueLocations.map(l => ({
-            name: l.location.name,
-            dayId: l.dayId,
-            role: l.role
-          }))
-        })
-        
         // Add all unique base locations to coordinates
         uniqueLocations.forEach(item => {
           coordinatesToFit.push(item.location.coordinates)
-          console.log(`MapCleanup: Added ${item.role} base location`, item.location.name, item.location.coordinates)
         })
       }
     } else {
@@ -174,16 +146,6 @@ export function MapCleanup({
           const isTravelDay = (previousDay?.baseLocations?.[0] && areLocationsDifferent(selectedDay?.baseLocations?.[0], previousDay.baseLocations[0])) ||
                              (nextDay?.baseLocations?.[0] && areLocationsDifferent(selectedDay?.baseLocations?.[0], nextDay.baseLocations[0]))
           
-          console.log('MapCleanup: Zoom decision', {
-            locationCount,
-            isTravelDay,
-            selectedDayBaseLocation: selectedDay?.baseLocations?.[0]?.name,
-            previousDayBaseLocation: previousDay?.baseLocations?.[0]?.name,
-            nextDayBaseLocation: nextDay?.baseLocations?.[0]?.name,
-            coordinatesToFit: coordinatesToFit.length,
-            coordinatesToFitDetails: coordinatesToFit.map((coord, i) => ({ index: i, coord }))
-          })
-          
           if (isTravelDay) {
             // Travel day - zoom to capture both base locations with good context
             fitOptions = {
@@ -191,7 +153,6 @@ export function MapCleanup({
               maxZoom: 10,   // Wider zoom to show travel route between cities
               duration: 1200
             }
-            console.log('MapCleanup: Using travel day zoom (maxZoom: 10)')
           } else if (locationCount === 1) {
             // Single location - use moderate zoom, don't zoom in too much
             fitOptions = {
@@ -199,7 +160,6 @@ export function MapCleanup({
               maxZoom: 11,   // Moderate zoom for single location
               duration: 1200
             }
-            console.log('MapCleanup: Using single location zoom (maxZoom: 11)')
           } else if (locationCount === 2) {
             // Two locations - slightly closer zoom
             fitOptions = {
@@ -207,7 +167,6 @@ export function MapCleanup({
               maxZoom: 12,   // Slightly closer for two locations
               duration: 1200
             }
-            console.log('MapCleanup: Using two locations zoom (maxZoom: 12)')
           } else {
             // Multiple locations - closer zoom to show all destinations clearly
             fitOptions = {
@@ -215,7 +174,6 @@ export function MapCleanup({
               maxZoom: 13,   // Closer zoom for multiple locations
               duration: 1200
             }
-            console.log('MapCleanup: Using multiple locations zoom (maxZoom: 13)')
           }
         } else {
           // No day selected - show all locations

@@ -321,15 +321,22 @@ export const tripApi = {
     if (error) throw error
 
     // Create days
-    const dayInserts = trip.days.map((day, index) => ({
-      trip_id: data.id,
-      date: formatDateOnly(day.date),
-      day_order: index,
-      base_location_name: day.location?.name,
-      base_location_coordinates: day.location?.coordinates ? formatPoint(day.location.coordinates) : null,
-      base_location_context: day.location?.context,
-      notes: undefined
-    }))
+    const dayInserts = trip.days.map((day, index) => {
+      const primaryBaseLocation = day.baseLocations?.[0]
+
+      return {
+        trip_id: data.id,
+        date: formatDateOnly(day.date),
+        day_order: index,
+        base_location_name: primaryBaseLocation?.name ?? null,
+        base_location_coordinates: primaryBaseLocation?.coordinates
+          ? formatPoint(primaryBaseLocation.coordinates)
+          : null,
+        base_location_context: primaryBaseLocation?.context ?? null,
+        base_locations_json: day.baseLocations && day.baseLocations.length > 0 ? day.baseLocations : null,
+        notes: undefined
+      }
+    })
 
     const { data: days, error: daysError } = await supabase
       .from('trip_days')

@@ -16,6 +16,25 @@ interface DayMiniMapProps {
   className?: string
 }
 
+function buildDestinationPopupContent(destination: Destination) {
+  const container = document.createElement('div')
+  container.className = 'p-2'
+
+  const title = document.createElement('h3')
+  title.className = 'font-semibold text-sm text-gray-900'
+  title.textContent = destination.name
+  container.appendChild(title)
+
+  if (destination.description) {
+    const description = document.createElement('p')
+    description.className = 'text-xs text-gray-600'
+    description.textContent = destination.description
+    container.appendChild(description)
+  }
+
+  return container
+}
+
 export function DayMiniMap({ day, timeSlots, className = '' }: DayMiniMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
@@ -98,8 +117,9 @@ export function DayMiniMap({ day, timeSlots, className = '' }: DayMiniMapProps) 
 
     if (destinations.length === 0) {
       // If no destinations, show base location if available
-      if (day.location) {
-        map.current.setCenter(day.location.coordinates as [number, number])
+      const primaryBaseLocation = day.baseLocations?.[0]
+      if (primaryBaseLocation) {
+        map.current.setCenter(primaryBaseLocation.coordinates as [number, number])
         map.current.setZoom(12)
       }
       return
@@ -133,12 +153,7 @@ export function DayMiniMap({ day, timeSlots, className = '' }: DayMiniMapProps) 
         .setLngLat(destination.coordinates as [number, number])
         .setPopup(
           new mapboxgl.Popup({ offset: 25 })
-            .setHTML(`
-              <div class="p-2">
-                <h3 class="font-semibold text-sm text-gray-900">${destination.name}</h3>
-                <p class="text-xs text-gray-600">${destination.description || ''}</p>
-              </div>
-            `)
+            .setDOMContent(buildDestinationPopupContent(destination))
         )
         .addTo(map.current!)
 

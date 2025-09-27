@@ -4,6 +4,59 @@ import { useEffect, useCallback, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import type { Trip } from '@/types'
 
+function createElement(
+  tag: string,
+  className: string,
+  textContent?: string | number
+) {
+  const element = document.createElement(tag)
+  element.className = className
+  if (textContent !== undefined) {
+    element.textContent = String(textContent)
+  }
+  return element
+}
+
+const isMapDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_MAP === 'true'
+
+function buildRouteSegmentPopupContent({
+  segmentTypeClass,
+  segmentTypeLabel,
+  fromLocation,
+  toLocation,
+  durationLabel,
+  distanceLabel,
+}: {
+  segmentTypeClass: string
+  segmentTypeLabel: string
+  fromLocation: string
+  toLocation: string
+  durationLabel: string
+  distanceLabel: string
+}) {
+  const container = createElement('div', 'route-popup-content')
+  const header = createElement('div', 'route-popup-header')
+  const icon = createElement('div', 'route-popup-icon')
+  if (segmentTypeClass) {
+    icon.classList.add(segmentTypeClass)
+  }
+  const title = createElement('div', 'route-popup-title', segmentTypeLabel)
+
+  header.appendChild(icon)
+  header.appendChild(title)
+  container.appendChild(header)
+
+  const routeLine = createElement('div', 'route-popup-route', `${fromLocation} → ${toLocation}`)
+  container.appendChild(routeLine)
+
+  const details = createElement('div', 'route-popup-details')
+  details.appendChild(createElement('div', 'route-popup-duration', `⏱️ ${durationLabel}`))
+  details.appendChild(createElement('div', 'route-popup-distance', `📏 ${distanceLabel}`))
+  container.appendChild(details)
+
+  return container
+}
+
 interface MapEventHandlerProps {
   map: any
   hasTrip: boolean
@@ -11,7 +64,9 @@ interface MapEventHandlerProps {
   selectedDayId: string | null
   selectedDestination: any
   setSelectedDay: (dayId: string) => void
-  setSelectedDestination: (destination: any) => void
+  setSelectedDestination: (destination: any, origin?: 'map' | 'timeline') => void
+  setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin?: 'map' | 'timeline') => void
+  setSelectedCard: (cardId: string | null) => void
 }
 
 export function MapEventHandler({ 
@@ -21,9 +76,11 @@ export function MapEventHandler({
   selectedDayId, 
   selectedDestination,
   setSelectedDay,
-  setSelectedDestination
+  setSelectedDestination,
+  setSelectedBaseLocation,
+  setSelectedCard,
 }: MapEventHandlerProps) {
-  const [activePopups, setActivePopups] = useState<mapboxgl.Popup[]>([])
+  const [, setActivePopups] = useState<mapboxgl.Popup[]>([])
 
   // Format duration from minutes to hours/minutes
   const formatDuration = (minutes: number) => {
@@ -35,9 +92,10 @@ export function MapEventHandler({
 
   // Clear all popups
   const clearPopups = useCallback(() => {
-    console.log('clearPopups called')
     setActivePopups(prev => {
-      console.log('Clearing popups, current count:', prev.length)
+      if (isMapDebugEnabled) {
+        console.debug('MapEventHandler: clearing popups', { count: prev.length })
+      }
       prev.forEach(popup => popup.remove())
       return []
     })
@@ -49,41 +107,16 @@ export function MapEventHandler({
 
     const handleBaseLocationClick = (e: any) => {
       const feature = e.features[0]
-      if (feature) {
-        const dayIndex = feature.properties.dayIndex
-        const dayId = feature.properties.dayId
-        const dayNumber = feature.properties.dayNumber
-        
-        // Bidirectional interaction: Select day in left panel
-        setSelectedDay(dayId)
-        clearPopups()
-        
-        // Enhanced popup with more information
-        const popup = new mapboxgl.Popup({
-          closeButton: true,
-          closeOnClick: false,
-          className: 'custom-popup'
-        })
-          .setLngLat(feature.geometry.coordinates)
-          .setHTML(`
-            <div class="p-3 min-w-[200px]">
-              <div class="flex items-center gap-2 mb-2">
-                <div class="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">
-                  ${dayNumber}
-                </div>
-                <h3 class="font-semibold text-sm text-white">${feature.properties.name}</h3>
-              </div>
-              <p class="text-xs text-white/60 mb-2">Day ${dayNumber} Accommodation</p>
-              ${feature.properties.context ? `<p class="text-xs text-white/50 mb-2">${feature.properties.context}</p>` : ''}
-              <div class="flex items-center gap-4 text-xs text-white/60">
-                <span>${feature.properties.destinationCount} activities</span>
-              </div>
-            </div>
-          `)
-          .addTo(map)
-        
-        setActivePopups(prev => [...prev, popup])
-      }
+      if (!feature) return
+
+      const dayId = feature.properties.dayId as string
+      const baseIndex = typeof feature.properties.baseIndex === 'number' ? feature.properties.baseIndex : 0
+
+      setSelectedDay(dayId)
+      setSelectedDestination(null)
+      setSelectedBaseLocation({ dayId, index: baseIndex }, 'map')
+      setSelectedCard(`base-${dayId}-${baseIndex}`)
+      clearPopups()
     }
 
     const handleDestinationClick = (e: any) => {
@@ -97,36 +130,10 @@ export function MapEventHandler({
         // Bidirectional interaction: Select day and destination
         setSelectedDay(dayId)
         if (!hasTrip) return
-        setSelectedDestination(tripDays[dayIndex].destinations[destIndex])
+        setSelectedDestination(tripDays[dayIndex].destinations[destIndex], 'map')
+        setSelectedBaseLocation(null)
+        setSelectedCard(`dest-${destinationId}`)
         clearPopups()
-        
-        // Enhanced popup with more information
-        const popup = new mapboxgl.Popup({
-          closeButton: true,
-          closeOnClick: false,
-          className: 'custom-popup'
-        })
-          .setLngLat(feature.geometry.coordinates)
-          .setHTML(`
-            <div class="p-3 min-w-[220px]">
-              <div class="flex items-center gap-2 mb-2">
-                <div class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background-color: ${feature.properties.markerColor || '#3b82f6'}">
-                  ${feature.properties.activityLetter}
-                </div>
-                <h3 class="font-semibold text-sm text-white">${feature.properties.name}</h3>
-              </div>
-              <p class="text-xs text-white/60 mb-2">Day ${feature.properties.dayNumber} • Activity ${feature.properties.activityLetter}</p>
-              ${feature.properties.description ? `<p class="text-xs text-white/50 mb-2">${feature.properties.description}</p>` : ''}
-              <div class="flex items-center gap-4 text-xs text-white/60">
-                ${feature.properties.duration ? `<span>${feature.properties.duration}h</span>` : ''}
-                ${feature.properties.cost ? `<span>€${feature.properties.cost}</span>` : ''}
-                ${feature.properties.rating ? `<span class="flex items-center gap-1"><span class="text-yellow-400">⭐</span> ${feature.properties.rating.toFixed(1)}</span>` : ''}
-              </div>
-            </div>
-          `)
-          .addTo(map)
-        
-        setActivePopups(prev => [...prev, popup])
       }
     }
 
@@ -237,10 +244,21 @@ export function MapEventHandler({
     })
 
     // Route segment click handlers for distance/time popup
-    map.on('click', 'route-segments-layer', (e: any) => {
+    const handleRouteSegmentClick = (e: any) => {
       const feature = e.features[0]
-      if (feature && feature.properties.label) {
-        console.log('Route segment clicked, clearing existing popups')
+      if (!feature) {
+        return
+      }
+
+      const markerFeatures = map.queryRenderedFeatures(e.point, {
+        layers: ['destinations-layer', 'base-locations-layer']
+      })
+
+      if (markerFeatures.length > 0) {
+        return
+      }
+
+      if (feature.properties.label) {
         // Clear any existing popups first
         clearPopups()
         
@@ -252,48 +270,62 @@ export function MapEventHandler({
           'base-to-base': 'Base to Base'
         }[segmentType] || 'Route Segment'
         
-        console.log('Creating new route segment popup')
         const popup = new mapboxgl.Popup({
           closeButton: true,
           closeOnClick: false, // Disable closeOnClick to prevent conflicts
           className: 'route-segment-popup'
         })
           .setLngLat(e.lngLat)
-          .setHTML(`
-            <div class="route-popup-content">
-              <div class="route-popup-header">
-                <div class="route-popup-icon ${segmentType}"></div>
-                <div class="route-popup-title">${segmentTypeLabel}</div>
-              </div>
-              <div class="route-popup-route">${feature.properties.fromLocation} → ${feature.properties.toLocation}</div>
-              <div class="route-popup-details">
-                <div class="route-popup-duration">⏱️ ${formatDuration(feature.properties.duration)}</div>
-                <div class="route-popup-distance">📏 ${feature.properties.distance} km</div>
-              </div>
-            </div>
-          `)
+          .setDOMContent(
+            buildRouteSegmentPopupContent({
+              segmentTypeClass: typeof segmentType === 'string' ? segmentType : 'segment',
+              segmentTypeLabel,
+              fromLocation: feature.properties.fromLocation,
+              toLocation: feature.properties.toLocation,
+              durationLabel: formatDuration(feature.properties.duration),
+              distanceLabel: `${feature.properties.distance} km`,
+            })
+          )
           .addTo(map)
-        
+
         // Add to active popups for tracking
         setActivePopups(prev => {
-          console.log('Adding popup to active popups, current count:', prev.length)
           return [...prev, popup]
         })
       }
-    })
+    }
+
+    map.on('click', 'route-segments-layer', handleRouteSegmentClick)
 
     // Close popups when clicking on empty areas (not on route segments)
-    map.on('click', (e) => {
-      // Check if the click is on a route segment
-      const features = map.queryRenderedFeatures(e.point, {
+    const handleGeneralClick = (e: mapboxgl.MapMouseEvent) => {
+      const routeFeatures = map.queryRenderedFeatures(e.point, {
         layers: ['route-segments-layer']
       })
-      
-      // Only clear popups if not clicking on a route segment
-      if (features.length === 0) {
-        clearPopups()
+
+      if (routeFeatures.length > 0) {
+        return
       }
-    })
+
+      const baseFeatures = map.queryRenderedFeatures(e.point, {
+        layers: ['base-locations-layer']
+      })
+
+      const destinationFeatures = map.queryRenderedFeatures(e.point, {
+        layers: ['destinations-layer']
+      })
+
+      if (baseFeatures.length > 0 || destinationFeatures.length > 0) {
+        return
+      }
+
+      clearPopups()
+      setSelectedDestination(null)
+      setSelectedBaseLocation(null)
+      setSelectedCard(null)
+    }
+
+    map.on('click', handleGeneralClick)
 
     return () => {
       map.off('click', 'base-locations-layer', handleBaseLocationClick)
@@ -308,10 +340,10 @@ export function MapEventHandler({
       map.off('mouseleave', 'intra-day-routes-layer')
       map.off('click', 'inter-day-routes-layer')
       map.off('click', 'intra-day-routes-layer')
-      map.off('click', 'route-segments-layer')
-      map.off('click') // Remove general click handler
+      map.off('click', 'route-segments-layer', handleRouteSegmentClick)
+      map.off('click', handleGeneralClick)
     }
-  }, [map, hasTrip, tripDays, selectedDayId, selectedDestination, setSelectedDay, setSelectedDestination, clearPopups])
+  }, [map, hasTrip, tripDays, selectedDayId, selectedDestination, setSelectedDay, setSelectedDestination, setSelectedBaseLocation, setSelectedCard, clearPopups])
 
   return null
 }

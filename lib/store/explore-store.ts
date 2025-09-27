@@ -25,6 +25,7 @@ interface ExploreStoreState {
   syncWithSupabase: () => Promise<void>
   loadFromSupabase: () => Promise<void>
   toggleMarkers: () => void
+  reset: () => void
 }
 
 export const useExploreStore = create<ExploreStoreState>()(
@@ -138,15 +139,36 @@ export const useExploreStore = create<ExploreStoreState>()(
         const { showMarkers } = get()
         set({ showMarkers: !showMarkers })
       },
+      reset: () => {
+        const { showMarkers } = get()
+        set({
+          query: '',
+          results: [],
+          recent: [],
+          selectedPlace: null,
+          activePlaces: [],
+          isSearching: false,
+          error: null,
+          isSyncing: false,
+          showMarkers,
+        })
+      },
     }),
     {
       name: 'explore-store',
+      version: 2,
       partialize: (state) => ({
         recent: state.recent,
-        activePlaces: state.activePlaces,
         showMarkers: state.showMarkers,
-        // Persist recent, active places, and marker visibility preference
+        // Persist recent search history and marker visibility preference only
       }),
+      migrate: (persistedState, version) => {
+        if (version < 2 && persistedState) {
+          const { activePlaces: _oldActivePlaces, ...rest } = persistedState as Record<string, unknown>
+          return rest
+        }
+        return persistedState as any
+      },
     }
   )
 )

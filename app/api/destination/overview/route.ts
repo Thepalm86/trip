@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { DestinationCacheService } from '@/lib/server/destination-cache'
+import { requireAuthenticatedUser, UnauthorizedError } from '@/lib/server/auth'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -250,6 +251,8 @@ export async function POST(request: NextRequest) {
   let destination: string, city: string | undefined, category: string | undefined
 
   try {
+    await requireAuthenticatedUser(request)
+
     const requestData = await request.json()
     destination = requestData.destination
     city = requestData.city
@@ -344,6 +347,9 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return NextResponse.json({ error: error.message }, { status: 401 })
+    }
     console.error('Error generating destination overview:', error)
 
     // Log the error

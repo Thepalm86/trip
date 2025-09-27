@@ -62,7 +62,7 @@ export function MaybeLocationMarkers({ map, showMaybeLocations }: MaybeLocationM
           setSelectedDestination(null)
         } else {
           setSelectedCard(cardId)
-          setSelectedDestination(destination)
+          setSelectedDestination(destination, 'timeline')
         }
       }
 
