@@ -258,11 +258,13 @@ export async function POST(request: NextRequest) {
     await requireAuthenticatedUser(request)
 
     const requestData = await request.json()
-    logContext.destination = requestData.destination ?? ''
-    logContext.city = requestData.city
-    logContext.category = requestData.category
+    const destination = requestData.destination ?? ''
+    const city: string | undefined = requestData.city ?? undefined
+    const category: string | undefined = requestData.category ?? undefined
 
-    const { destination, city, category } = logContext
+    logContext.destination = destination
+    logContext.city = city
+    logContext.category = category
 
     if (!destination) {
       return NextResponse.json({ error: 'Destination name is required' }, { status: 400 })
