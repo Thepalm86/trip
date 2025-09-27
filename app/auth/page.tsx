@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth/auth-context'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase/client'
 
 export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [oauthLoading, setOauthLoading] = useState<'google' | 'facebook' | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -44,6 +46,24 @@ export default function AuthPage() {
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleOAuthSignIn = async (provider: 'google' | 'facebook') => {
+    setError('')
+    setSuccess('')
+    setOauthLoading(provider)
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({ provider })
+      if (error) {
+        setError(error.message)
+        setOauthLoading(null)
+      }
+      // Successful sign-in triggers an external redirect handled by Supabase.
+    } catch (err) {
+      setError('Unable to start social sign-in right now. Please try again.')
+      setOauthLoading(null)
     }
   }
 
@@ -124,14 +144,14 @@ export default function AuthPage() {
       </div>
 
       {/* Right Side - Sign In Form */}
-      <div className="flex-1 bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center px-16 relative overflow-hidden">
+      <div className="flex-1 bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center px-20 relative overflow-hidden">
         {/* Background Pattern */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-purple-50/20 to-indigo-50/30"></div>
         <div className="absolute inset-0 opacity-20" style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%236366f1' fill-opacity='0.03'%3E%3Cpath d='M20 20c0-5.5-4.5-10-10-10s-10 4.5-10 10 4.5 10 10 10 10-4.5 10-10zm10 0c0-5.5-4.5-10-10-10s-10 4.5-10 10 4.5 10 10 10 10-4.5 10-10z'/%3E%3C/g%3E%3C/svg%3E")`
         }}></div>
         
-        <div className="relative z-10 w-full max-w-md">
+        <div className="relative z-10 w-full max-w-2xl">
           {/* Header */}
           <div className="text-center mb-8">
             <h2 className="text-3xl font-light text-slate-800 mb-3">
@@ -143,7 +163,46 @@ export default function AuthPage() {
           </div>
 
           {/* Form Card */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-10">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => handleOAuthSignIn('google')}
+                disabled={oauthLoading !== null}
+                className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-semibold transition-all duration-200 hover:border-blue-500/60 hover:text-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white">
+                  <svg className="h-5 w-5" viewBox="0 0 533.5 544.3" aria-hidden="true">
+                    <path fill="#4285F4" d="M533.5 278.4c0-17.4-1.6-34.1-4.6-50.4H272.1v95.3h147c-6.3 34-25 62.8-53.4 82.1v68.1h86.4c50.6-46.6 81.4-115.2 81.4-195.1z" />
+                    <path fill="#34A853" d="M272.1 544.3c72.6 0 133.6-24 178.2-65.3l-86.4-68.1c-24 16.1-54.7 25.6-91.8 25.6-70.5 0-130.3-47.6-151.7-111.4H30.4v69.9c44.2 87.6 135.1 149.3 241.7 149.3z" />
+                    <path fill="#FBBC05" d="M120.4 324.7c-10.6-31.4-10.6-65.3 0-96.7v-69.9H30.4c-44.6 87.6-44.6 191 0 278.5l90-69.9z" />
+                    <path fill="#EA4335" d="M272.1 214.2c38.9-.6 76.1 14.7 104.1 41l77.7-77.7c-47.1-43.8-108.9-68.8-181.8-68.8-106.6 0-197.5 61.7-241.7 149.3l90 69.9c21.3-63.8 81.1-111.4 151.7-111.4z" />
+                  </svg>
+                </span>
+                {oauthLoading === 'google' ? 'Redirecting…' : 'Continue with Google'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOAuthSignIn('facebook')}
+                disabled={oauthLoading !== null}
+                className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-semibold transition-all duration-200 hover:border-blue-500/60 hover:text-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#1877F2]">
+                  <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="currentColor" d="M22.675 0H1.325C.593 0 0 .593 0 1.326v21.348C0 23.407.593 24 1.325 24h11.494v-9.294H9.691v-3.622h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.795.143v3.24l-1.918.001c-1.504 0-1.796.715-1.796 1.764v2.313h3.587l-.467 3.622h-3.12V24h6.117C23.407 24 24 23.407 24 22.674V1.326C24 .593 23.407 0 22.675 0z" />
+                  </svg>
+                </span>
+                {oauthLoading === 'facebook' ? 'Redirecting…' : 'Continue with Facebook'}
+              </button>
+            </div>
+
+            <div className="my-6 flex items-center gap-3 text-slate-400 text-xs uppercase tracking-[0.2em]">
+              <span className="flex-1 h-px bg-slate-200" />
+              Email
+              <span className="flex-1 h-px bg-slate-200" />
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-3">

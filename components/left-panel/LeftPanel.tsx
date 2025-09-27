@@ -6,6 +6,7 @@ import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
 import { UserProfile } from '@/components/auth/user-profile'
+import { ONBOARDING_EVENT_NAME, ONBOARDING_STORAGE_KEY } from '@/components/onboarding/AppOnboarding'
 
 export function LeftPanel() {
   const { currentTrip, updateTrip } = useSupabaseTripStore()
@@ -39,8 +40,8 @@ export function LeftPanel() {
 
   const handleRestartOnboarding = () => {
     if (typeof window === 'undefined') return
-    window.localStorage.removeItem('trip3:onboardingSeen:v1')
-    window.dispatchEvent(new Event('trip3:start-onboarding'))
+    window.localStorage.removeItem(ONBOARDING_STORAGE_KEY)
+    window.dispatchEvent(new Event(ONBOARDING_EVENT_NAME))
   }
 
   return (
@@ -48,7 +49,7 @@ export function LeftPanel() {
       {/* Header */}
       <div className="p-6 border-b border-white/10 bg-white/[0.02]">
         <div className="flex items-center justify-between mb-6">
-          <div>
+          <div data-tour="trip-summary">
             {isEditingTripName ? (
               <input
                 type="text"
@@ -74,7 +75,10 @@ export function LeftPanel() {
             >
               <Calendar className="h-4 w-4" />
               <span className="text-sm">
-                {currentTrip.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {currentTrip.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • {currentTrip.days.length} days
+                {currentTrip.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {currentTrip.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {currentTrip.days.length === 0
+                  ? ' • No days yet'
+                  : ` • ${currentTrip.days.length} ${currentTrip.days.length === 1 ? 'day' : 'days'}`}
               </span>
               <Edit3 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
             </button>

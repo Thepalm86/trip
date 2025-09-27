@@ -1,4 +1,4 @@
-# Trip3 - Intelligent Itinerary Builder
+# Traveal - Intelligent Itinerary Builder
 
 A simplified, focused itinerary-building travel application built with Next.js 15, featuring interactive maps and day-by-day timeline planning.
 
@@ -76,7 +76,7 @@ Following Traveal2.0's premium design system:
 ## 🗄️ Project Structure
 
 ```
-trip3/
+traveal/
 ├── app/                    # Next.js App Router
 │   ├── globals.css        # Global styles with glass morphism
 │   ├── layout.tsx         # Root layout with fonts

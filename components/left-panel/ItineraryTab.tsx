@@ -334,17 +334,23 @@ export function ItineraryTab() {
             </div>
 
             <div className="space-y-2">
-              {currentTrip.days.map((day, index) => (
-                <DroppableDay
-                  key={day.id}
-                  day={day}
-                  index={index}
-                  isSelected={selectedDayId === day.id}
-                  onSelect={handleSelectDay}
-                  isSource={activeDrag?.dayId === day.id}
-                  isTarget={activeTargetDayId === day.id}
-                />
-              ))}
+              {currentTrip.days.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">
+                  Select your travel dates or add a day to start building the timeline.
+                </div>
+              ) : (
+                currentTrip.days.map((day, index) => (
+                  <DroppableDay
+                    key={day.id}
+                    day={day}
+                    index={index}
+                    isSelected={selectedDayId === day.id}
+                    onSelect={handleSelectDay}
+                    isSource={activeDrag?.dayId === day.id}
+                    isTarget={activeTargetDayId === day.id}
+                  />
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -365,14 +371,14 @@ export function ItineraryTab() {
             />
           ) : (
             <div className="flex h-full items-center justify-center">
-              <div className="text-center space-y-4">
+              <div className="text-center space-y-4 max-w-sm">
                 <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
                   <Calendar className="h-8 w-8 text-white/40" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-2">No days yet</h3>
-                  <p className="text-sm text-white/60 max-w-sm mx-auto">
-                    Add your first day to start planning your itinerary
+                  <h3 className="text-lg font-semibold text-white mb-2">No days in your timeline yet</h3>
+                  <p className="text-sm text-white/60">
+                    Pick travel dates or use the Add Day button to create your first day. They will appear here with their details.
                   </p>
                 </div>
                 <button

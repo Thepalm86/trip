@@ -1,4 +1,4 @@
-# Trip3 Codebase Audit – February 2025
+# Traveal Codebase Audit – February 2025
 
 ## High-Level Summary
 - Critical secrets (including Supabase service role and AI keys) sit in the repo and power unauthenticated API routes, creating an immediate data-exfiltration risk.

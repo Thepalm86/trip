@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { useAuth } from '@/lib/auth/auth-context'
-import { addDays } from '@/lib/utils'
 
 export function TripLoader() {
   const { user } = useAuth()
@@ -28,28 +27,9 @@ export function TripLoader() {
           const defaultTrip = {
             name: 'My First Trip',
             startDate: today,
-            endDate: addDays(today, 2),
+            endDate: today,
             country: 'IT',
-            days: [
-              {
-                id: 'temp-day-1',
-                date: today,
-                destinations: [],
-                baseLocations: [],
-              },
-              {
-                id: 'temp-day-2',
-                date: addDays(today, 1),
-                destinations: [],
-                baseLocations: [],
-              },
-              {
-                id: 'temp-day-3',
-                date: addDays(today, 2),
-                destinations: [],
-                baseLocations: [],
-              },
-            ],
+            days: [],
           }
 
           await createTrip(defaultTrip)

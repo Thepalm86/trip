@@ -22,8 +22,10 @@ export class ExploreApiService {
   /**
    * Convert ExplorePlace to database record format
    */
-  private toRecord(place: ExplorePlace, userId: string): Omit<ExplorePlaceRecord, 'id' | 'created_at' | 'updated_at'> {
+  private toRecord(place: ExplorePlace, userId: string): Omit<ExplorePlaceRecord, 'created_at' | 'updated_at'> {
+    const id = place.id ?? crypto.randomUUID()
     return {
+      id,
       user_id: userId,
       name: place.name,
       full_name: place.fullName,

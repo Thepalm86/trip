@@ -9,10 +9,13 @@ interface OnboardingStep {
   selector: string
   title: string
   description: string
+  centered?: boolean
 }
 
-const STORAGE_KEY = 'trip3:onboardingSeen:v1'
-const HIGHLIGHT_CLASS = 'trip3-onboarding-highlight'
+export const ONBOARDING_STORAGE_KEY = 'traveal:onboardingSeen:v1'
+export const ONBOARDING_EVENT_NAME = 'traveal:start-onboarding'
+const HIGHLIGHT_CLASS = 'traveal-onboarding-highlight'
+const STORAGE_KEY = ONBOARDING_STORAGE_KEY
 const MAX_SELECTOR_ATTEMPTS = 12
 
 export function AppOnboarding() {
@@ -25,6 +28,19 @@ export function AppOnboarding() {
 
   const steps = useMemo<OnboardingStep[]>(
     () => [
+      {
+        id: 'welcome',
+        selector: '',
+        title: 'Welcome to Traveal',
+        description: 'Let’s walk through the essentials so you can start planning right away.',
+        centered: true
+      },
+      {
+        id: 'trip-summary',
+        selector: '[data-tour="trip-summary"]',
+        title: 'Trip name & dates',
+        description: 'Update your trip title and pick travel dates—each day you choose will drop into the timeline below.'
+      },
       {
         id: 'timeline',
         selector: '[data-tour="timeline"]',
@@ -104,7 +120,7 @@ export function AppOnboarding() {
 
     const timer = window.setTimeout(() => {
       startTour()
-    }, 1500)
+    }, 1800)
 
     return () => {
       window.clearTimeout(timer)
@@ -123,10 +139,10 @@ export function AppOnboarding() {
       startTour()
     }
 
-    window.addEventListener('trip3:start-onboarding', handleManualStart)
+    window.addEventListener(ONBOARDING_EVENT_NAME, handleManualStart)
 
     return () => {
-      window.removeEventListener('trip3:start-onboarding', handleManualStart)
+      window.removeEventListener(ONBOARDING_EVENT_NAME, handleManualStart)
     }
   }, [mounted, startTour, user])
 
@@ -149,6 +165,17 @@ export function AppOnboarding() {
 
     const locateTarget = () => {
       if (isCancelled) return
+      if (step.centered || !step.selector) {
+        setHighlightedElement((previous) => {
+          if (previous) {
+            previous.classList.remove(HIGHLIGHT_CLASS)
+          }
+          return null
+        })
+        setTargetRect(null)
+        return
+      }
+
       const element = document.querySelector(step.selector) as HTMLElement | null
 
       if (element) {
@@ -164,7 +191,13 @@ export function AppOnboarding() {
         attempts += 1
         window.setTimeout(locateTarget, 300)
       } else {
-        goToNextStep()
+        setHighlightedElement((previous) => {
+          if (previous) {
+            previous.classList.remove(HIGHLIGHT_CLASS)
+          }
+          return null
+        })
+        setTargetRect(null)
       }
     }
 
@@ -330,6 +363,8 @@ export function AppOnboarding() {
         { top: 0, left: 0, width: '100%', height: '100%' as const }
       ]
 
+  const showArrow = highlightBounds !== null
+
   return createPortal(
     <div className="fixed inset-0 z-[9999] pointer-events-none">
       <div className="absolute inset-0 pointer-events-auto">
@@ -385,31 +420,33 @@ export function AppOnboarding() {
           </div>
         </div>
 
-        <div
-          className={`absolute h-4 w-4 rotate-45 border border-white/10 bg-slate-900/95 ${
-            placement === 'bottom'
-              ? 'border-b-0 border-r-0'
-              : placement === 'top'
-              ? 'border-t-0 border-l-0'
-              : placement === 'right'
-              ? 'border-r-0 border-t-0'
-              : 'border-l-0 border-b-0'
-          }`}
-          style={{
-            top:
+        {showArrow ? (
+          <div
+            className={`absolute h-4 w-4 rotate-45 border border-white/10 bg-slate-900/95 ${
               placement === 'bottom'
-                ? -8
+                ? 'border-b-0 border-r-0'
                 : placement === 'top'
-                ? tooltipHeight - 8
-                : arrowTop,
-            left:
-              placement === 'right'
-                ? -8
-                : placement === 'left'
-                ? tooltipWidth - 8
-                : arrowLeft
-          }}
-        />
+                ? 'border-t-0 border-l-0'
+                : placement === 'right'
+                ? 'border-r-0 border-t-0'
+                : 'border-l-0 border-b-0'
+            }`}
+            style={{
+              top:
+                placement === 'bottom'
+                  ? -8
+                  : placement === 'top'
+                  ? tooltipHeight - 8
+                  : arrowTop,
+              left:
+                placement === 'right'
+                  ? -8
+                  : placement === 'left'
+                  ? tooltipWidth - 8
+                  : arrowLeft
+            }}
+          />
+        ) : null}
       </div>
     </div>,
     document.body

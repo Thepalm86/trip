@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides a comprehensive guide to the mapping system in the Trip3 application. The system consists of 8 specialized React components that work together to create a sophisticated, interactive mapping experience using Mapbox GL JS.
+This document provides a comprehensive guide to the mapping system in the Traveal application. The system consists of 8 specialized React components that work together to create a sophisticated, interactive mapping experience using Mapbox GL JS.
 
 ## 📋 Table of Contents
 

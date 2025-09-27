@@ -1,4 +1,4 @@
-// Core types for Trip3 application
+// Core types for Traveal application
 
 export interface Destination {
   id: string

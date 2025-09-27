@@ -200,7 +200,7 @@
   }
 }
 
-/* Custom Trip3 styles */
+/* Custom Traveal styles */
 @layer utilities {
   .animate-in {
     animation: fade-in 0.5s ease-out;
@@ -1129,7 +1129,7 @@ button:active {
   color: #34d399;
 }
 
-.trip3-onboarding-highlight {
+.traveal-onboarding-highlight {
   position: relative;
   z-index: 1000;
   border-radius: 16px;

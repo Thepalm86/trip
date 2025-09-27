@@ -374,7 +374,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
 
     set({ isLoading: true, error: null })
     try {
-      const newDate = addDays(currentTrip.endDate, 1)
+      const lastDay = currentTrip.days[currentTrip.days.length - 1]
+      const newDate = lastDay ? addDays(lastDay.date, 1) : currentTrip.startDate
       await tripApi.addDay(currentTrip.id, newDate)
 
       const refreshedTrip = await tripApi.getTrip(currentTrip.id)

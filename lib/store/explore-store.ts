@@ -1,7 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { ExplorePlace } from '@/types'
 import { exploreApiService } from '@/lib/supabase/explore-api'
 
@@ -15,6 +15,7 @@ interface ExploreStoreState {
   error: string | null
   isSyncing: boolean
   showMarkers: boolean
+  lastAddedPlace: ExplorePlace | null
   setQuery: (query: string) => void
   searchPlaces: (query: string) => Promise<void>
   setSelectedPlace: (place: ExplorePlace | null) => void
@@ -26,7 +27,18 @@ interface ExploreStoreState {
   loadFromSupabase: () => Promise<void>
   toggleMarkers: () => void
   reset: () => void
+  clearLastAddedPlace: () => void
 }
+
+const noopStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+}
+
+const storage = typeof window === 'undefined'
+  ? createJSONStorage(() => noopStorage)
+  : createJSONStorage(() => window.localStorage)
 
 export const useExploreStore = create<ExploreStoreState>()(
   persist(
@@ -40,6 +52,7 @@ export const useExploreStore = create<ExploreStoreState>()(
       error: null,
       isSyncing: false,
       showMarkers: true,
+      lastAddedPlace: null,
       setQuery: (query) => set({ query }),
       searchPlaces: async (query: string) => {
         const trimmed = query.trim()
@@ -82,14 +95,14 @@ export const useExploreStore = create<ExploreStoreState>()(
 
         try {
           // Add to Supabase
-          await exploreApiService.addExplorePlace(place)
-          
-          // Update local state
-          set({ activePlaces: [...activePlaces, place] })
+          const savedPlace = await exploreApiService.addExplorePlace(place)
+
+          // Update local state with persisted record (to use canonical ID)
+          set({ activePlaces: [...activePlaces, savedPlace], lastAddedPlace: savedPlace })
         } catch (error) {
           console.error('ExploreStore: Error adding active place to Supabase', error)
           // Still add to local state even if Supabase fails
-          set({ activePlaces: [...activePlaces, place] })
+          set({ activePlaces: [...activePlaces, place], lastAddedPlace: place })
         }
       },
       removeActivePlace: async (placeId) => {
@@ -139,6 +152,7 @@ export const useExploreStore = create<ExploreStoreState>()(
         const { showMarkers } = get()
         set({ showMarkers: !showMarkers })
       },
+      clearLastAddedPlace: () => set({ lastAddedPlace: null }),
       reset: () => {
         const { showMarkers } = get()
         set({
@@ -151,12 +165,14 @@ export const useExploreStore = create<ExploreStoreState>()(
           error: null,
           isSyncing: false,
           showMarkers,
+          lastAddedPlace: null,
         })
       },
     }),
     {
       name: 'explore-store',
       version: 2,
+      storage,
       partialize: (state) => ({
         recent: state.recent,
         showMarkers: state.showMarkers,

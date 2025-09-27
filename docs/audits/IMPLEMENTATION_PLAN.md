@@ -1,4 +1,4 @@
-# Trip3 Remediation Plan (Feature-Parity Safe)
+# Traveal Remediation Plan (Feature-Parity Safe)
 
 1. **Lock Down Supabase Service Role Usage**
    - **Files Affected:** `lib/server/destination-cache.ts`, `app/api/destination/overview/route.ts`, `app/api/destination/photos/route.ts`, `app/api/destination/view-count/route.ts`, `app/api/admin/performance/route.ts`.

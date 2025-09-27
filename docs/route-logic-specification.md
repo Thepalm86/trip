@@ -1,7 +1,7 @@
 # Route Logic Specification
 
 ## Overview
-This document defines the complete route logic for the Trip3 application. The route system should be simple, predictable, and agnostic to any trip structure.
+This document defines the complete route logic for the Traveal application. The route system should be simple, predictable, and agnostic to any trip structure.
 
 ## Core Principles
 

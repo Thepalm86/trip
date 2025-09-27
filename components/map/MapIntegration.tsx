@@ -12,6 +12,7 @@ import { ExplorePreviewDrawer } from './ExplorePreviewDrawer'
 import { ExplorePreviewMarker } from './ExplorePreviewMarker'
 import { ExploreMarkersToggle } from './ExploreMarkersToggle'
 import { ItineraryPreviewDrawer } from './ItineraryPreviewDrawer'
+import { ExploreMapFocus } from './ExploreMapFocus'
 
 /**
  * MapIntegration - Orchestrates all map-related components
@@ -112,6 +113,7 @@ export function MapIntegration({ map }: MapIntegrationProps) {
       />
       <ExplorePreviewMarker map={map} />
       <ExploreMarkersToggle map={map} />
+      <ExploreMapFocus map={map} />
       <div className="absolute top-4 right-4 z-10">
         {isLoadingRoutes && (
           <div className="glass-card rounded-lg p-3 shadow-lg">

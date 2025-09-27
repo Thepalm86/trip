@@ -1,8 +1,8 @@
-# Trip3 - Intelligent Itinerary Builder
+# Traveal - Intelligent Itinerary Builder
 
 ## Project Overview
 
-Trip3 is a modern travel itinerary planning application built with Next.js 15 and React 19. It features an interactive map canvas integrated with a day-by-day timeline planner, allowing users to build comprehensive travel itineraries through an intuitive drag-and-drop interface.
+Traveal is a modern travel itinerary planning application built with Next.js 15 and React 19. It features an interactive map canvas integrated with a day-by-day timeline planner, allowing users to build comprehensive travel itineraries through an intuitive drag-and-drop interface.
 
 ## Architecture
 

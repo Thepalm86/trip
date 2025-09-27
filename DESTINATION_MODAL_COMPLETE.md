@@ -2,7 +2,7 @@
 
 ## Summary
 
-The Destination Overview Modal implementation has been successfully completed and integrated into the Trip3 application. This feature provides users with rich, AI-generated destination information and beautiful photo galleries when they click the "Overview" button or double-click on any destination in their trip planning interface.
+The Destination Overview Modal implementation has been successfully completed and integrated into the Traveal application. This feature provides users with rich, AI-generated destination information and beautiful photo galleries when they click the "Overview" button or double-click on any destination in their trip planning interface.
 
 ## Key Features
 
