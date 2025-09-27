@@ -327,8 +327,8 @@ export async function POST(request: NextRequest) {
     await DestinationCacheService.logApiCall(
       'destination/overview',
       { 
-        destination, 
-        city, 
+        destination,
+        city,
         category,
         destinationType: destinationContext.type,
         region: destinationContext.region,
@@ -359,10 +359,13 @@ export async function POST(request: NextRequest) {
     console.error('Error generating destination overview:', error)
 
     // Log the error
-    const { destination, city, category } = logContext
     await DestinationCacheService.logApiCall(
       'destination/overview',
-      { destination, city, category },
+      { 
+        destination: logContext.destination, 
+        city: logContext.city, 
+        category: logContext.category 
+      },
       Date.now() - startTime,
       false,
       error instanceof Error ? error.message : 'Unknown error'

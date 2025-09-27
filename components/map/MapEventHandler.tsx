@@ -63,6 +63,7 @@ interface MapEventHandlerProps {
   tripDays: Trip['days']
   selectedDayId: string | null
   selectedDestination: any
+  selectedBaseLocation: { dayId: string; index: number } | null
   setSelectedDay: (dayId: string) => void
   setSelectedDestination: (destination: any, origin?: 'map' | 'timeline') => void
   setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin?: 'map' | 'timeline') => void
@@ -75,6 +76,7 @@ export function MapEventHandler({
   tripDays, 
   selectedDayId, 
   selectedDestination,
+  selectedBaseLocation: _selectedBaseLocation,
   setSelectedDay,
   setSelectedDestination,
   setSelectedBaseLocation,
@@ -261,15 +263,19 @@ export function MapEventHandler({
       if (feature.properties.label) {
         // Clear any existing popups first
         clearPopups()
-        
-        const segmentType = feature.properties.segmentType
-        const segmentTypeLabel = {
+        const segmentTypeLabels: Record<string, string> = {
           'base-to-destination': 'Base to Destination',
-          'destination-to-destination': 'Destination to Destination', 
+          'destination-to-destination': 'Destination to Destination',
           'destination-to-base': 'Destination to Base',
-          'base-to-base': 'Base to Base'
-        }[segmentType] || 'Route Segment'
-        
+          'base-to-base': 'Base to Base',
+        }
+        const segmentTypeValue = typeof feature.properties.segmentType === 'string'
+          ? feature.properties.segmentType
+          : undefined
+        const segmentTypeLabel = segmentTypeValue && segmentTypeLabels[segmentTypeValue]
+          ? segmentTypeLabels[segmentTypeValue]
+          : 'Route Segment'
+
         const popup = new mapboxgl.Popup({
           closeButton: true,
           closeOnClick: false, // Disable closeOnClick to prevent conflicts
@@ -278,7 +284,7 @@ export function MapEventHandler({
           .setLngLat(e.lngLat)
           .setDOMContent(
             buildRouteSegmentPopupContent({
-              segmentTypeClass: typeof segmentType === 'string' ? segmentType : 'segment',
+              segmentTypeClass: segmentTypeValue ?? 'segment',
               segmentTypeLabel,
               fromLocation: feature.properties.fromLocation,
               toLocation: feature.properties.toLocation,

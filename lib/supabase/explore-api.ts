@@ -45,6 +45,7 @@ export class ExploreApiService {
       coordinates: [record.longitude, record.latitude] as [number, number],
       category: record.category,
       context: record.context,
+      source: 'cache',
     }
   }
 

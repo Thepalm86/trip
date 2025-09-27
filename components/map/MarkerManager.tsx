@@ -33,39 +33,52 @@ export function MarkerManager({
       if (!map.getSource('base-locations')) return
 
       // Determine which base locations to show
-      let daysToShow: typeof tripDays = []
+      let daysToShow: Trip['days'] = []
       
       if (selectedDayId) {
         // Show the selected day's first base location
         const selectedDay = tripDays.find(day => day.id === selectedDayId)
-        if (selectedDay?.baseLocations?.length > 0) {
+        if (selectedDay && Array.isArray(selectedDay.baseLocations) && selectedDay.baseLocations.length > 0) {
           daysToShow.push(selectedDay)
         }
         
         // For travel days, also show the previous day's first base location (departure point)
         const selectedDayIndex = tripDays.findIndex(day => day.id === selectedDayId)
-        const previousDay = tripDays[selectedDayIndex - 1]
+        const previousDay = selectedDayIndex > 0 ? tripDays[selectedDayIndex - 1] : undefined
         
-        if (previousDay?.baseLocations?.length > 0 && 
-            (!selectedDay?.baseLocations?.length || 
-             selectedDay.baseLocations[0].coordinates[0] !== previousDay.baseLocations[0].coordinates[0] || 
-             selectedDay.baseLocations[0].coordinates[1] !== previousDay.baseLocations[0].coordinates[1])) {
+        if (
+          previousDay &&
+          Array.isArray(previousDay.baseLocations) &&
+          previousDay.baseLocations.length > 0 &&
+          (!selectedDay ||
+            !selectedDay.baseLocations ||
+            selectedDay.baseLocations.length === 0 ||
+            selectedDay.baseLocations[0].coordinates[0] !== previousDay.baseLocations[0].coordinates[0] ||
+            selectedDay.baseLocations[0].coordinates[1] !== previousDay.baseLocations[0].coordinates[1])
+        ) {
           daysToShow.push(previousDay)
         }
       } else {
         // No day selected - show all first base locations
-        daysToShow = tripDays.filter(day => day.baseLocations?.length > 0)
+        daysToShow = tripDays.filter(
+          day => Array.isArray(day.baseLocations) && day.baseLocations.length > 0
+        )
       }
 
-      const baseLocationFeatures = daysToShow.map((day, index) => {
-        const dayIndex = tripDays.findIndex(d => d.id === day.id)
-        const firstBaseLocation = day.baseLocations![0] // We know it exists because we filtered for it
-        return {
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Point' as const,
-            coordinates: firstBaseLocation.coordinates
-          },
+      const baseLocationFeatures = daysToShow
+        .map((day, index) => {
+          const firstBaseLocation = day.baseLocations?.[0]
+          if (!firstBaseLocation) {
+            return null
+          }
+
+          const dayIndex = tripDays.findIndex(d => d.id === day.id)
+          return {
+            type: 'Feature' as const,
+            geometry: {
+              type: 'Point' as const,
+              coordinates: firstBaseLocation.coordinates
+            },
           properties: {
             name: firstBaseLocation.name,
             dayIndex: dayIndex,
@@ -76,13 +89,14 @@ export function MarkerManager({
             isSelected: selectedDayId === day.id,
             isDeparturePoint: selectedDayId === day.id ? false : true, // Previous day's location is departure point
             destinationCount: day.destinations.length,
-            totalBaseLocations: day.baseLocations!.length,
+            totalBaseLocations: day.baseLocations ? day.baseLocations.length : 0,
             city: firstBaseLocation.city || 'Unknown City',
             cardId: `base-${day.id}-0`,
             isCardSelected: selectedCardId === `base-${day.id}-0`
           }
         }
-      })
+        })
+        .filter((feature): feature is NonNullable<typeof feature> => feature !== null)
 
       const serializedFeatures = JSON.stringify(baseLocationFeatures)
       if (baseLocationFeaturesRef.current === serializedFeatures) {

@@ -3,7 +3,6 @@
 import { useEffect, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
-import { Destination } from '@/types'
 
 interface MaybeLocationMarkersProps {
   map: mapboxgl.Map | null
@@ -68,8 +67,8 @@ export function MaybeLocationMarkers({ map, showMaybeLocations }: MaybeLocationM
 
       // Add hover effects
       const handleMouseEnter = () => {
-        const mainCircle = markerElement.querySelector('.relative.w-8')
-        const label = markerElement.querySelector('.absolute.top-full')
+        const mainCircle = markerElement.querySelector('.relative.w-8') as HTMLElement | null
+        const label = markerElement.querySelector('.absolute.top-full') as HTMLElement | null
         if (mainCircle) {
           mainCircle.style.transform = 'scale(1.1)'
         }
@@ -79,8 +78,8 @@ export function MaybeLocationMarkers({ map, showMaybeLocations }: MaybeLocationM
       }
 
       const handleMouseLeave = () => {
-        const mainCircle = markerElement.querySelector('.relative.w-8')
-        const label = markerElement.querySelector('.absolute.top-full')
+        const mainCircle = markerElement.querySelector('.relative.w-8') as HTMLElement | null
+        const label = markerElement.querySelector('.absolute.top-full') as HTMLElement | null
         if (mainCircle) {
           mainCircle.style.transform = 'scale(1)'
         }
@@ -94,14 +93,14 @@ export function MaybeLocationMarkers({ map, showMaybeLocations }: MaybeLocationM
       markerElement.addEventListener('mouseleave', handleMouseLeave)
 
       // Set initial label opacity and transition
-      const label = markerElement.querySelector('.absolute.top-full')
+      const label = markerElement.querySelector('.absolute.top-full') as HTMLElement | null
       if (label) {
         label.style.opacity = '0.8'
         label.style.transition = 'opacity 0.2s ease'
       }
       
       // Add transition to main circle
-      const mainCircle = markerElement.querySelector('.relative.w-8')
+      const mainCircle = markerElement.querySelector('.relative.w-8') as HTMLElement | null
       if (mainCircle) {
         mainCircle.style.transition = 'transform 0.2s ease'
       }

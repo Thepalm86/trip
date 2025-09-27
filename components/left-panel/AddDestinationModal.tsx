@@ -201,7 +201,7 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
                   results.map((result) => (
                     <button
                       key={result.id}
-                      onClick={() => setSelectedDestination(result, 'timeline')}
+                      onClick={() => setSelectedDestination(result)}
                       className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${
                         selectedDestination?.id === result.id
                           ? 'bg-blue-500/20 border border-blue-400/30'

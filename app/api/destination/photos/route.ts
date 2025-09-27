@@ -13,6 +13,22 @@ interface PhotoQualityMetrics {
   qualityScore: number
 }
 
+interface EnhancedPhoto {
+  id: string
+  url: string
+  thumbnail: string
+  alt: string
+  photographer: string
+  photographerUrl: string
+  source: string
+  width: number
+  height: number
+  qualityScore: number
+  likes: number
+  downloads: number
+  tags: string[]
+}
+
 function calculatePhotoQuality(photo: any, source: string): PhotoQualityMetrics {
   const aspectRatio = photo.width / photo.height
   const resolution = photo.width * photo.height
@@ -62,7 +78,7 @@ function calculatePhotoQuality(photo: any, source: string): PhotoQualityMetrics 
   }
 }
 
-function enhancePhotoWithQuality(photo: any, source: string) {
+function enhancePhotoWithQuality(photo: any, source: string): EnhancedPhoto {
   const quality = calculatePhotoQuality(photo, source)
   
   return {
@@ -84,7 +100,11 @@ function enhancePhotoWithQuality(photo: any, source: string) {
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
-  let destinationName: string, city: string | undefined, query: string | null, count: number
+  let destinationName: string
+  let city: string | undefined
+  let query: string | null
+  let count: number
+  let queryString = ''
   let apiCalls = 0
   let cacheHit = false
 
@@ -99,8 +119,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 })
     }
 
+    queryString = query
+
     // Extract destination and city from query for caching
-    const queryParts = query.split(' ')
+    const queryParts = queryString.split(' ')
     destinationName = queryParts[0]
     city = queryParts.length > 1 ? queryParts.slice(1, -1).join(' ') : undefined
 
@@ -110,7 +132,7 @@ export async function GET(request: NextRequest) {
       cacheHit = true
       await DestinationCacheService.logApiCall(
         'destination/photos',
-        { query, count, cacheHit: true, responseTimeMs: Date.now() - startTime },
+        { query: queryString, count, cacheHit: true, responseTimeMs: Date.now() - startTime },
         Date.now() - startTime,
         true
       )
@@ -118,13 +140,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Enhanced photo fetching with quality scoring
-    let photos = []
+    let photos: EnhancedPhoto[] = []
 
     try {
       // Unsplash API with enhanced parameters
       const unsplashStartTime = Date.now()
       const unsplashResponse = await fetch(
-        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${Math.min(count * 2, 20)}&orientation=landscape&order_by=relevant&content_filter=high`,
+        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(queryString)}&per_page=${Math.min(count * 2, 20)}&orientation=landscape&order_by=relevant&content_filter=high`,
         {
           headers: {
             'Authorization': `Client-ID ${process.env.NEXT_PUBLIC_UNSPLASH_KEY}`,
@@ -135,13 +157,13 @@ export async function GET(request: NextRequest) {
       if (unsplashResponse.ok) {
         apiCalls++
         const unsplashData = await unsplashResponse.json()
-        const unsplashPhotos = unsplashData.results.map((photo: any) => 
+        const unsplashPhotos: EnhancedPhoto[] = unsplashData.results.map((photo: any) => 
           enhancePhotoWithQuality(photo, 'unsplash')
         )
         
         // Sort by quality score and take the best ones
         photos = unsplashPhotos
-          .sort((a, b) => b.qualityScore - a.qualityScore)
+          .sort((a: EnhancedPhoto, b: EnhancedPhoto) => b.qualityScore - a.qualityScore)
           .slice(0, count)
         
         console.log(`Unsplash API: ${photos.length} photos in ${Date.now() - unsplashStartTime}ms`)
@@ -155,21 +177,21 @@ export async function GET(request: NextRequest) {
       try {
         const pixabayStartTime = Date.now()
         const pixabayResponse = await fetch(
-          `https://pixabay.com/api/?key=${process.env.PIXABAY_API_KEY}&q=${encodeURIComponent(query)}&image_type=photo&orientation=horizontal&per_page=${Math.min(count * 2, 20)}&safesearch=true&order=popular`
+          `https://pixabay.com/api/?key=${process.env.PIXABAY_API_KEY}&q=${encodeURIComponent(queryString)}&image_type=photo&orientation=horizontal&per_page=${Math.min(count * 2, 20)}&safesearch=true&order=popular`
         )
 
         if (pixabayResponse.ok) {
           apiCalls++
           const pixabayData = await pixabayResponse.json()
-          const pixabayPhotos = pixabayData.hits.map((photo: any) => 
+          const pixabayPhotos: EnhancedPhoto[] = pixabayData.hits.map((photo: any) => 
             enhancePhotoWithQuality(photo, 'pixabay')
           )
 
           // Combine with existing photos and sort by quality
           const allPhotos = [...photos, ...pixabayPhotos]
-            .sort((a, b) => b.qualityScore - a.qualityScore)
+            .sort((a: EnhancedPhoto, b: EnhancedPhoto) => b.qualityScore - a.qualityScore)
             .slice(0, count)
-          
+
           photos = allPhotos
           console.log(`Pixabay API: ${pixabayPhotos.length} photos in ${Date.now() - pixabayStartTime}ms`)
         }
@@ -180,11 +202,12 @@ export async function GET(request: NextRequest) {
 
     // If no photos found, return a fallback
     if (photos.length === 0) {
+      const safeQuery = queryString
       photos = [{
         id: 'fallback',
         url: `https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200&h=800&fit=crop&crop=center`,
         thumbnail: `https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=200&h=150&fit=crop&crop=center`,
-        alt: `${query} - Travel destination`,
+        alt: `${safeQuery} - Travel destination`,
         photographer: 'Unsplash',
         photographerUrl: 'https://unsplash.com',
         source: 'fallback',
@@ -205,13 +228,13 @@ export async function GET(request: NextRequest) {
     // Log the API call with enhanced metrics
     const totalResponseTime = Date.now() - startTime
     const avgQualityScore = photos.length > 0 
-      ? photos.reduce((sum, photo) => sum + (photo.qualityScore || 0.5), 0) / photos.length 
+      ? photos.reduce((sum: number, photo: EnhancedPhoto) => sum + (photo.qualityScore || 0.5), 0) / photos.length 
       : 0
 
     await DestinationCacheService.logApiCall(
       'destination/photos',
       { 
-        query, 
+        query: queryString, 
         count, 
         cacheHit, 
         apiCalls, 
@@ -236,7 +259,7 @@ export async function GET(request: NextRequest) {
     // Log the error
     await DestinationCacheService.logApiCall(
       'destination/photos',
-      { query: query || '', count: 10 },
+      { query: queryString, count: 10 },
       Date.now() - startTime,
       false,
       error instanceof Error ? error.message : 'Unknown error'
