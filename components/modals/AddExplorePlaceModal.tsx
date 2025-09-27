@@ -40,7 +40,7 @@ export function AddExplorePlaceModal({ place, mode, onClose, onComplete }: AddEx
     }
   }, [currentTrip?.days, selectedDayId])
 
-  const modalTitle = mode === 'destination' ? 'Add as Activity' : 'Set as Base Location'
+  const modalTitle = mode === 'destination' ? 'Add as Activity' : 'Set as Accommodation'
 
   const dayOptions = useMemo(() => currentTrip?.days ?? [], [currentTrip?.days])
 

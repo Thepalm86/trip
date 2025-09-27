@@ -166,7 +166,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
               <MapPin className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Set Base Location</h3>
+              <h3 className="text-lg font-semibold text-white">Set Accommodation</h3>
               <p className="text-sm text-white/60">Day {dayIndex + 1} • {day?.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
             </div>
           </div>
@@ -183,7 +183,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
           {/* Current Base Locations */}
           {baseLocations.length > 0 && (
             <div className="space-y-3">
-              <h4 className="text-sm font-medium text-blue-400">Base Locations</h4>
+              <h4 className="text-sm font-medium text-blue-400">Accommodations</h4>
               <div className="space-y-2">
                 {baseLocations.map((location, index) => (
                   <div key={index} className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
@@ -209,7 +209,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
                       <button
                         onClick={() => handleRemoveLocation(index)}
                         className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
-                        title="Remove base location"
+                        title="Remove accommodation"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -292,7 +292,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
               <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
                 <div className="text-sm text-blue-400 mb-2">🚀 Coming Soon</div>
                 <p className="text-xs text-blue-300">
-                  This feature will show popular attractions, restaurants, and hotels near your selected base location.
+                  This feature will show popular attractions, restaurants, and hotels near your selected accommodation.
                 </p>
               </div>
             </div>
@@ -300,9 +300,9 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
 
           {/* Info */}
           <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-            <h4 className="text-sm font-medium text-green-400 mb-2">About Base Locations</h4>
+            <h4 className="text-sm font-medium text-green-400 mb-2">About Accommodations</h4>
             <ul className="text-xs text-green-300 space-y-1">
-              <li>• Add multiple potential base locations for this day</li>
+              <li>• Add multiple potential accommodations for this day</li>
               <li>• The first location is the default and will be shown on the map</li>
               <li>• All activities and destinations will be planned around these locations</li>
               <li>• Can be hotels, landmarks, or any points of interest</li>

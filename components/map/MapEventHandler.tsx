@@ -73,7 +73,7 @@ export function MapEventHandler({
                 </div>
                 <h3 class="font-semibold text-sm text-white">${feature.properties.name}</h3>
               </div>
-              <p class="text-xs text-white/60 mb-2">Day ${dayNumber} Base Location</p>
+              <p class="text-xs text-white/60 mb-2">Day ${dayNumber} Accommodation</p>
               ${feature.properties.context ? `<p class="text-xs text-white/50 mb-2">${feature.properties.context}</p>` : ''}
               <div class="flex items-center gap-4 text-xs text-white/60">
                 <span>${feature.properties.destinationCount} activities</span>

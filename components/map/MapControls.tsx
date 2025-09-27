@@ -39,7 +39,7 @@ export function MapControls({ map }: MapControlsProps) {
                     <MapPin className="h-2 w-2 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-white">Base Locations</p>
+                    <p className="text-xs font-medium text-white">Accommodations</p>
                     <p className="text-xs text-white/50">Main cities/regions</p>
                   </div>
                 </div>

@@ -502,7 +502,7 @@ export function DayCard({
               <div className="w-6 h-6 rounded-lg bg-green-500/20 flex items-center justify-center">
                 <Map className="h-3 w-3 text-green-400" />
               </div>
-              <h4 className="text-sm font-semibold text-white/80">Base Locations</h4>
+              <h4 className="text-sm font-semibold text-white/80">Accommodations</h4>
               {day.baseLocations.length > 1 && (
                 <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-full">
                   {day.baseLocations.length}
@@ -512,7 +512,7 @@ export function DayCard({
             <button
               onClick={onSetBaseLocation}
               className="p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-all duration-200"
-              title="Manage base locations"
+              title="Manage accommodations"
             >
               <Edit3 className="h-3 w-3" />
             </button>
@@ -556,7 +556,7 @@ export function DayCard({
                               {day.baseLocations[0].name}
                             </span>
                             <div className="w-1 h-1 bg-white/40 rounded-full"></div>
-                            <span className="text-xs text-white/60">Base Location</span>
+                            <span className="text-xs text-white/60">Accommodation</span>
                           </div>
                         </div>
                     </div>
@@ -637,19 +637,19 @@ export function DayCard({
                       handleEditBaseLocation(day.baseLocations[0], 0)
                     }}
                     className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 backdrop-blur-sm"
-                    title="Edit base location"
+                    title="Edit accommodation"
                   >
                     <Edit3 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (confirm('Are you sure you want to remove this base location?')) {
+                      if (confirm('Are you sure you want to remove this accommodation?')) {
                         removeBaseLocation(day.id, 0)
                       }
                     }}
                     className="p-2 rounded-xl bg-white/10 hover:bg-red-500/20 text-white/70 hover:text-red-400 transition-all duration-200 backdrop-blur-sm"
-                    title="Remove base location"
+                    title="Remove accommodation"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -757,19 +757,19 @@ export function DayCard({
                             handleEditBaseLocation(location, index + 1)
                           }}
                           className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all duration-200"
-                          title="Edit base location"
+                          title="Edit accommodation"
                         >
                           <Edit3 className="h-3 w-3" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            if (confirm('Are you sure you want to remove this base location?')) {
+                            if (confirm('Are you sure you want to remove this accommodation?')) {
                               removeBaseLocation(day.id, index + 1)
                             }
                           }}
                           className="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/20 text-white/60 hover:text-red-400 transition-all duration-200"
-                          title="Remove base location"
+                          title="Remove accommodation"
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>
@@ -792,7 +792,7 @@ export function DayCard({
               <Map className="h-4 w-4 text-white/40" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-medium text-white">Add Base Locations</p>
+              <p className="text-sm font-medium text-white">Add Accommodations</p>
               <p className="text-xs text-white/60">Choose potential cities or regions</p>
             </div>
           </button>
@@ -831,7 +831,7 @@ export function DayCard({
                 <p className="text-xs text-white/40 mb-4">
                   {day.baseLocations.length > 0 
                     ? `Add places to visit in ${day.baseLocations[0].name}` 
-                    : 'Set a base location first, then add activities'
+                    : 'Set an accommodation first, then add activities'
                   }
                 </p>
                 <button
@@ -874,7 +874,7 @@ export function DayCard({
         )}
       </div>
 
-      {/* Edit Base Location Modal */}
+      {/* Edit Accommodation Modal */}
       {showEditModal && editingLocation && (
         <BaseLocationEditModal
           dayId={day.id}

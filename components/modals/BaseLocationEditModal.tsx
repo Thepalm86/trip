@@ -141,7 +141,7 @@ export function BaseLocationEditModal({ dayId, locationIndex, location, onClose 
               <Edit3 className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Edit Base Location</h3>
+              <h3 className="text-lg font-semibold text-white">Edit Accommodation</h3>
               <p className="text-sm text-white/60">Update location details and notes</p>
             </div>
           </div>
@@ -178,7 +178,7 @@ export function BaseLocationEditModal({ dayId, locationIndex, location, onClose 
             <textarea
               value={editedLocation.notes || ''}
               onChange={(e) => setEditedLocation(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="Add notes about this base location (e.g., why you chose it, what to do there, etc.)"
+              placeholder="Add notes about this accommodation (e.g., why you chose it, what to do there, etc.)"
               className="w-full h-32 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-green-400/50 transition-all duration-200 resize-none"
             />
             <div className="text-xs text-white/50">
