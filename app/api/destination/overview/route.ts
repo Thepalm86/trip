@@ -248,17 +248,21 @@ function getContextKeywords(type: string): string[] {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  let destination: string = ''
-  let city: string | undefined
-  let category: string | undefined
+  const logContext: { destination: string; city?: string; category?: string } = {
+    destination: '',
+    city: undefined,
+    category: undefined,
+  }
 
   try {
     await requireAuthenticatedUser(request)
 
     const requestData = await request.json()
-    destination = requestData.destination
-    city = requestData.city
-    category = requestData.category
+    logContext.destination = requestData.destination ?? ''
+    logContext.city = requestData.city
+    logContext.category = requestData.category
+
+    const { destination, city, category } = logContext
 
     if (!destination) {
       return NextResponse.json({ error: 'Destination name is required' }, { status: 400 })
@@ -355,6 +359,7 @@ export async function POST(request: NextRequest) {
     console.error('Error generating destination overview:', error)
 
     // Log the error
+    const { destination, city, category } = logContext
     await DestinationCacheService.logApiCall(
       'destination/overview',
       { destination, city, category },
