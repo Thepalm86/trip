@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Calendar, MapPin, Clock, Share2, Settings, Edit3 } from 'lucide-react'
+import { Calendar, MapPin, Clock, Share2, Settings, Edit3, HelpCircle } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
@@ -37,8 +37,14 @@ export function LeftPanel() {
     }
   }
 
+  const handleRestartOnboarding = () => {
+    if (typeof window === 'undefined') return
+    window.localStorage.removeItem('trip3:onboardingSeen:v1')
+    window.dispatchEvent(new Event('trip3:start-onboarding'))
+  }
+
   return (
-    <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+    <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col" data-tour="left-panel">
       {/* Header */}
       <div className="p-6 border-b border-white/10 bg-white/[0.02]">
         <div className="flex items-center justify-between mb-6">
@@ -73,9 +79,16 @@ export function LeftPanel() {
               <Edit3 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
             </button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-tour="profile">
             <button className="p-2 rounded-lg bg-white/5 text-white/60 hover:bg-white/10 transition-all duration-200">
               <Share2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleRestartOnboarding}
+              className="p-2 rounded-lg bg-white/5 text-white/60 hover:bg-white/10 transition-all duration-200"
+              title="Show guided tour"
+            >
+              <HelpCircle className="h-4 w-4" />
             </button>
             <UserProfile />
           </div>

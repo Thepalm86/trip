@@ -59,6 +59,7 @@ export function ExploreSearchDock({ defaultExpanded = false }: ExploreSearchDock
   if (!isExpanded) {
     return (
       <button
+        data-tour="explore"
         onClick={() => {
           setIsExpanded(true)
           setTimeout(() => setShowResults(true), 150)
@@ -77,7 +78,7 @@ export function ExploreSearchDock({ defaultExpanded = false }: ExploreSearchDock
   }
 
   return (
-    <div className="pointer-events-auto w-80 max-w-full">
+    <div className="pointer-events-auto w-80 max-w-full" data-tour="explore">
       <div className="rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur-lg shadow-2xl">
         <div className="relative flex items-center">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />

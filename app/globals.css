@@ -1128,3 +1128,9 @@ button:active {
 .route-popup-distance {
   color: #34d399;
 }
+
+.trip3-onboarding-highlight {
+  position: relative;
+  z-index: 1000;
+  border-radius: 16px;
+}

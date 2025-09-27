@@ -102,7 +102,7 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
   }), [])
 
   return (
-    <div className="relative h-full w-full bg-gradient-to-br from-slate-900 to-slate-800 flex-1">
+    <div className="relative h-full w-full bg-gradient-to-br from-slate-900 to-slate-800 flex-1" data-tour="map">
       {/* Map Container */}
       <div 
         ref={mapContainer} 

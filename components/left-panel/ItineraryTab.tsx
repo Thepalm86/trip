@@ -318,9 +318,9 @@ export function ItineraryTab() {
       onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
     >
-      <div className="h-full flex">
+      <div className="h-full flex" data-tour="day-plan-wrapper">
         {/* Days List */}
-        <div className="w-80 border-r border-white/10 bg-white/[0.02] overflow-y-auto scrollbar-hide">
+        <div className="w-80 border-r border-white/10 bg-white/[0.02] overflow-y-auto scrollbar-hide" data-tour="timeline">
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-white/80">Timeline</h3>
@@ -350,7 +350,7 @@ export function ItineraryTab() {
         </div>
 
         {/* Day Details */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
+        <div className="flex-1 overflow-y-auto scrollbar-hide" data-tour="day-details">
           {selectedDay ? (
             <DayCard
               day={selectedDay}
