@@ -62,6 +62,7 @@ export interface ExplorePlace {
   coordinates: [number, number]
   category?: string
   context?: string
+  notes?: string
   source: 'mapbox' | 'cache'
   relevance?: number
   metadata?: Record<string, unknown>

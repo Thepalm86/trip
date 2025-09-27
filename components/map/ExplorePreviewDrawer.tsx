@@ -43,7 +43,7 @@ export function ExplorePreviewDrawer() {
     coordinates: place.coordinates,
     city: place.fullName.split(',').map((p: string) => p.trim()).filter(Boolean)[place.fullName.split(',').length - 2] || 'Unknown',
     category: place.category || 'attraction',
-    notes: undefined,
+    notes: place.notes,
     estimatedDuration: undefined,
     cost: undefined,
     links: []
@@ -170,11 +170,20 @@ export function ExplorePreviewDrawer() {
             </div>
           </div>
 
-          <div className="flex items-center justify-end border-t border-white/10 px-5 py-4 text-xs text-white/50">
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              {selectedPlace.category || 'Location'}
-            </span>
+          <div className="border-t border-white/10">
+            <div className="flex items-center justify-end px-5 py-4 text-xs text-white/50">
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {selectedPlace.category || 'Location'}
+              </span>
+            </div>
+
+            {selectedPlace.notes && (
+              <div className="border-t border-white/10 px-5 py-4">
+                <div className="text-xs font-semibold uppercase tracking-widest text-white/50">Note</div>
+                <p className="mt-2 text-sm text-white/80 whitespace-pre-line">{selectedPlace.notes}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

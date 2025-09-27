@@ -23,7 +23,9 @@ export class ExploreApiService {
    * Convert ExplorePlace to database record format
    */
   private toRecord(place: ExplorePlace, userId: string): Omit<ExplorePlaceRecord, 'created_at' | 'updated_at'> {
-    const id = place.id ?? crypto.randomUUID()
+    const id = this.normalizeRecordId(
+      (place.metadata?.sourceId as string | undefined) ?? place.id
+    )
     return {
       id,
       user_id: userId,
@@ -92,17 +94,44 @@ export class ExploreApiService {
 
       const { data, error } = await this.supabase
         .from('explore_places')
-        .insert(record)
+        .upsert(record, { onConflict: 'id' })
         .select()
         .single()
 
       if (error) {
+        if (this.isDuplicateError(error)) {
+          console.warn('ExploreApiService: Duplicate detected during upsert, fetching existing record', {
+            placeId: record.id,
+            userId: user.id,
+            error,
+          })
+
+          const { data: existing, error: fetchError } = await this.supabase
+            .from('explore_places')
+            .select('*')
+            .eq('id', record.id)
+            .eq('user_id', user.id)
+            .single()
+
+          if (fetchError) {
+            throw fetchError
+          }
+
+          return this.fromRecord(existing)
+        }
+
         throw error
       }
 
       return this.fromRecord(data)
     } catch (error) {
-      console.error('ExploreApiService: Error adding explore place', error)
+      console.error('ExploreApiService: Error adding explore place', {
+        error,
+        message: error instanceof Error ? error.message : undefined,
+        errorDetails: (error as any)?.details,
+        errorHint: (error as any)?.hint,
+        errorCode: (error as any)?.code,
+      })
       throw error
     }
   }
@@ -196,6 +225,39 @@ export class ExploreApiService {
       console.error('ExploreApiService: Error syncing explore places', error)
       throw error
     }
+  }
+
+  private isDuplicateError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false
+    }
+
+    const normalised = error as { code?: string; message?: string }
+    const message = normalised.message?.toLowerCase() ?? ''
+
+    return (
+      normalised.code === '23505' ||
+      normalised.code === '409' ||
+      message.includes('duplicate key') ||
+      message.includes('already exists')
+    )
+  }
+
+  private isValidUuid(value?: string | null): boolean {
+    if (!value) {
+      return false
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    return uuidRegex.test(value)
+  }
+
+  private normalizeRecordId(candidate?: string): string {
+    if (this.isValidUuid(candidate)) {
+      return candidate as string
+    }
+
+    return crypto.randomUUID()
   }
 }
 

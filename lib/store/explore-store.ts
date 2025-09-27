@@ -23,6 +23,7 @@ interface ExploreStoreState {
   addRecent: (place: ExplorePlace) => void
   addActivePlace: (place: ExplorePlace) => Promise<void>
   removeActivePlace: (placeId: string) => Promise<void>
+  updateActivePlace: (placeId: string, updates: Partial<Omit<ExplorePlace, 'notes'>> & { notes?: string | null }) => Promise<ExplorePlace | null>
   syncWithSupabase: () => Promise<void>
   loadFromSupabase: () => Promise<void>
   toggleMarkers: () => void
@@ -90,19 +91,60 @@ export const useExploreStore = create<ExploreStoreState>()(
       },
       addActivePlace: async (place) => {
         const { activePlaces } = get()
-        const exists = activePlaces.some((item) => item.id === place.id)
+        const placeWithSourceId: ExplorePlace = {
+          ...place,
+          metadata: {
+            ...(place.metadata ?? {}),
+            sourceId: (place.metadata?.sourceId as string | undefined) ?? place.id,
+          },
+        }
+
+        const exists = activePlaces.some((item) => {
+          const matchesId = item.id === placeWithSourceId.id
+          const matchesSourceId = (item.metadata?.sourceId as string | undefined) === (placeWithSourceId.metadata?.sourceId as string | undefined)
+          const matchesLocation =
+            item.name === placeWithSourceId.name &&
+            item.coordinates[0] === placeWithSourceId.coordinates[0] &&
+            item.coordinates[1] === placeWithSourceId.coordinates[1]
+
+          return matchesId || matchesSourceId || matchesLocation
+        })
         if (exists) return
 
         try {
           // Add to Supabase
-          const savedPlace = await exploreApiService.addExplorePlace(place)
+          const savedPlace = await exploreApiService.addExplorePlace(placeWithSourceId)
+
+          // Merge notes (Supabase record does not persist notes yet)
+          const mergedPlace: ExplorePlace = {
+            ...savedPlace,
+            notes: placeWithSourceId.notes ?? savedPlace.notes,
+            metadata: {
+              ...(savedPlace.metadata ?? {}),
+              ...(placeWithSourceId.metadata ?? {}),
+            },
+          }
 
           // Update local state with persisted record (to use canonical ID)
-          set({ activePlaces: [...activePlaces, savedPlace], lastAddedPlace: savedPlace })
+          set({ activePlaces: [...activePlaces, mergedPlace], lastAddedPlace: mergedPlace })
         } catch (error) {
-          console.error('ExploreStore: Error adding active place to Supabase', error)
+          const errorMessage = error instanceof Error ? error.message : undefined
+          const isAuthError = errorMessage === 'User not authenticated'
+
+          const logPayload = {
+            error,
+            errorMessage,
+            placeId: placeWithSourceId.id,
+          }
+
+          if (isAuthError) {
+            console.warn('ExploreStore: User not authenticated, storing place locally only', logPayload)
+          } else {
+            console.error('ExploreStore: Error adding active place to Supabase', logPayload)
+          }
+
           // Still add to local state even if Supabase fails
-          set({ activePlaces: [...activePlaces, place], lastAddedPlace: place })
+          set({ activePlaces: [...activePlaces, placeWithSourceId], lastAddedPlace: placeWithSourceId })
         }
       },
       removeActivePlace: async (placeId) => {
@@ -121,6 +163,52 @@ export const useExploreStore = create<ExploreStoreState>()(
           activePlaces: updated,
           selectedPlace: selectedPlace?.id === placeId ? null : selectedPlace,
         })
+      },
+      updateActivePlace: async (placeId, updates) => {
+        const { activePlaces, selectedPlace } = get()
+        const existingPlace = activePlaces.find((place) => place.id === placeId)
+
+        if (!existingPlace) {
+          console.warn('ExploreStore: Attempted to update missing place', { placeId, updates })
+          return null
+        }
+
+        const mergedMetadata = {
+          ...(existingPlace.metadata ?? {}),
+          ...(updates.metadata ?? {}),
+        }
+
+        const updatedPlace: ExplorePlace = {
+          ...existingPlace,
+          ...updates,
+          metadata: mergedMetadata,
+        }
+
+        if (Object.prototype.hasOwnProperty.call(updates, 'notes')) {
+          updatedPlace.notes = updates.notes ?? undefined
+        }
+
+        // Ensure coordinates persist if not provided in updates
+        if (!updates.coordinates) {
+          updatedPlace.coordinates = existingPlace.coordinates
+        }
+
+        const refreshedPlaces = activePlaces.map((place) =>
+          place.id === placeId ? updatedPlace : place
+        )
+
+        set({
+          activePlaces: refreshedPlaces,
+          selectedPlace: selectedPlace?.id === placeId ? updatedPlace : selectedPlace,
+        })
+
+        try {
+          await exploreApiService.updateExplorePlace(updatedPlace)
+        } catch (error) {
+          console.error('ExploreStore: Error updating active place in Supabase', error)
+        }
+
+        return updatedPlace
       },
       syncWithSupabase: async () => {
         const { activePlaces } = get()
@@ -176,7 +264,8 @@ export const useExploreStore = create<ExploreStoreState>()(
       partialize: (state) => ({
         recent: state.recent,
         showMarkers: state.showMarkers,
-        // Persist recent search history and marker visibility preference only
+        activePlaces: state.activePlaces,
+        // Persist recent search history, marker visibility preference, and saved markers
       }),
       migrate: (persistedState, version) => {
         if (version < 2 && persistedState) {

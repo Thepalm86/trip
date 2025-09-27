@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, MapPin, Edit3, Trash2, Save, Clock, DollarSign, Plus, ExternalLink, Link as LinkIcon } from 'lucide-react'
+import { X, MapPin, Edit3, Trash2, Save, Plus, ExternalLink, Link as LinkIcon } from 'lucide-react'
 import { Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
+import { useExploreStore } from '@/lib/store/explore-store'
 
 interface DestinationEditModalProps {
   dayId: string
@@ -22,22 +23,25 @@ const linkTypeOptions = [
 ]
 
 const categoryOptions = [
-  { value: 'city', label: 'City', icon: '🏙️' },
-  { value: 'attraction', label: 'Attraction', icon: '🎯' },
-  { value: 'restaurant', label: 'Restaurant', icon: '🍽️' },
-  { value: 'hotel', label: 'Hotel', icon: '🏨' },
-  { value: 'activity', label: 'Activity', icon: '🎪' },
-  { value: 'other', label: 'Other', icon: '📍' }
+  { value: 'city', label: 'City' },
+  { value: 'attraction', label: 'Attraction' },
+  { value: 'restaurant', label: 'Restaurant' },
+  { value: 'hotel', label: 'Hotel' },
+  { value: 'accommodation', label: 'Accommodation' },
+  { value: 'activity', label: 'Activity' },
+  { value: 'other', label: 'Other' }
 ]
 
 export function DestinationEditModal({ dayId, destination, onClose }: DestinationEditModalProps) {
   const { updateDestination } = useSupabaseTripStore()
+  const updateExplorePlace = useExploreStore((state) => state.updateActivePlace)
+  const removeExplorePlace = useExploreStore((state) => state.removeActivePlace)
   const [isLoading, setIsLoading] = useState(false)
   const [showAddLink, setShowAddLink] = useState(false)
   const [newLink, setNewLink] = useState({ type: 'website', label: '', url: '' })
   
   // Initialize category states
-  const predefinedCategories = ['city', 'attraction', 'restaurant', 'hotel', 'activity']
+  const predefinedCategories = ['city', 'attraction', 'restaurant', 'hotel', 'accommodation', 'activity']
   const isCustomCategory = !predefinedCategories.includes(destination.category || '')
   
   const [selectedCategory, setSelectedCategory] = useState<string>(() => {
@@ -52,7 +56,19 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
   const handleSave = async () => {
     setIsLoading(true)
     try {
-      await updateDestination(dayId, editedDestination.id, editedDestination)
+      if (dayId === 'explore') {
+        const trimmedNotes = editedDestination.notes?.trim()
+        const explorePlaceId = editedDestination.id.startsWith('explore-')
+          ? editedDestination.id.replace(/^explore-/, '')
+          : editedDestination.id
+
+        await updateExplorePlace(explorePlaceId, {
+          notes: trimmedNotes ? trimmedNotes : null,
+          category: editedDestination.category,
+        })
+      } else {
+        await updateDestination(dayId, editedDestination.id, editedDestination)
+      }
       onClose()
     } catch (error) {
       console.error('DestinationEditModal: Error updating destination:', error)
@@ -65,8 +81,15 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
     if (confirm('Are you sure you want to remove this destination?')) {
       setIsLoading(true)
       try {
-        // TODO: Implement remove destination functionality
-        console.log('Remove destination:', editedDestination.id)
+        if (dayId === 'explore') {
+          const explorePlaceId = editedDestination.id.startsWith('explore-')
+            ? editedDestination.id.replace(/^explore-/, '')
+            : editedDestination.id
+          await removeExplorePlace(explorePlaceId)
+        } else {
+          // TODO: Implement remove destination functionality for trip days
+          console.log('Remove destination:', editedDestination.id)
+        }
         onClose()
       } catch (error) {
         console.error('Error removing destination:', error)
@@ -174,9 +197,6 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
               Duration
             </label>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <Clock className="h-4 w-4 text-blue-400" />
-              </div>
               <input
                 type="number"
                 value={editedDestination.estimatedDuration || ''}
@@ -197,9 +217,6 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
               Cost
             </label>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
-                <DollarSign className="h-4 w-4 text-green-400" />
-              </div>
               <input
                 type="number"
                 value={editedDestination.cost || ''}
@@ -221,26 +238,21 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
               Category
             </label>
             <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                  <MapPin className="h-4 w-4 text-purple-400" />
-                </div>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => handleCategoryChange(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-slate-800 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-green-400/50 focus:ring-1 focus:ring-green-400/20 transition-all duration-200"
-                >
-                  {categoryOptions.map(option => (
-                    <option key={option.value} value={option.value} className="bg-slate-800 text-white">
-                      {option.icon} {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
+              <select
+                value={selectedCategory}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-800 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-green-400/50 focus:ring-1 focus:ring-green-400/20 transition-all duration-200"
+              >
+                {categoryOptions.map(option => (
+                  <option key={option.value} value={option.value} className="bg-slate-800 text-white">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
               {/* Custom category input - only show when "other" is selected */}
               {selectedCategory === 'other' && (
-                <div className="ml-11">
+                <div className="mt-2">
                   <input
                     type="text"
                     value={customCategory}
