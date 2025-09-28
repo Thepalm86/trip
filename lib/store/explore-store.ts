@@ -15,6 +15,7 @@ interface ExploreStoreState {
   error: string | null
   isSyncing: boolean
   showMarkers: boolean
+  visibleCategories: string[] | null
   lastAddedPlace: ExplorePlace | null
   setQuery: (query: string) => void
   searchPlaces: (query: string) => Promise<void>
@@ -27,6 +28,8 @@ interface ExploreStoreState {
   syncWithSupabase: () => Promise<void>
   loadFromSupabase: () => Promise<void>
   toggleMarkers: () => void
+  setShowMarkers: (showMarkers: boolean) => void
+  setVisibleCategories: (categories: string[] | null) => void
   reset: () => void
   clearLastAddedPlace: () => void
 }
@@ -53,6 +56,7 @@ export const useExploreStore = create<ExploreStoreState>()(
       error: null,
       isSyncing: false,
       showMarkers: true,
+      visibleCategories: null,
       lastAddedPlace: null,
       setQuery: (query) => set({ query }),
       searchPlaces: async (query: string) => {
@@ -237,12 +241,41 @@ export const useExploreStore = create<ExploreStoreState>()(
         }
       },
       toggleMarkers: () => {
-        const { showMarkers } = get()
-        set({ showMarkers: !showMarkers })
+        const state = get()
+        const next = !state.showMarkers
+
+        if (next && Array.isArray(state.visibleCategories) && state.visibleCategories.length === 0) {
+          set({ showMarkers: next, visibleCategories: null })
+          return
+        }
+
+        set({ showMarkers: next })
+      },
+      setShowMarkers: (showMarkers) => {
+        const { visibleCategories } = get()
+
+        if (showMarkers && Array.isArray(visibleCategories) && visibleCategories.length === 0) {
+          set({ showMarkers, visibleCategories: null })
+          return
+        }
+
+        set({ showMarkers })
+      },
+      setVisibleCategories: (categories) => {
+        const normalized = Array.isArray(categories)
+          ? categories.map((category) => category.trim().toLowerCase())
+          : null
+
+        const shouldShowMarkers = normalized === null ? true : normalized.length > 0
+
+        set({
+          visibleCategories: normalized,
+          showMarkers: shouldShowMarkers,
+        })
       },
       clearLastAddedPlace: () => set({ lastAddedPlace: null }),
       reset: () => {
-        const { showMarkers } = get()
+        const { showMarkers, visibleCategories } = get()
         set({
           query: '',
           results: [],
@@ -253,17 +286,19 @@ export const useExploreStore = create<ExploreStoreState>()(
           error: null,
           isSyncing: false,
           showMarkers,
+          visibleCategories,
           lastAddedPlace: null,
         })
       },
     }),
     {
       name: 'explore-store',
-      version: 2,
+      version: 3,
       storage,
       partialize: (state) => ({
         recent: state.recent,
         showMarkers: state.showMarkers,
+        visibleCategories: state.visibleCategories,
         activePlaces: state.activePlaces,
         // Persist recent search history, marker visibility preference, and saved markers
       }),
@@ -271,6 +306,12 @@ export const useExploreStore = create<ExploreStoreState>()(
         if (version < 2 && persistedState) {
           const { activePlaces: _oldActivePlaces, ...rest } = persistedState as Record<string, unknown>
           return rest
+        }
+        if (version < 3 && persistedState) {
+          return {
+            ...(persistedState as Record<string, unknown>),
+            visibleCategories: null,
+          }
         }
         return persistedState as any
       },

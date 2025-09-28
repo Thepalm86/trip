@@ -1,15 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Calendar, MapPin, Clock, Share2, Settings, Edit3, HelpCircle } from 'lucide-react'
+import { Calendar, Share2, Edit3, HelpCircle, Sparkles } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
 import { UserProfile } from '@/components/auth/user-profile'
 import { ONBOARDING_EVENT_NAME, ONBOARDING_STORAGE_KEY } from '@/components/onboarding/AppOnboarding'
+import { useResearchStore } from '@/lib/store/research-store'
 
 export function LeftPanel() {
   const { currentTrip, updateTrip } = useSupabaseTripStore()
+  const openResearch = useResearchStore((state) => state.open)
   const [showDateSelector, setShowDateSelector] = useState(false)
   const [isEditingTripName, setIsEditingTripName] = useState(false)
   const [tripName, setTripName] = useState(currentTrip?.name || '')
@@ -84,6 +86,13 @@ export function LeftPanel() {
             </button>
           </div>
           <div className="flex items-center gap-2" data-tour="profile">
+            <button
+              onClick={openResearch}
+              className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
+            >
+              <Sparkles className="h-4 w-4" />
+              Research
+            </button>
             <button className="p-2 rounded-lg bg-white/5 text-white/60 hover:bg-white/10 transition-all duration-200">
               <Share2 className="h-4 w-4" />
             </button>

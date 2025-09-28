@@ -3,50 +3,7 @@
 import { useEffect, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { useExploreStore } from '@/lib/store/explore-store'
-
-type MarkerColors = {
-  border: string
-  ring: string
-}
-
-const CATEGORY_COLORS: Record<string, MarkerColors> = {
-  city: {
-    border: '#22d3ee',
-    ring: 'rgba(34, 211, 238, 0.25)'
-  },
-  attraction: {
-    border: '#3b82f6',
-    ring: 'rgba(59, 130, 246, 0.25)'
-  },
-  restaurant: {
-    border: '#f97316',
-    ring: 'rgba(249, 115, 22, 0.25)'
-  },
-  hotel: {
-    border: '#a855f7',
-    ring: 'rgba(168, 85, 247, 0.25)'
-  },
-  accommodation: {
-    border: '#a855f7',
-    ring: 'rgba(168, 85, 247, 0.25)'
-  },
-  activity: {
-    border: '#22c55e',
-    ring: 'rgba(34, 197, 94, 0.25)'
-  }
-}
-
-const DEFAULT_COLORS: MarkerColors = {
-  border: '#06b6d4',
-  ring: 'rgba(6, 182, 212, 0.25)'
-}
-
-function getCategoryColors(category?: string): MarkerColors {
-  if (!category) return DEFAULT_COLORS
-
-  const normalized = category.toLowerCase()
-  return CATEGORY_COLORS[normalized] ?? DEFAULT_COLORS
-}
+import { getExploreCategoryMetadata, MarkerColors } from '@/lib/explore/categories'
 
 function applyMarkerColors(
   elements: {
@@ -110,18 +67,27 @@ type MarkerEntry = {
 export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
   const activePlaces = useExploreStore((state) => state.activePlaces)
   const showMarkers = useExploreStore((state) => state.showMarkers)
+  const visibleCategories = useExploreStore((state) => state.visibleCategories)
   const setSelectedPlace = useExploreStore((state) => state.setSelectedPlace)
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map())
+
+  const getCategoryKey = (category?: string) => getExploreCategoryMetadata(category).key
+
+  const isCategoryVisible = (category?: string) => {
+    if (!visibleCategories) return true
+    return visibleCategories.includes(getCategoryKey(category))
+  }
 
   useEffect(() => {
     if (!map) return
 
     const markers = markersRef.current
-    const activeIds = new Set(activePlaces.map((place) => place.id))
+    const activeLookup = new Map(activePlaces.map((place) => [place.id, place]))
 
     // Remove markers that are no longer active or if markers are hidden
     markers.forEach((entry, placeId) => {
-      if (!activeIds.has(placeId) || !showMarkers) {
+      const place = activeLookup.get(placeId)
+      if (!place || !showMarkers || !isCategoryVisible(place.category)) {
         const markerElement = entry.elements.markerElement
         markerElement.removeEventListener('click', entry.handleClick)
         markerElement.removeEventListener('mouseenter', entry.handleMouseEnter)
@@ -134,9 +100,12 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
     // Add or update markers for active places (only if showMarkers is true)
     if (showMarkers) {
       activePlaces.forEach((place) => {
-    const existingEntry = markers.get(place.id)
+        if (!isCategoryVisible(place.category)) {
+          return
+        }
+        const existingEntry = markers.get(place.id)
 
-    if (existingEntry) {
+        if (existingEntry) {
           const { marker: existingMarker, elements } = existingEntry
           const { markerElement, label, mainCircle, outerRing } = elements
 
@@ -144,7 +113,8 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
             label.textContent = place.name
           }
 
-          applyMarkerColors({ outerRing, mainCircle }, getCategoryColors(place.category))
+          const { colors } = getExploreCategoryMetadata(place.category)
+          applyMarkerColors({ outerRing, mainCircle }, colors)
 
           markerElement.removeEventListener('click', existingEntry.handleClick)
           const handleClick = () => {
@@ -161,7 +131,7 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
           return
         }
 
-        const colors = getCategoryColors(place.category)
+        const { colors } = getExploreCategoryMetadata(place.category)
         const { markerElement, mainCircle, outerRing, label } = createMarkerElement(place.name, colors)
 
         const handleClick = () => {
@@ -200,7 +170,7 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
       })
     }
 
-  }, [map, activePlaces, setSelectedPlace, showMarkers])
+  }, [map, activePlaces, setSelectedPlace, showMarkers, visibleCategories])
 
   useEffect(() => {
     return () => {

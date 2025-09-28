@@ -6,6 +6,7 @@ import { LeftPanel } from '@/components/left-panel/LeftPanel'
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { TripLoader } from '@/components/trip/TripLoader'
 import { GripVertical } from 'lucide-react'
+import { ResearchCommandPalette } from '@/components/research/ResearchCommandPalette'
 
 export default function HomePage() {
   const mapRef = useRef<InteractiveMapRef>(null)
@@ -154,6 +155,7 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+      <ResearchCommandPalette />
     </div>
     </AuthGuard>
   )
