@@ -4,6 +4,8 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { ExplorePlace } from '@/types'
 import { exploreApiService } from '@/lib/supabase/explore-api'
+import { resolveCityFromPlace, fallbackCityFromFullName } from '@/lib/location/city'
+import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 
 interface ExploreStoreState {
   query: string
@@ -94,9 +96,19 @@ export const useExploreStore = create<ExploreStoreState>()(
         set({ recent: updated })
       },
       addActivePlace: async (place) => {
-        const { activePlaces } = get()
+        const { activePlaces, visibleCategories } = get()
+        const placeIdHint = (place.metadata?.placeId as string | undefined)
+          ?? (place.metadata?.place_id as string | undefined)
+          ?? (place.metadata?.sourceId as string | undefined)
+
+        const resolvedCity = await resolveCityFromPlace(placeIdHint, place.fullName ?? place.name)
+        const normalizedCity = resolvedCity === 'Unknown' ? undefined : resolvedCity
+
+        const categoryKey = getExploreCategoryMetadata(place.category).key
+
         const placeWithSourceId: ExplorePlace = {
           ...place,
+          city: normalizedCity,
           metadata: {
             ...(place.metadata ?? {}),
             sourceId: (place.metadata?.sourceId as string | undefined) ?? place.id,
@@ -127,10 +139,19 @@ export const useExploreStore = create<ExploreStoreState>()(
               ...(savedPlace.metadata ?? {}),
               ...(placeWithSourceId.metadata ?? {}),
             },
+            city: placeWithSourceId.city ?? savedPlace.city,
           }
 
+          const nextVisibleCategories = Array.isArray(visibleCategories) && !visibleCategories.includes(categoryKey)
+            ? [...visibleCategories, categoryKey]
+            : visibleCategories
+
           // Update local state with persisted record (to use canonical ID)
-          set({ activePlaces: [...activePlaces, mergedPlace], lastAddedPlace: mergedPlace })
+          set({
+            activePlaces: [...activePlaces, mergedPlace],
+            lastAddedPlace: mergedPlace,
+            visibleCategories: nextVisibleCategories ?? null,
+          })
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : undefined
           const isAuthError = errorMessage === 'User not authenticated'
@@ -147,8 +168,16 @@ export const useExploreStore = create<ExploreStoreState>()(
             console.error('ExploreStore: Error adding active place to Supabase', logPayload)
           }
 
+          const nextVisibleCategories = Array.isArray(visibleCategories) && !visibleCategories.includes(categoryKey)
+            ? [...visibleCategories, categoryKey]
+            : visibleCategories
+
           // Still add to local state even if Supabase fails
-          set({ activePlaces: [...activePlaces, placeWithSourceId], lastAddedPlace: placeWithSourceId })
+          set({
+            activePlaces: [...activePlaces, placeWithSourceId],
+            lastAddedPlace: placeWithSourceId,
+            visibleCategories: nextVisibleCategories ?? null,
+          })
         }
       },
       removeActivePlace: async (placeId) => {
@@ -232,7 +261,34 @@ export const useExploreStore = create<ExploreStoreState>()(
         
         try {
           const places = await exploreApiService.getExplorePlaces()
-          set({ activePlaces: places })
+          const enriched = await Promise.all(
+            places.map(async (place) => {
+              if (place.city && place.city.length > 0) {
+                return place
+              }
+
+              const placeIdHint = (place.metadata?.placeId as string | undefined)
+                ?? (place.metadata?.place_id as string | undefined)
+                ?? (place.metadata?.sourceId as string | undefined)
+
+              const resolvedCity = await resolveCityFromPlace(placeIdHint, place.fullName ?? place.name)
+              const fallbackCity = fallbackCityFromFullName(place.fullName ?? place.context ?? place.name)
+              const normalizedCity = resolvedCity !== 'Unknown' ? resolvedCity : (fallbackCity === 'Unknown' ? undefined : fallbackCity)
+
+              return {
+                ...place,
+                city: normalizedCity,
+              }
+            })
+          )
+          const { visibleCategories } = get()
+          const allCategories = Array.from(new Set(enriched.map((place) => getExploreCategoryMetadata(place.category).key)))
+
+          const nextVisibleCategories = Array.isArray(visibleCategories)
+            ? Array.from(new Set([...visibleCategories.filter((key) => allCategories.includes(key)), ...allCategories]))
+            : null
+
+          set({ activePlaces: enriched, visibleCategories: nextVisibleCategories })
         } catch (error) {
           console.error('ExploreStore: Error loading from Supabase', error)
           set({ error: error instanceof Error ? error.message : 'Load failed' })
@@ -293,12 +349,11 @@ export const useExploreStore = create<ExploreStoreState>()(
     }),
     {
       name: 'explore-store',
-      version: 3,
+      version: 4,
       storage,
       partialize: (state) => ({
         recent: state.recent,
         showMarkers: state.showMarkers,
-        visibleCategories: state.visibleCategories,
         activePlaces: state.activePlaces,
         // Persist recent search history, marker visibility preference, and saved markers
       }),
@@ -312,6 +367,10 @@ export const useExploreStore = create<ExploreStoreState>()(
             ...(persistedState as Record<string, unknown>),
             visibleCategories: null,
           }
+        }
+        if (version < 4 && persistedState) {
+          const { visibleCategories: _discarded, ...rest } = persistedState as Record<string, unknown>
+          return rest
         }
         return persistedState as any
       },

@@ -7,6 +7,8 @@ import { AddExplorePlaceModal } from '../modals/AddExplorePlaceModal'
 import { DestinationOverviewModal } from '../modals/DestinationOverviewModal'
 import { DestinationEditModal } from '../modals/DestinationEditModal'
 import { Destination } from '@/types'
+import { fallbackCityFromFullName } from '@/lib/location/city'
+import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 
 export function ExplorePreviewDrawer() {
   const selectedPlace = useExploreStore((state) => state.selectedPlace)
@@ -41,7 +43,13 @@ export function ExplorePreviewDrawer() {
     name: place.name,
     description: place.fullName,
     coordinates: place.coordinates,
-    city: place.fullName.split(',').map((p: string) => p.trim()).filter(Boolean)[place.fullName.split(',').length - 2] || 'Unknown',
+    city: (() => {
+      if (place.city && place.city.length > 0) {
+        return place.city
+      }
+      const city = fallbackCityFromFullName(place.fullName)
+      return city === 'Unknown' ? undefined : city
+    })(),
     category: place.category || 'attraction',
     notes: place.notes,
     estimatedDuration: undefined,
@@ -72,6 +80,16 @@ export function ExplorePreviewDrawer() {
     return null
   }
 
+  const categoryMetadata = getExploreCategoryMetadata(selectedPlace.category)
+  const fallbackCity = fallbackCityFromFullName(selectedPlace.fullName)
+  const displayCity = (() => {
+    if (selectedPlace.city && selectedPlace.city.length > 0) {
+      return selectedPlace.city
+    }
+    return fallbackCity !== 'Unknown' ? fallbackCity : null
+  })()
+  const isCityCategory = categoryMetadata.key === 'city'
+
   return (
     <>
       <div className="pointer-events-auto absolute bottom-6 left-1/2 z-20 w-full max-w-lg -translate-x-1/2">
@@ -79,8 +97,16 @@ export function ExplorePreviewDrawer() {
           <div className="flex items-start justify-between gap-4 p-5">
             <div className="flex-1 min-w-0">
               <div className="text-xs font-semibold uppercase tracking-widest text-white/50">Preview</div>
-              <h2 className="mt-2 text-2xl font-light text-white">{selectedPlace.name}</h2>
-              <p className="mt-1 text-sm text-white/70 line-clamp-2">{selectedPlace.fullName}</p>
+              <div className="mt-2 space-y-1">
+                <h2 className="text-2xl font-light text-white leading-tight">
+                  {isCityCategory && displayCity ? displayCity : selectedPlace.name}
+                </h2>
+                {!isCityCategory && (
+                  <p className="text-sm text-white/70 leading-snug">
+                    {displayCity ?? selectedPlace.fullName}
+                  </p>
+                )}
+              </div>
             </div>
             
             {/* Fixed Action Buttons Container */}
@@ -174,7 +200,7 @@ export function ExplorePreviewDrawer() {
             <div className="flex items-center justify-end px-5 py-4 text-xs text-white/50">
               <span className="inline-flex items-center gap-1">
                 <MapPin className="h-3 w-3" />
-                {selectedPlace.category || 'Location'}
+                {categoryMetadata.label}
               </span>
             </div>
 

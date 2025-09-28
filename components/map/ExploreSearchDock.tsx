@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Search, Loader2, MapPin, Sparkles, X } from 'lucide-react'
 import { useExploreStore } from '@/lib/store/explore-store'
 import type { ExplorePlace } from '@/types'
+import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 
 const MIN_QUERY_LENGTH = 2
 
@@ -27,6 +28,8 @@ export function ExploreSearchDock({ defaultExpanded = false }: ExploreSearchDock
   const [localQuery, setLocalQuery] = useState(query)
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [showResults, setShowResults] = useState(false)
+  const [pendingPlace, setPendingPlace] = useState<ExplorePlace | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string>('attraction')
 
   useEffect(() => {
     setLocalQuery(query)
@@ -47,13 +50,34 @@ export function ExploreSearchDock({ defaultExpanded = false }: ExploreSearchDock
     return () => clearTimeout(handler)
   }, [localQuery, searchPlaces, setQuery])
 
+  const openCategoryPicker = (place: ExplorePlace) => {
+    const metadata = getExploreCategoryMetadata(place.category)
+    setPendingPlace(place)
+    setSelectedCategory(metadata.key)
+  }
+
   const handleSelect = (place: ExplorePlace) => {
-    addRecent(place)
-    addActivePlace(place)
+    openCategoryPicker(place)
+  }
+
+  const handleConfirmCategory = async () => {
+    if (!pendingPlace) return
+    const category = selectedCategory
+    const normalizedPlace: ExplorePlace = {
+      ...pendingPlace,
+      category,
+    }
+    addRecent(normalizedPlace)
+    await addActivePlace(normalizedPlace)
     setSelectedPlace(null)
     setLocalQuery('')
     setShowResults(false)
     setIsExpanded(false)
+    setPendingPlace(null)
+  }
+
+  const handleCancelCategory = () => {
+    setPendingPlace(null)
   }
 
   if (!isExpanded) {
@@ -131,6 +155,16 @@ export function ExploreSearchDock({ defaultExpanded = false }: ExploreSearchDock
           </div>
         )}
       </div>
+
+      {pendingPlace && (
+        <CategorySelectionDialog
+          place={pendingPlace}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+          onCancel={handleCancelCategory}
+          onConfirm={handleConfirmCategory}
+        />
+      )}
     </div>
   )
 }
@@ -186,6 +220,68 @@ function ResultList({ title, items, onSelect, isSearching }: ResultListProps) {
           </div>
         </button>
       ))}
+    </div>
+  )
+}
+
+const CATEGORY_OPTIONS = [
+  { value: 'city', label: 'City' },
+  { value: 'attraction', label: 'Attraction' },
+  { value: 'restaurant', label: 'Restaurant' },
+  { value: 'hotel', label: 'Hotel' },
+  { value: 'accommodation', label: 'Accommodation' },
+  { value: 'activity', label: 'Activity' },
+  { value: 'other', label: 'Other' },
+]
+
+interface CategorySelectionDialogProps {
+  place: ExplorePlace
+  selectedCategory: string
+  onSelectCategory: (category: string) => void
+  onCancel: () => void
+  onConfirm: () => void
+}
+
+function CategorySelectionDialog({ place, selectedCategory, onSelectCategory, onCancel, onConfirm }: CategorySelectionDialogProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur">
+      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl">
+        <h3 className="text-lg font-semibold text-white">Choose category</h3>
+        <p className="mt-1 text-sm text-white/60">{place.name}</p>
+        <div className="mt-4 grid gap-2">
+          {CATEGORY_OPTIONS.map((option) => {
+            const isSelected = selectedCategory === option.value
+            return (
+              <button
+                key={option.value}
+                onClick={() => onSelectCategory(option.value)}
+                className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm transition ${
+                  isSelected
+                    ? 'border-blue-500 bg-blue-500/10 text-white'
+                    : 'border-white/10 bg-white/5 text-white/70 hover:border-blue-500/40 hover:bg-blue-500/15 hover:text-white'
+                }`}
+              >
+                <span>{option.label}</span>
+                {isSelected && <span className="text-xs text-blue-300">Selected</span>}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 hover:text-white"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+          >
+            Add Marker
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

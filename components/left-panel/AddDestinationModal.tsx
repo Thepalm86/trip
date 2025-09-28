@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Search, MapPin, Star, Clock, DollarSign, Plus } from 'lucide-react'
 import { Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
+import { resolveCityFromPlace } from '@/lib/location/city'
 
 interface AddDestinationModalProps {
   dayId: string
@@ -19,6 +20,7 @@ interface SearchResult {
   category?: string
   contextLabel?: string
   rating?: number
+  placeId?: string
 }
 
 function getCategoryLabel(category: string): string {
@@ -51,6 +53,7 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
   const [cost, setCost] = useState(0)
   const [notes, setNotes] = useState('')
   const [showNearbyRecommendations, setShowNearbyRecommendations] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   // Google Places API search functionality (via Next.js API route)
   useEffect(() => {
@@ -83,7 +86,8 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
           coordinates: [place.geometry.location.lng, place.geometry.location.lat] as [number, number],
           category: place.types?.[0] || 'attraction',
           contextLabel: place.formatted_address.split(',').slice(-2).join(', ').trim(),
-          rating: place.rating || Math.random() * 2 + 3
+          rating: place.rating || Math.random() * 2 + 3,
+          placeId: place.place_id,
         }))
 
         setResults(mapped)
@@ -100,50 +104,38 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
     return () => controller.abort()
   }, [query])
 
-  const handleAddDestination = () => {
+  const handleAddDestination = async () => {
     if (!selectedDestination) return
+    setIsSaving(true)
 
-    // Extract city from the address
-    const extractCity = (fullName: string) => {
-      const parts = fullName.split(',').map(part => part.trim())
-      
-      // Look for common Italian cities
-      const italianCities = ['Rome', 'Firenze', 'Florence', 'Siena', 'Lucca', 'Pisa', 'Bologna', 'Venice', 'Venezia', 'Milan', 'Milano', 'Naples', 'Napoli', 'Turin', 'Torino', 'Genoa', 'Genova', 'Palermo', 'Catania', 'Bari', 'Verona', 'Padua', 'Padova', 'Ravenna', 'Modena', 'Parma', 'Reggio Emilia', 'Ferrara', 'Rimini', 'San Gimignano', 'Volterra', 'Arezzo', 'Cortona', 'Montepulciano', 'Pienza', 'Montalcino', 'Grosseto', 'Livorno', 'Pistoia', 'Prato', 'Massa', 'Carrara', 'La Spezia', 'Piacenza', 'Cremona', 'Mantova', 'Brescia', 'Bergamo', 'Como', 'Varese', 'Lecco', 'Sondrio', 'Trento', 'Bolzano', 'Udine', 'Trieste', 'Gorizia', 'Pordenone', 'Belluno', 'Treviso', 'Vicenza', 'Rovigo', 'Chioggia', 'Adria', 'Este', 'Montagnana', 'Cittadella', 'Castelfranco Veneto', 'Bassano del Grappa', 'Asolo', 'Marostica', 'Thiene', 'Schio', 'Valdagno', 'Arzignano', 'Montecchio Maggiore', 'Lonigo', 'Noventa Vicentina', 'Orgiano', 'Badia Polesine', 'Lendinara', 'Occhiobello', 'Stienta', 'Gaiba', 'Salara', 'Canda', 'Castelguglielmo', 'Fratta Polesine', 'Lusia', 'Pincara', 'Pontecchio Polesine', 'San Bellino', 'Villanova del Ghebbo', 'Villamarzana', 'Villanova Marchesana', 'Villanova del Sillaro', 'Villanova di Camposampiero', 'Villanova di San Giorgio', 'Villanova di San Martino', 'Villanova di San Pietro', 'Villanova di San Rocco', 'Villanova di San Tommaso', 'Villanova di San Vito', 'Villanova di San Zeno', 'Villanova di San Zenone', 'Villanova di San Zeno', 'Villanova di San Zenone']
-      
-      // First, try to find a known Italian city
-      for (const part of parts) {
-        for (const city of italianCities) {
-          if (part.toLowerCase().includes(city.toLowerCase())) {
-            return city
-          }
-        }
+    try {
+      const city = await resolveCityFromPlace(selectedDestination.placeId, selectedDestination.fullName)
+
+      const destination: Destination = {
+        id: `search-${Date.now()}`,
+        name: selectedDestination.name,
+        description: selectedDestination.fullName,
+        coordinates: selectedDestination.coordinates,
+        city: city === 'Unknown' ? undefined : city,
+        category: (selectedDestination.category as Destination['category']) ?? 'attraction',
+        estimatedDuration: duration,
+        cost: cost > 0 ? cost : undefined,
+        rating: selectedDestination.rating,
+        notes: notes || undefined,
       }
-      
-      // If no known city found, use the second-to-last part (before country)
-      if (parts.length >= 2) {
-        return parts[parts.length - 2]
+
+      if (dayId === 'maybe' && onAddToMaybe) {
+        onAddToMaybe(destination)
+      } else {
+        await addDestinationToDay(destination, dayId)
       }
-      return parts[0] // Fallback to first part
-    }
 
-    const destination: Destination = {
-      id: `search-${Date.now()}`,
-      name: selectedDestination.name,
-      description: selectedDestination.fullName,
-      coordinates: selectedDestination.coordinates,
-      city: extractCity(selectedDestination.fullName),
-      category: (selectedDestination.category as Destination['category']) ?? 'attraction',
-      estimatedDuration: duration,
-      cost: cost > 0 ? cost : undefined,
-      rating: selectedDestination.rating,
+      onClose()
+    } catch (error) {
+      console.error('AddDestinationModal: Failed to add destination', error)
+    } finally {
+      setIsSaving(false)
     }
-
-    if (dayId === 'maybe' && onAddToMaybe) {
-      onAddToMaybe(destination)
-    } else {
-      addDestinationToDay(destination, dayId)
-    }
-    onClose()
   }
 
   return (
@@ -315,10 +307,10 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
           </button>
           <button
             onClick={handleAddDestination}
-            disabled={!selectedDestination}
+            disabled={!selectedDestination || isSaving}
             className="px-4 py-2 rounded-lg bg-blue-500 text-white font-medium transition-all duration-200 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Add Destination
+            {isSaving ? 'Adding…' : 'Add Destination'}
           </button>
         </div>
       </div>

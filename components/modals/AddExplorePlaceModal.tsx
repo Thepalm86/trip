@@ -5,20 +5,13 @@ import { X, MapPin, Building2, Loader2 } from 'lucide-react'
 import { ExplorePlace } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { useExploreStore } from '@/lib/store/explore-store'
+import { resolveCityFromPlace } from '@/lib/location/city'
 
 interface AddExplorePlaceModalProps {
   place: ExplorePlace
   mode: 'destination' | 'base'
   onClose: () => void
   onComplete: () => void
-}
-
-function extractCity(fullName: string) {
-  const parts = fullName.split(',').map((part) => part.trim()).filter(Boolean)
-  if (parts.length >= 2) {
-    return parts[parts.length - 2]
-  }
-  return parts[0] ?? 'Unknown'
 }
 
 export function AddExplorePlaceModal({ place, mode, onClose, onComplete }: AddExplorePlaceModalProps) {
@@ -57,13 +50,16 @@ export function AddExplorePlaceModal({ place, mode, onClose, onComplete }: AddEx
     setIsSaving(true)
 
     try {
+      const placeId = place.metadata?.place_id as string | undefined
+      const city = await resolveCityFromPlace(placeId, place.fullName)
+
       if (mode === 'destination') {
         await addDestinationToDay({
           id: `explore-${Date.now()}`,
           name: place.name,
           description: place.fullName,
           coordinates: place.coordinates,
-          city: extractCity(place.fullName),
+          city,
           category: (place.category as any) ?? 'activity',
           notes: notes || undefined,
         }, selectedDayId)
@@ -72,7 +68,7 @@ export function AddExplorePlaceModal({ place, mode, onClose, onComplete }: AddEx
           name: place.name,
           coordinates: place.coordinates,
           context: place.fullName,
-          city: extractCity(place.fullName),
+          city,
           notes: notes || undefined,
         })
       }

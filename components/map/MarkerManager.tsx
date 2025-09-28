@@ -90,7 +90,7 @@ export function MarkerManager({
             isDeparturePoint: selectedDayId === day.id ? false : true, // Previous day's location is departure point
             destinationCount: day.destinations.length,
             totalBaseLocations: day.baseLocations ? day.baseLocations.length : 0,
-            city: firstBaseLocation.city || 'Unknown City',
+            city: firstBaseLocation.city || '',
             cardId: `base-${day.id}-0`,
             isCardSelected: selectedCardId === `base-${day.id}-0`
           }
@@ -163,7 +163,7 @@ export function MarkerManager({
             activityLetter: String.fromCharCode(65 + destIndex), // Convert to letters: A, B, C, etc.
             destinationId: destination.id,
             markerColor: markerColor, // Consistent blue color for all destination markers
-            city: destination.city || 'Unknown City',
+            city: destination.city || '',
             cardId: `dest-${destination.id}`,
             isCardSelected: selectedCardId === `dest-${destination.id}`
           }

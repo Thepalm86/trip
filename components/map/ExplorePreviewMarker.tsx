@@ -4,12 +4,27 @@ import { useEffect, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { useExploreStore } from '@/lib/store/explore-store'
 import { getExploreCategoryMetadata, MarkerColors } from '@/lib/explore/categories'
+import { fallbackCityFromFullName } from '@/lib/location/city'
+
+type MarkerElements = {
+  markerElement: HTMLDivElement
+  mainCircle: HTMLDivElement
+  outerRing: HTMLDivElement
+  label: HTMLDivElement
+  nameLabel: HTMLDivElement
+  cityLabel: HTMLDivElement
+}
+
+type MarkerEntry = {
+  marker: mapboxgl.Marker
+  handleClick: () => void
+  handleMouseEnter: () => void
+  handleMouseLeave: () => void
+  elements: MarkerElements
+}
 
 function applyMarkerColors(
-  elements: {
-    outerRing: HTMLDivElement
-    mainCircle: HTMLDivElement
-  },
+  elements: Pick<MarkerElements, 'outerRing' | 'mainCircle'>,
   colors: MarkerColors
 ) {
   elements.outerRing.style.backgroundColor = colors.ring
@@ -17,7 +32,12 @@ function applyMarkerColors(
   elements.mainCircle.style.backgroundColor = colors.border
 }
 
-function createMarkerElement(name: string, colors: MarkerColors) {
+function createMarkerElement(
+  displayName: string,
+  city: string | null,
+  colors: MarkerColors,
+  isCityCategory: boolean
+): MarkerElements {
   const markerElement = document.createElement('div')
   markerElement.className = 'explore-marker'
 
@@ -38,29 +58,37 @@ function createMarkerElement(name: string, colors: MarkerColors) {
   mainCircle.appendChild(innerDot)
 
   const label = document.createElement('div')
-  label.className = 'explore-marker-label absolute top-full left-1/2 transform -translate-x-1/2 mt-2 text-white text-xs font-semibold whitespace-nowrap max-w-48 truncate'
-  label.textContent = name
-  wrapper.appendChild(label)
+  label.className = 'explore-marker-label absolute top-full left-1/2 transform -translate-x-1/2 mt-2 space-y-0.5 text-center'
 
-  label.style.opacity = '0.8'
+  const nameLabel = document.createElement('div')
+  nameLabel.className = 'text-white text-xs font-semibold leading-tight whitespace-nowrap max-w-48 truncate'
+  nameLabel.textContent = displayName
+  label.appendChild(nameLabel)
+
+  const cityLabel = document.createElement('div')
+  cityLabel.className = 'text-white/70 text-[10px] leading-tight whitespace-nowrap max-w-48 truncate'
+  if (!isCityCategory && city) {
+    cityLabel.textContent = city
+  } else {
+    cityLabel.style.display = 'none'
+  }
+  label.appendChild(cityLabel)
+
+  label.style.opacity = '0.9'
   label.style.filter = 'drop-shadow(0 2px 4px rgba(15, 23, 42, 0.6))'
   mainCircle.style.transition = 'transform 0.2s ease'
 
+  wrapper.appendChild(label)
+
   applyMarkerColors({ outerRing, mainCircle }, colors)
 
-  return { markerElement, mainCircle, outerRing, label }
-}
-
-type MarkerEntry = {
-  marker: mapboxgl.Marker
-  handleClick: () => void
-  handleMouseEnter: () => void
-  handleMouseLeave: () => void
-  elements: {
-    markerElement: HTMLDivElement
-    mainCircle: HTMLDivElement
-    outerRing: HTMLDivElement
-    label: HTMLDivElement
+  return {
+    markerElement,
+    mainCircle,
+    outerRing,
+    label,
+    nameLabel,
+    cityLabel,
   }
 }
 
@@ -84,7 +112,6 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
     const markers = markersRef.current
     const activeLookup = new Map(activePlaces.map((place) => [place.id, place]))
 
-    // Remove markers that are no longer active or if markers are hidden
     markers.forEach((entry, placeId) => {
       const place = activeLookup.get(placeId)
       if (!place || !showMarkers || !isCategoryVisible(place.category)) {
@@ -97,29 +124,44 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
       }
     })
 
-    // Add or update markers for active places (only if showMarkers is true)
     if (showMarkers) {
       activePlaces.forEach((place) => {
         if (!isCategoryVisible(place.category)) {
           return
         }
-        const existingEntry = markers.get(place.id)
 
+        const metadata = getExploreCategoryMetadata(place.category)
+        const derivedCity = (() => {
+          if (place.city && place.city.length > 0) {
+            return place.city
+          }
+          const candidate = fallbackCityFromFullName(place.fullName)
+          return candidate === 'Unknown' ? '' : candidate
+        })()
+        const displayName = metadata.key === 'city' && derivedCity ? derivedCity : place.name
+
+        const existingEntry = markers.get(place.id)
         if (existingEntry) {
           const { marker: existingMarker, elements } = existingEntry
-          const { markerElement, label, mainCircle, outerRing } = elements
+          const { markerElement, nameLabel, cityLabel, mainCircle, outerRing } = elements
 
-          if (label.textContent !== place.name) {
-            label.textContent = place.name
+          nameLabel.textContent = displayName
+
+          if (metadata.key === 'city') {
+            cityLabel.style.display = 'none'
+            cityLabel.textContent = ''
+          } else if (derivedCity) {
+            cityLabel.style.display = ''
+            cityLabel.textContent = derivedCity
+          } else {
+            cityLabel.style.display = 'none'
+            cityLabel.textContent = ''
           }
 
-          const { colors } = getExploreCategoryMetadata(place.category)
-          applyMarkerColors({ outerRing, mainCircle }, colors)
+          applyMarkerColors({ outerRing, mainCircle }, metadata.colors)
 
           markerElement.removeEventListener('click', existingEntry.handleClick)
-          const handleClick = () => {
-            setSelectedPlace(place)
-          }
+          const handleClick = () => setSelectedPlace(place)
           markerElement.addEventListener('click', handleClick)
 
           markers.set(place.id, {
@@ -131,59 +173,53 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
           return
         }
 
-        const { colors } = getExploreCategoryMetadata(place.category)
-        const { markerElement, mainCircle, outerRing, label } = createMarkerElement(place.name, colors)
+        const elements = createMarkerElement(displayName, derivedCity || null, metadata.colors, metadata.key === 'city')
 
-        const handleClick = () => {
-          setSelectedPlace(place)
-        }
+        const handleClick = () => setSelectedPlace(place)
 
         const handleMouseEnter = () => {
-          mainCircle.style.transform = 'scale(1.1)'
-          label.style.opacity = '1'
+          elements.mainCircle.style.transform = 'scale(1.1)'
+          elements.label.style.opacity = '1'
         }
 
         const handleMouseLeave = () => {
-          mainCircle.style.transform = 'scale(1)'
-          label.style.opacity = '0.8'
+          elements.mainCircle.style.transform = 'scale(1)'
+          elements.label.style.opacity = '0.9'
         }
 
         const marker = new mapboxgl.Marker({
-          element: markerElement,
-          anchor: 'bottom'
+          element: elements.markerElement,
+          anchor: 'bottom',
         })
           .setLngLat(place.coordinates)
           .addTo(map)
 
-        markerElement.style.cursor = 'pointer'
-        markerElement.addEventListener('click', handleClick)
-        markerElement.addEventListener('mouseenter', handleMouseEnter)
-        markerElement.addEventListener('mouseleave', handleMouseLeave)
+        elements.markerElement.style.cursor = 'pointer'
+        elements.markerElement.addEventListener('click', handleClick)
+        elements.markerElement.addEventListener('mouseenter', handleMouseEnter)
+        elements.markerElement.addEventListener('mouseleave', handleMouseLeave)
 
         markers.set(place.id, {
           marker,
           handleClick,
           handleMouseEnter,
           handleMouseLeave,
-          elements: { markerElement, mainCircle, outerRing, label }
+          elements,
         })
       })
     }
-
   }, [map, activePlaces, setSelectedPlace, showMarkers, visibleCategories])
 
-  useEffect(() => {
-    return () => {
-      const markers = markersRef.current
-      markers.forEach((entry) => {
-        const markerElement = entry.elements.markerElement
-        markerElement.removeEventListener('click', entry.handleClick)
-        markerElement.removeEventListener('mouseenter', entry.handleMouseEnter)
-        markerElement.removeEventListener('mouseleave', entry.handleMouseLeave)
-        entry.marker.remove()
-      })
-      markers.clear()
-    }
+  useEffect(() => () => {
+    const markers = markersRef.current
+    markers.forEach((entry) => {
+      const markerElement = entry.elements.markerElement
+      markerElement.removeEventListener('click', entry.handleClick)
+      markerElement.removeEventListener('mouseenter', entry.handleMouseEnter)
+      markerElement.removeEventListener('mouseleave', entry.handleMouseLeave)
+      entry.marker.remove()
+    })
+    markers.clear()
   }, [])
 
   return null

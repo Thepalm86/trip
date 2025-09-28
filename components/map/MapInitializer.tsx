@@ -263,12 +263,14 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           layout: {
             'text-field': [
               'format',
-              ['get', 'city'],
-              { 'font-scale': 1.0 },
-              '\n',
-              {},
               ['get', 'name'],
-              { 'font-scale': 0.8, 'text-color': '#e5e7eb' }
+              { 'font-scale': 1.0 },
+              ['case',
+                ['==', ['coalesce', ['get', 'city'], ''], ''],
+                '',
+                ['concat', '\n', ['coalesce', ['get', 'city'], '']]
+              ],
+              { 'font-scale': 0.85, 'text-color': '#e5e7eb' }
             ],
             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
             'text-size': 12,
@@ -373,12 +375,14 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           layout: {
             'text-field': [
               'format',
-              ['get', 'city'],
-              { 'font-scale': 1.0 },
-              '\n',
-              {},
               ['get', 'name'],
-              { 'font-scale': 0.8, 'text-color': '#e5e7eb' }
+              { 'font-scale': 1.0 },
+              ['case',
+                ['==', ['coalesce', ['get', 'city'], ''], ''],
+                '',
+                ['concat', '\n', ['coalesce', ['get', 'city'], '']]
+              ],
+              { 'font-scale': 0.85, 'text-color': '#e5e7eb' }
             ],
             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
             'text-size': 12,

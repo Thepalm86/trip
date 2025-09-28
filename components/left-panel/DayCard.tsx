@@ -187,12 +187,14 @@ function DraggableDestination({
               </div>
             </div>
             <div>
-              <h4 className="text-lg font-bold text-white mb-1">{destination.city || 'Siena, Italy'}</h4>
+              <h4 className="text-lg font-bold text-white mb-1">{destination.name}</h4>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-blue-400 font-medium">
-                  {destination.name}
-                </span>
-                <div className="w-1 h-1 bg-white/40 rounded-full"></div>
+                {destination.city && (
+                  <span className="text-sm text-blue-400 font-medium">
+                    {destination.city}
+                  </span>
+                )}
+                {destination.city && <div className="w-1 h-1 bg-white/40 rounded-full"></div>}
                 <span className="text-xs text-white/60">Destination</span>
               </div>
             </div>
@@ -566,12 +568,14 @@ export function DayCard({
                         </div>
               </div>
                         <div>
-                          <h3 className="text-lg font-bold text-white mb-1">{day.baseLocations[0].city || 'Rome, Italy'}</h3>
+                          <h3 className="text-lg font-bold text-white mb-1">{day.baseLocations[0].name}</h3>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm text-green-400 font-medium">
-                              {day.baseLocations[0].name}
-                            </span>
-                            <div className="w-1 h-1 bg-white/40 rounded-full"></div>
+                            {day.baseLocations[0].city && (
+                              <span className="text-sm text-green-400 font-medium">
+                                {day.baseLocations[0].city}
+                              </span>
+                            )}
+                            {day.baseLocations[0].city && <div className="w-1 h-1 bg-white/40 rounded-full"></div>}
                             <span className="text-xs text-white/60">Accommodation</span>
                           </div>
                         </div>
@@ -696,12 +700,14 @@ export function DayCard({
                             <Map className="h-5 w-5 text-white/70" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-semibold text-white/95 mb-1">{location.city || 'Rome, Italy'}</h4>
+                            <h4 className="text-sm font-semibold text-white/95 mb-1">{location.name}</h4>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-white/70 font-medium">
-                                {location.name}
-                              </span>
-                              <div className="w-1 h-1 bg-white/40 rounded-full"></div>
+                              {location.city && (
+                                <span className="text-xs text-white/70 font-medium">
+                                  {location.city}
+                                </span>
+                              )}
+                              {location.city && <div className="w-1 h-1 bg-white/40 rounded-full"></div>}
                               <span className="text-xs text-white/50">Alternative</span>
                             </div>
                           </div>

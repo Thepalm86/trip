@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { fallbackCityFromFullName } from '@/lib/location/city'
 
 // Define search priority order (same as places/search)
 const SEARCH_PRIORITY = {
@@ -77,7 +78,9 @@ export async function GET(request: Request) {
       data.results = sortResultsByPriority(data.results)
     }
 
-    const results = (data.results || []).slice(0, 8).map((place: any) => ({
+    const results = (data.results || []).slice(0, 8).map((place: any) => {
+      const city = fallbackCityFromFullName(place.formatted_address || place.name)
+      return {
       id: `google-${place.place_id}`,
       name: place.name,
       fullName: place.formatted_address || place.name,
@@ -91,7 +94,9 @@ export async function GET(request: Request) {
         rating: place.rating,
         types: place.types
       },
-    }))
+      city: city === 'Unknown' ? undefined : city,
+    }
+    })
 
     return NextResponse.json({ results })
   } catch (error) {

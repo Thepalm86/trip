@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, MapPin, Search, Plus, Navigation } from 'lucide-react'
 import { DayLocation } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
+import { resolveCityFromPlace } from '@/lib/location/city'
 
 interface BaseLocationPickerProps {
   dayId: string
@@ -17,6 +18,7 @@ interface LocationResult {
   coordinates: [number, number]
   context?: string
   category?: string
+  placeId?: string
 }
 
 function getCategoryLabel(category: string): string {
@@ -87,7 +89,8 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
           fullName: place.formatted_address || place.name,
           coordinates: [place.geometry.location.lng, place.geometry.location.lat] as [number, number],
           context: place.formatted_address ? place.formatted_address.split(',').slice(-2).join(', ').trim() : place.name,
-          category: place.types?.[0] || 'location'
+          category: place.types?.[0] || 'location',
+          placeId: place.place_id,
         }))
 
         setResults(mapped)
@@ -104,42 +107,17 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
     return () => controller.abort()
   }, [query])
 
-  const handleAddLocation = (location: LocationResult) => {
-    // Extract city from the context
-    const extractCity = (context: string | undefined) => {
-      if (!context) return undefined
-      
-      const parts = context.split(',').map(part => part.trim())
-      
-      // Look for common Italian cities
-      const italianCities = ['Rome', 'Firenze', 'Florence', 'Siena', 'Lucca', 'Pisa', 'Bologna', 'Venice', 'Venezia', 'Milan', 'Milano', 'Naples', 'Napoli', 'Turin', 'Torino', 'Genoa', 'Genova', 'Palermo', 'Catania', 'Bari', 'Verona', 'Padua', 'Padova', 'Ravenna', 'Modena', 'Parma', 'Reggio Emilia', 'Ferrara', 'Rimini', 'San Gimignano', 'Volterra', 'Arezzo', 'Cortona', 'Montepulciano', 'Pienza', 'Montalcino', 'Grosseto', 'Livorno', 'Pistoia', 'Prato', 'Massa', 'Carrara', 'La Spezia', 'Piacenza', 'Cremona', 'Mantova', 'Brescia', 'Bergamo', 'Como', 'Varese', 'Lecco', 'Sondrio', 'Trento', 'Bolzano', 'Udine', 'Trieste', 'Gorizia', 'Pordenone', 'Belluno', 'Treviso', 'Vicenza', 'Rovigo']
-      
-      // First, try to find a known Italian city
-      for (const part of parts) {
-        for (const city of italianCities) {
-          if (part.toLowerCase().includes(city.toLowerCase())) {
-            return city
-          }
-        }
-      }
-      
-      // If no known city found, use the first part but clean it
-      if (parts.length >= 1) {
-        const firstPart = parts[0]
-        // Remove postal codes (numbers at the beginning)
-        return firstPart.replace(/^\d+\s*/, '').trim()
-      }
-      return context.trim()
-    }
+  const handleAddLocation = async (location: LocationResult) => {
+    const city = await resolveCityFromPlace(location.placeId, location.fullName ?? location.context ?? location.name)
 
     const dayLocation: DayLocation = {
       name: location.name,
       coordinates: location.coordinates,
       context: location.context,
-      city: extractCity(location.context)
+      city: city === 'Unknown' ? undefined : city,
     }
-    
-    addBaseLocation(dayId, dayLocation)
+
+    await addBaseLocation(dayId, dayLocation)
     setQuery('')
     setResults([])
   }
