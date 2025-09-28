@@ -30,6 +30,37 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { DestinationOverviewModal } from '../modals/DestinationOverviewModal'
+import { getExploreCategoryMetadata } from '@/lib/explore/categories'
+
+const CATEGORY_LABELS: Record<string, string> = {
+  city: 'City',
+  attraction: 'Attraction',
+  restaurant: 'Restaurant',
+  hotel: 'Hotel',
+  accommodation: 'Accommodation',
+  activity: 'Activity',
+}
+
+function formatCategoryLabel(category?: string) {
+  if (!category) {
+    return 'Activity'
+  }
+
+  const normalized = category.toLowerCase()
+  return CATEGORY_LABELS[normalized] ?? category
+}
+
+function withAlpha(hex: string, alpha: number) {
+  if (!hex) return hex
+  const normalized = hex.replace('#', '')
+  if (normalized.length !== 6) {
+    return hex
+  }
+  const alphaHex = Math.round(alpha * 255)
+    .toString(16)
+    .padStart(2, '0')
+  return `#${normalized}${alphaHex}`
+}
 
 interface DayCardProps {
   day: TimelineDay
@@ -94,115 +125,150 @@ function DraggableDestination({
 
   const isActiveDrag = activeDestinationId === destination.id
 
+  const categoryMetadata = getExploreCategoryMetadata(destination.category)
+  const accentColor = categoryMetadata.colors.border
+  const accentRing = categoryMetadata.colors.ring
+  const badgeLabel = formatCategoryLabel(destination.category)
+
+  const containerStyle = {
+    ...style,
+    borderColor: isSelected || isOver || isActiveDrag ? accentColor : withAlpha(accentColor, 0.25),
+    boxShadow: isSelected
+      ? `0 24px 40px ${withAlpha(accentColor, 0.35)}`
+      : isOver
+      ? `0 16px 32px ${withAlpha(accentColor, 0.25)}`
+      : isActiveDrag
+      ? `0 16px 32px ${withAlpha(accentColor, 0.2)}`
+      : undefined,
+    backgroundImage: `linear-gradient(135deg, ${accentRing}, rgba(15, 23, 42, 0.12))`,
+  }
+
   return (
     <div
       ref={setNodeRef}
-      style={style}
-      className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-indigo-500/5 border transition-all duration-500 cursor-pointer hover:shadow-xl hover:shadow-blue-500/10 ${
-        isSelected 
-          ? 'border-blue-400 border-2 shadow-xl shadow-blue-500/20' 
-          : isOver
-          ? 'border-blue-300/80 ring-2 ring-blue-400/60'
-          : isActiveDrag
-          ? 'border-blue-400/70 shadow-lg shadow-blue-500/20'
-          : 'border-blue-400/20 hover:border-blue-400/40'
-      }`}
+      style={containerStyle}
+      className="group relative overflow-hidden rounded-2xl border transition-all duration-500 cursor-pointer backdrop-blur-sm"
       onClick={(e) => {
         e.stopPropagation()
         onDestinationClick(destination)
       }}
     >
       {/* Action Buttons - styled like drag handle */}
-      <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+      <div className="absolute top-14 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-30">
         <button
           onClick={(e) => {
             e.stopPropagation()
             onOpenOverview(destination)
           }}
-          className={`p-2 rounded-lg transition-all duration-200 ${
-            'bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/50 hover:border-blue-300'
-          }`}
+          className="p-2 rounded-lg transition-all duration-200"
+          style={{
+            backgroundColor: withAlpha(accentColor, 0.12),
+            border: `1px solid ${withAlpha(accentColor, 0.25)}`,
+          }}
           title="View Details"
         >
-          <Eye className="h-4 w-4 text-blue-200" />
+          <Eye className="h-4 w-4" style={{ color: withAlpha(accentColor, 0.85) }} />
         </button>
         <button
           onClick={(e) => {
             e.stopPropagation()
             onEditDestination(destination)
           }}
-          className={`p-2 rounded-lg transition-all duration-200 ${
-            'bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/50 hover:border-blue-300'
-          }`}
+          className="p-2 rounded-lg transition-all duration-200"
+          style={{
+            backgroundColor: withAlpha(accentColor, 0.12),
+            border: `1px solid ${withAlpha(accentColor, 0.25)}`,
+          }}
           title="Edit Destination"
         >
-          <Edit className="h-4 w-4 text-blue-200" />
+          <Edit className="h-4 w-4" style={{ color: withAlpha(accentColor, 0.85) }} />
         </button>
         <button
           onClick={(e) => {
             e.stopPropagation()
             onRemoveDestination(destination.id)
           }}
-          className={`p-2 rounded-lg transition-all duration-200 ${
-            'bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/50 hover:border-blue-300'
-          }`}
+          className="p-2 rounded-lg transition-all duration-200"
+          style={{
+            backgroundColor: withAlpha(accentColor, 0.12),
+            border: `1px solid ${withAlpha(accentColor, 0.25)}`,
+          }}
           title="Remove Destination"
         >
-          <Trash2 className="h-4 w-4 text-blue-200" />
+          <Trash2 className="h-4 w-4" style={{ color: withAlpha(accentColor, 0.85) }} />
         </button>
         {/* Drag Handle - most right */}
         <div
           {...attributes}
           {...listeners}
-          className={`p-2 rounded-lg transition-all duration-200 cursor-grab active:cursor-grabbing ${
-            isDragging 
-              ? 'bg-blue-500/60 border-2 border-blue-300 shadow-lg' 
-              : 'bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/50 hover:border-blue-300'
-          }`}
+          className="p-2 rounded-lg transition-all duration-200 cursor-grab active:cursor-grabbing"
+          style={{
+            backgroundColor: isDragging
+              ? withAlpha(accentColor, 0.35)
+              : withAlpha(accentColor, 0.12),
+            border: `1px solid ${withAlpha(accentColor, isDragging ? 0.45 : 0.25)}`,
+            boxShadow: isDragging ? `0 12px 24px ${withAlpha(accentColor, 0.3)}` : undefined,
+          }}
           title="Drag to reorder"
           onClick={(e) => e.stopPropagation()}
         >
-          <GripVertical className={`h-4 w-4 transition-colors duration-200 ${
-            isDragging ? 'text-blue-100' : 'text-blue-200'
-          }`} />
+          <GripVertical className="h-4 w-4 transition-colors duration-200" style={{ color: withAlpha(accentColor, 0.9) }} />
         </div>
       </div>
 
+      {badgeLabel && (
+        <div
+          className="absolute -right-0.5 -top-0.5 rounded-bl-2xl rounded-tr-2xl px-3 py-1 text-[11px] uppercase tracking-wide border border-white/10 backdrop-blur-sm"
+          style={{
+            backgroundColor: withAlpha(accentColor, 0.25),
+            color: '#f8fafc',
+            borderColor: withAlpha(accentColor, 0.35),
+          }}
+        >
+          {badgeLabel}
+        </div>
+      )}
+
       {/* Background Pattern */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-50"></div>
+      <div
+        className="absolute inset-0 opacity-60"
+        style={{ background: `linear-gradient(135deg, ${withAlpha(accentColor, 0.2)}, rgba(15, 23, 42, 0))` }}
+      ></div>
       
       {/* Content */}
-      <div className="relative p-5">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
+      <div className="relative flex h-full min-h-[108px] flex-col justify-center gap-2.5 p-4">
+        <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/30 to-purple-500/20 flex items-center justify-center shadow-lg border border-blue-400/30">
-                <span className="text-lg font-bold text-blue-400">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg border"
+                style={{
+                  background: `linear-gradient(135deg, ${withAlpha(accentColor, 0.28)}, rgba(15, 23, 42, 0.2))`,
+                  borderColor: withAlpha(accentColor, 0.5),
+                }}
+              >
+                <span className="text-lg font-bold" style={{ color: accentColor }}>
                   {String.fromCharCode(65 + index)}
                 </span>
               </div>
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
+              <div
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-slate-900 flex items-center justify-center"
+                style={{ backgroundColor: accentColor }}
+              >
                 <div className="w-2 h-2 bg-white rounded-full"></div>
               </div>
             </div>
             <div>
-              <h4 className="text-lg font-bold text-white mb-1">{destination.name}</h4>
-              <div className="flex items-center gap-2">
+              <h4 className="mb-1 text-lg font-bold text-white">{destination.name}</h4>
+              <div className="flex items-center gap-2 text-xs text-white/70">
                 {destination.city && (
-                  <span className="text-sm text-blue-400 font-medium">
-                    {destination.city}
-                  </span>
+                  <span className="text-white/80 text-sm font-medium">{destination.city}</span>
                 )}
-                {destination.city && <div className="w-1 h-1 bg-white/40 rounded-full"></div>}
-                <span className="text-xs text-white/60">Destination</span>
               </div>
             </div>
           </div>
-          
         </div>
-        
-        
+
         {/* Notes */}
         {destination.notes && (
           <div className="mt-3 p-2 rounded-lg bg-white/5 border border-white/10">
@@ -227,11 +293,11 @@ export function DayCard({
   activeTargetDayId,
   draggingFromDayId
 }: DayCardProps) {
-  const { 
-    removeDestinationFromDay, 
-    duplicateDay, 
-    removeDay, 
-    setSelectedDestination, 
+  const {
+    removeDestinationFromDay,
+    duplicateDay,
+    removeDay,
+    setSelectedDestination,
     selectedCardId, 
     setSelectedCard,
     removeBaseLocation,
@@ -248,6 +314,10 @@ export function DayCard({
 
   const isTargetDay = activeTargetDayId === day.id
   const isSourceDay = draggingFromDayId === day.id
+
+  const accommodationMetadata = getExploreCategoryMetadata('accommodation')
+  const accommodationAccent = accommodationMetadata.colors.border
+  const accommodationRing = accommodationMetadata.colors.ring
 
   const handleRemoveDestination = (destinationId: string) => {
     removeDestinationFromDay(destinationId, day.id)
@@ -451,6 +521,17 @@ export function DayCard({
           </div>
           
           <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onAddNotes()
+              }}
+              className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
+              title="Add notes"
+            >
+              <BookOpen className="h-4 w-4" />
+            </button>
+
             {/* Day Actions Dropdown */}
             <div className="relative" ref={dropdownRef}>
             <button
@@ -465,30 +546,6 @@ export function DayCard({
               
               {showDropdown && (
                 <div className="absolute right-0 top-full mt-1 w-48 bg-slate-800 border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
-                  <button
-                    onClick={() => {
-                      onAddDestination()
-                      setShowDropdown(false)
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors duration-200"
-                  >
-                    <Plus className="h-4 w-4 text-blue-400" />
-                    <span>Add Activity</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      onAddNotes()
-                      setShowDropdown(false)
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors duration-200"
-                  >
-                    <BookOpen className="h-4 w-4 text-green-400" />
-                    <span>Add Notes</span>
-                  </button>
-                  
-                  <div className="border-t border-white/10 my-1"></div>
-                  
                   <button
                     onClick={handleDuplicateDay}
                     className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors duration-200"
@@ -541,44 +598,53 @@ export function DayCard({
             {/* Default Base Location */}
             <div className="relative group">
               <div 
-                className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500/15 via-green-500/10 to-emerald-500/5 border transition-all duration-500 cursor-pointer hover:shadow-xl hover:shadow-green-500/10 ${
-                  selectedCardId === `base-${day.id}-0` 
-                    ? 'border-green-400 border-2 shadow-xl shadow-green-500/20' 
-                    : 'border-green-400/20 hover:border-green-400/40'
-                }`}
+                className="relative overflow-hidden rounded-2xl border transition-all duration-500 cursor-pointer backdrop-blur-sm"
+                style={{
+                  borderColor: selectedCardId === `base-${day.id}-0`
+                    ? accommodationAccent
+                    : withAlpha(accommodationAccent, 0.25),
+                  boxShadow: selectedCardId === `base-${day.id}-0`
+                    ? `0 24px 40px ${withAlpha(accommodationAccent, 0.28)}`
+                    : undefined,
+                  backgroundImage: `linear-gradient(135deg, ${accommodationRing}, rgba(15, 23, 42, 0.1))`,
+                }}
                 onClick={(e) => {
                   e.stopPropagation()
                   handleBaseLocationClick(day.baseLocations[0], 0)
                 }}
               >
                 {/* Background Pattern */}
-                <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-50"></div>
+                <div
+                  className="absolute inset-0 opacity-60"
+                  style={{ background: `linear-gradient(135deg, ${withAlpha(accommodationAccent, 0.18)}, rgba(15, 23, 42, 0))` }}
+                ></div>
                 
                 {/* Content */}
-                <div className="relative p-5">
+                <div className="relative flex h-full min-h-[108px] flex-col justify-center gap-2.5 p-4">
                   {/* Header */}
-                  <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-green-500/30 to-emerald-500/20 flex items-center justify-center shadow-lg border border-green-400/30">
-                          <Map className="h-6 w-6 text-green-400" />
-                        </div>
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
-                          <div className="w-2 h-2 bg-white rounded-full"></div>
+                 <div className="flex items-start justify-between">
+           <div className="flex items-center gap-3">
+                     <div className="relative">
+                       <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg border" style={{
+                         background: `linear-gradient(135deg, ${withAlpha(accommodationAccent, 0.28)}, rgba(15, 23, 42, 0.2))`,
+                          borderColor: withAlpha(accommodationAccent, 0.35),
+                        }}>
+                         <Map className="h-6 w-6" style={{ color: accommodationAccent }} />
+                       </div>
+                       <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-slate-900 flex items-center justify-center" style={{ backgroundColor: accommodationAccent }}>
+                         <div className="w-2 h-2 bg-white rounded-full"></div>
                         </div>
               </div>
                         <div>
                           <h3 className="text-lg font-bold text-white mb-1">{day.baseLocations[0].name}</h3>
                           <div className="flex items-center gap-2">
-                            {day.baseLocations[0].city && (
-                              <span className="text-sm text-green-400 font-medium">
-                                {day.baseLocations[0].city}
-                              </span>
-                            )}
-                            {day.baseLocations[0].city && <div className="w-1 h-1 bg-white/40 rounded-full"></div>}
-                            <span className="text-xs text-white/60">Accommodation</span>
-                          </div>
+                          {day.baseLocations[0].city && (
+                            <span className="text-white/80 text-sm font-medium">
+                              {day.baseLocations[0].city}
+                            </span>
+                          )}
                         </div>
+                      </div>
                     </div>
                     
                   </div>
@@ -606,7 +672,12 @@ export function DayCard({
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 rounded-lg text-xs font-medium transition-all duration-200 border border-blue-500/30 hover:border-blue-400/50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
+                            style={{
+                              backgroundColor: withAlpha(accommodationAccent, 0.15),
+                              border: `1px solid ${withAlpha(accommodationAccent, 0.3)}`,
+                              color: withAlpha(accommodationAccent, 0.85),
+                            }}
                           >
                             <ExternalLink className="h-3 w-3" />
                             {link.label}
@@ -622,14 +693,16 @@ export function DayCard({
                   )}
                 </div>
                 
-                {/* Default Badge */}
-                <div className="absolute top-4 right-4">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-xl text-xs font-semibold border border-green-400/30 backdrop-blur-sm">
-                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                    Default
-                  </span>
+                <div
+                  className="absolute -right-0.5 -top-0.5 rounded-bl-2xl rounded-tr-2xl px-3 py-1 text-[11px] uppercase tracking-wide border border-white/10 backdrop-blur-sm"
+                  style={{
+                    backgroundColor: withAlpha(accommodationAccent, 0.25),
+                    color: '#f8fafc',
+                    borderColor: withAlpha(accommodationAccent, 0.35),
+                  }}
+                >
+                  Accommodation
                 </div>
-                
                 {/* Action Buttons */}
                 <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <button
@@ -646,7 +719,12 @@ export function DayCard({
                       }
                       handleOpenOverview(tempDestination)
                     }}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-400 transition-all duration-200 backdrop-blur-sm"
+                    className="p-2 rounded-xl transition-all duration-200 backdrop-blur-sm"
+                    style={{
+                      backgroundColor: withAlpha(accommodationAccent, 0.12),
+                      border: `1px solid ${withAlpha(accommodationAccent, 0.25)}`,
+                      color: withAlpha(accommodationAccent, 0.85),
+                    }}
                     title="View overview"
                   >
                     <Info className="h-4 w-4" />
@@ -656,7 +734,12 @@ export function DayCard({
                       e.stopPropagation()
                       handleEditBaseLocation(day.baseLocations[0], 0)
                     }}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 backdrop-blur-sm"
+                    className="p-2 rounded-xl transition-all duration-200 backdrop-blur-sm"
+                    style={{
+                      backgroundColor: withAlpha(accommodationAccent, 0.12),
+                      border: `1px solid ${withAlpha(accommodationAccent, 0.25)}`,
+                      color: withAlpha(accommodationAccent, 0.85),
+                    }}
                     title="Edit accommodation"
                   >
                     <Edit3 className="h-4 w-4" />
@@ -668,7 +751,12 @@ export function DayCard({
                         removeBaseLocation(day.id, 0)
                       }
                     }}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-red-500/20 text-white/70 hover:text-red-400 transition-all duration-200 backdrop-blur-sm"
+                    className="p-2 rounded-xl transition-all duration-200 backdrop-blur-sm"
+                    style={{
+                      backgroundColor: withAlpha(accommodationAccent, 0.12),
+                      border: `1px solid ${withAlpha(accommodationAccent, 0.25)}`,
+                      color: withAlpha(accommodationAccent, 0.85),
+                    }}
                     title="Remove accommodation"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -683,32 +771,41 @@ export function DayCard({
                 {day.baseLocations.slice(1).map((location, index) => (
                   <div key={index} className="relative group">
                     <div 
-                      className={`relative overflow-hidden rounded-xl bg-gradient-to-br from-white/8 via-white/5 to-white/3 border transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-white/5 ${
-                        selectedCardId === `base-${day.id}-${index + 1}` 
-                          ? 'border-white/40 border-2 shadow-lg shadow-white/10' 
-                          : 'border-white/15 hover:border-white/25'
-                      }`}
+                      className="relative overflow-hidden rounded-xl border transition-all duration-300 cursor-pointer backdrop-blur-sm"
+                      style={{
+                        borderColor: selectedCardId === `base-${day.id}-${index + 1}`
+                          ? accommodationAccent
+                          : withAlpha(accommodationAccent, 0.2),
+                        boxShadow: selectedCardId === `base-${day.id}-${index + 1}`
+                          ? `0 18px 32px ${withAlpha(accommodationAccent, 0.24)}`
+                          : undefined,
+                        backgroundImage: `linear-gradient(135deg, ${accommodationRing}, rgba(15, 23, 42, 0.08))`,
+                      }}
                       onClick={(e) => {
                         e.stopPropagation()
                         handleBaseLocationClick(location, index + 1)
                       }}
                     >
                       {/* Content */}
-                      <div className="relative p-4">
+                      <div className="relative flex h-full min-h-[104px] flex-col justify-center gap-2.5 p-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
-                            <Map className="h-5 w-5 text-white/70" />
+                          <div
+                            className="w-10 h-10 rounded-xl flex items-center justify-center border"
+                            style={{
+                              background: `linear-gradient(135deg, ${withAlpha(accommodationAccent, 0.24)}, rgba(15, 23, 42, 0.18))`,
+                              borderColor: withAlpha(accommodationAccent, 0.45),
+                            }}
+                          >
+                            <Map className="h-5 w-5" style={{ color: accommodationAccent }} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h4 className="text-sm font-semibold text-white/95 mb-1">{location.name}</h4>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 text-xs text-white/70">
                               {location.city && (
-                                <span className="text-xs text-white/70 font-medium">
+                                <span className="text-white/80 font-medium">
                                   {location.city}
                                 </span>
                               )}
-                              {location.city && <div className="w-1 h-1 bg-white/40 rounded-full"></div>}
-                              <span className="text-xs text-white/50">Alternative</span>
                             </div>
                           </div>
                           
@@ -736,7 +833,12 @@ export function DayCard({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 rounded-lg text-xs font-medium transition-all duration-200 border border-blue-500/30 hover:border-blue-400/50"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
+                                  style={{
+                                    backgroundColor: withAlpha(accommodationAccent, 0.15),
+                                    border: `1px solid ${withAlpha(accommodationAccent, 0.3)}`,
+                                    color: withAlpha(accommodationAccent, 0.85),
+                                  }}
                                 >
                                   <ExternalLink className="h-3 w-3" />
                                   {link.label}
@@ -768,7 +870,12 @@ export function DayCard({
                             }
                             handleOpenOverview(tempDestination)
                           }}
-                          className="p-1.5 rounded-lg bg-white/10 hover:bg-blue-500/20 text-white/60 hover:text-blue-400 transition-all duration-200"
+                          className="p-1.5 rounded-lg transition-all duration-200"
+                          style={{
+                            backgroundColor: withAlpha(accommodationAccent, 0.12),
+                            border: `1px solid ${withAlpha(accommodationAccent, 0.25)}`,
+                            color: withAlpha(accommodationAccent, 0.85),
+                          }}
                           title="View overview"
                         >
                           <Info className="h-3 w-3" />
@@ -778,7 +885,12 @@ export function DayCard({
                             e.stopPropagation()
                             handleEditBaseLocation(location, index + 1)
                           }}
-                          className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all duration-200"
+                          className="p-1.5 rounded-lg transition-all duration-200"
+                          style={{
+                            backgroundColor: withAlpha(accommodationAccent, 0.12),
+                            border: `1px solid ${withAlpha(accommodationAccent, 0.25)}`,
+                            color: withAlpha(accommodationAccent, 0.85),
+                          }}
                           title="Edit accommodation"
                         >
                           <Edit3 className="h-3 w-3" />
@@ -790,7 +902,12 @@ export function DayCard({
                               removeBaseLocation(day.id, index + 1)
                             }
                           }}
-                          className="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/20 text-white/60 hover:text-red-400 transition-all duration-200"
+                          className="p-1.5 rounded-lg transition-all duration-200"
+                          style={{
+                            backgroundColor: withAlpha(accommodationAccent, 0.12),
+                            border: `1px solid ${withAlpha(accommodationAccent, 0.25)}`,
+                            color: withAlpha(accommodationAccent, 0.85),
+                          }}
                           title="Remove accommodation"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -803,21 +920,33 @@ export function DayCard({
             )}
           </div>
         ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onSetBaseLocation()
-            }}
-            className="w-full flex items-center gap-3 p-3 rounded-lg border border-dashed border-white/20 hover:border-green-400/50 hover:bg-green-500/5 transition-all duration-200"
-          >
-            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
-              <Map className="h-4 w-4 text-white/40" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-medium text-white">Add Accommodations</p>
-              <p className="text-xs text-white/60">Choose potential cities or regions</p>
-            </div>
-          </button>
+          <div className="border border-dashed border-white/15 rounded-2xl py-12 flex items-center justify-center">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onSetBaseLocation()
+              }}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-sm font-medium hover:bg-emerald-500/30 transition-all duration-200"
+            >
+              <Plus className="h-4 w-4" />
+              Add Accommodation
+            </button>
+          </div>
+        )}
+
+        {day.baseLocations.length > 0 && (
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onSetBaseLocation()
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium hover:bg-emerald-500/25 transition-all duration-200"
+            >
+              <Plus className="h-3 w-3" />
+              Add Optional Accommodation
+            </button>
+          </div>
         )}
         </div>
 
@@ -826,11 +955,11 @@ export function DayCard({
           <div className="order-1 p-4 border-b border-white/10 bg-white/[0.01]">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                  <MapPin className="h-3 w-3 text-blue-400" />
+                <div className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                  <MapPin className="h-3 w-3 text-indigo-300" />
                 </div>
-                <h4 className="text-sm font-semibold text-white/80">Activities & Destinations</h4>
-                <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-full">
+                <h4 className="text-sm font-semibold text-indigo-200/90">Activities & Destinations</h4>
+                <span className="text-xs text-indigo-100/70 bg-indigo-500/10 px-2 py-1 rounded-full">
                   {day.destinations.length}
                 </span>
               </div>
@@ -840,33 +969,23 @@ export function DayCard({
           <div className="space-y-3">
             {day.destinations.length === 0 ? (
               <div
-                className={`text-center py-12 border border-dashed rounded-2xl transition-colors duration-200 ${
+                className={`flex flex-col items-center justify-center gap-4 py-12 border border-dashed rounded-2xl transition-colors duration-200 ${
                   isTargetDay
-                    ? 'border-blue-400/70 bg-blue-500/10 text-blue-100 shadow-md shadow-blue-500/20'
-                    : 'border-white/10 text-white'
+                    ? 'border-indigo-400/70 bg-indigo-500/10 text-indigo-100 shadow-md shadow-indigo-500/20'
+                    : 'border-white/15'
                 }`}
               >
-                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
-                  <MapPin className="h-8 w-8 text-white/30" />
-                </div>
-                <h4 className="text-sm font-medium text-white/60 mb-2">No activities yet</h4>
-                <p className="text-xs text-white/40 mb-4">
-                  {day.baseLocations.length > 0 
-                    ? `Add places to visit in ${day.baseLocations[0].name}` 
-                    : 'Set an accommodation first, then add activities'
-                  }
-                </p>
                 <button
                   onClick={onAddDestination}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm font-medium hover:bg-blue-500/30 transition-all duration-200"
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-indigo-100 text-sm font-medium hover:bg-indigo-500/30 transition-all duration-200"
                 >
                   <Plus className="h-4 w-4" />
-                  Add First Activity
+                  Add Activity / Destination
                 </button>
                 {isTargetDay ? (
-                  <p className="mt-3 text-xs font-medium text-blue-100/80">
-                    Drop to move destination into this day
-                  </p>
+                  <span className="text-xs font-medium text-indigo-100/80">
+                    Drop here to move activities into this day
+                  </span>
                 ) : null}
               </div>
             ) : (
@@ -890,6 +1009,20 @@ export function DayCard({
                   />
                 ))}
               </SortableContext>
+            )}
+            {day.destinations.length > 0 && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onAddDestination()
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-indigo-100 text-xs font-medium hover:bg-indigo-500/30 transition-all duration-200"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add Activity / Destination
+                </button>
+              </div>
             )}
           </div>
           </div>

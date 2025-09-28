@@ -40,7 +40,7 @@ export function AddExplorePlaceModal({ place, mode, onClose, onComplete }: AddEx
   const formatDate = (value: Date) => {
     try {
       return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    } catch (error) {
+    } catch {
       return ''
     }
   }

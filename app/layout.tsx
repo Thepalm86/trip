@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter, Playfair_Display } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/lib/auth/auth-context'
@@ -21,7 +21,11 @@ export const metadata: Metadata = {
   description: 'Build amazing travel itineraries with AI-powered destination discovery and smart planning tools.',
   keywords: ['travel', 'itinerary', 'planning', 'destinations', 'AI', 'travel planning'],
   authors: [{ name: 'Traveal Team' }],
-  viewport: 'width=device-width, initial-scale=1',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({

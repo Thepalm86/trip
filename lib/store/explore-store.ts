@@ -7,6 +7,10 @@ import { exploreApiService } from '@/lib/supabase/explore-api'
 import { resolveCityFromPlace, fallbackCityFromFullName } from '@/lib/location/city'
 import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 
+function normalizeNotes(notes: string | null | undefined): string | undefined {
+  return notes ?? undefined
+}
+
 interface ExploreStoreState {
   query: string
   results: ExplorePlace[]
@@ -108,6 +112,7 @@ export const useExploreStore = create<ExploreStoreState>()(
 
         const placeWithSourceId: ExplorePlace = {
           ...place,
+          notes: normalizeNotes(place.notes),
           city: normalizedCity,
           metadata: {
             ...(place.metadata ?? {}),
@@ -132,9 +137,11 @@ export const useExploreStore = create<ExploreStoreState>()(
           const savedPlace = await exploreApiService.addExplorePlace(placeWithSourceId)
 
           // Merge notes (Supabase record does not persist notes yet)
+          const mergedNotes = normalizeNotes(placeWithSourceId.notes) ?? normalizeNotes(savedPlace.notes)
+
           const mergedPlace: ExplorePlace = {
             ...savedPlace,
-            notes: placeWithSourceId.notes ?? savedPlace.notes,
+            notes: mergedNotes,
             metadata: {
               ...(savedPlace.metadata ?? {}),
               ...(placeWithSourceId.metadata ?? {}),
@@ -173,9 +180,14 @@ export const useExploreStore = create<ExploreStoreState>()(
             : visibleCategories
 
           // Still add to local state even if Supabase fails
+          const sanitizedPlace = {
+            ...placeWithSourceId,
+            notes: normalizeNotes(placeWithSourceId.notes),
+          }
+
           set({
-            activePlaces: [...activePlaces, placeWithSourceId],
-            lastAddedPlace: placeWithSourceId,
+            activePlaces: [...activePlaces, sanitizedPlace],
+            lastAddedPlace: sanitizedPlace,
             visibleCategories: nextVisibleCategories ?? null,
           })
         }
@@ -211,14 +223,15 @@ export const useExploreStore = create<ExploreStoreState>()(
           ...(updates.metadata ?? {}),
         }
 
+        const { notes: updatesNotes, ...otherUpdates } = updates
+
         const updatedPlace: ExplorePlace = {
           ...existingPlace,
-          ...updates,
+          ...otherUpdates,
           metadata: mergedMetadata,
-        }
-
-        if (Object.prototype.hasOwnProperty.call(updates, 'notes')) {
-          updatedPlace.notes = updates.notes ?? undefined
+          notes: Object.prototype.hasOwnProperty.call(updates, 'notes')
+            ? normalizeNotes(updatesNotes)
+            : existingPlace.notes,
         }
 
         // Ensure coordinates persist if not provided in updates

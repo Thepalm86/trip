@@ -129,7 +129,7 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
       {map.current && !isLoading && (
         <>
           <MapIntegration map={map.current} />
-          <MapControls map={map.current} />
+          <MapControls />
         </>
       )}
 

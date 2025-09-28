@@ -222,7 +222,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       const createdDestination = await tripApi.addDestinationToDay(dayId, destination)
       console.log('SupabaseTripStore: Destination created in database', createdDestination)
 
-      const { currentTrip, trips, selectedBaseLocation, selectedDestination } = get()
+      const { currentTrip, trips } = get()
       if (currentTrip) {
         const updatedTrip = {
           ...currentTrip,
@@ -285,7 +285,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.log('SupabaseTripStore: Destination updated in database', updatedDestination)
 
       // Update local state
-      const { currentTrip, trips, selectedBaseLocation, selectedDestination } = get()
+      const { currentTrip, trips } = get()
       if (currentTrip) {
         const updatedTrip = {
           ...currentTrip,
@@ -326,7 +326,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       await tripApi.removeDestinationFromDay(destinationId)
       
       // Update local state
-      const { currentTrip, trips, selectedBaseLocation, selectedDestination } = get()
+      const { currentTrip, trips } = get()
       if (currentTrip) {
         const updatedTrip = {
           ...currentTrip,
@@ -500,7 +500,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.log('SupabaseTripStore: Day location updated in database')
       
       // Update local state
-      const { currentTrip, trips, selectedBaseLocation, selectedDestination } = get()
+      const { currentTrip, trips } = get()
       if (currentTrip) {
         const updatedTrip = {
           ...currentTrip,

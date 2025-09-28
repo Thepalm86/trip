@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Search, MapPin, Star, Clock, DollarSign, Plus } from 'lucide-react'
+import { X, Search, MapPin, Star, Edit3 } from 'lucide-react'
 import { Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { resolveCityFromPlace } from '@/lib/location/city'
+import { DestinationCategoryModal } from '@/components/modals/DestinationCategoryModal'
+import { destinationCategoryOptions } from '@/components/modals/destination-category-options'
 
 interface AddDestinationModalProps {
   dayId: string
@@ -18,9 +20,10 @@ interface SearchResult {
   fullName: string
   coordinates: [number, number]
   category?: string
-  contextLabel?: string
+  context?: string
   rating?: number
   placeId?: string
+  city?: string
 }
 
 function getCategoryLabel(category: string): string {
@@ -49,6 +52,9 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
   const [results, setResults] = useState<SearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedDestination, setSelectedDestination] = useState<SearchResult | null>(null)
+  const [pendingDestination, setPendingDestination] = useState<SearchResult | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
   const [duration, setDuration] = useState(2)
   const [cost, setCost] = useState(0)
   const [notes, setNotes] = useState('')
@@ -67,8 +73,8 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
       try {
         setIsLoading(true)
         
-        // Use our Next.js API route to proxy Google Places API
-        const apiEndpoint = new URL('/api/places/search', window.location.origin)
+        // Use the explore search endpoint for consistent prioritization
+        const apiEndpoint = new URL('/api/explore/search', window.location.origin)
         apiEndpoint.searchParams.set('query', query)
 
         const response = await fetch(apiEndpoint.toString(), { signal: controller.signal })
@@ -77,17 +83,18 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
         }
 
         const data = await response.json()
-        const googleResults = data.results ?? []
-        
-        const mapped: SearchResult[] = googleResults.slice(0, 6).map((place: any) => ({
-          id: `google-${place.place_id}`,
+        const exploreResults = data.results ?? []
+
+        const mapped: SearchResult[] = exploreResults.slice(0, 6).map((place: any) => ({
+          id: place.id,
           name: place.name,
-          fullName: place.formatted_address,
-          coordinates: [place.geometry.location.lng, place.geometry.location.lat] as [number, number],
-          category: place.types?.[0] || 'attraction',
-          contextLabel: place.formatted_address.split(',').slice(-2).join(', ').trim(),
-          rating: place.rating || Math.random() * 2 + 3,
-          placeId: place.place_id,
+          fullName: place.fullName,
+          coordinates: place.coordinates,
+          category: place.category,
+          context: place.context,
+          rating: place.metadata?.rating,
+          placeId: place.metadata?.place_id,
+          city: place.city,
         }))
 
         setResults(mapped)
@@ -111,13 +118,20 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
     try {
       const city = await resolveCityFromPlace(selectedDestination.placeId, selectedDestination.fullName)
 
+      const categoryToSave = (() => {
+        if (selectedCategory && selectedCategory.trim().length > 0) {
+          return selectedCategory.trim()
+        }
+        return selectedDestination.category ?? 'attraction'
+      })()
+
       const destination: Destination = {
         id: `search-${Date.now()}`,
         name: selectedDestination.name,
         description: selectedDestination.fullName,
         coordinates: selectedDestination.coordinates,
         city: city === 'Unknown' ? undefined : city,
-        category: (selectedDestination.category as Destination['category']) ?? 'attraction',
+        category: categoryToSave as Destination['category'],
         estimatedDuration: duration,
         cost: cost > 0 ? cost : undefined,
         rating: selectedDestination.rating,
@@ -137,6 +151,57 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
       setIsSaving(false)
     }
   }
+
+  const openCategoryModal = (destination: SearchResult) => {
+    setPendingDestination(destination)
+    setIsCategoryModalOpen(true)
+  }
+
+  const handleResultSelect = (destination: SearchResult) => {
+    openCategoryModal(destination)
+  }
+
+  const handleCategoryConfirm = (category: string) => {
+    const destinationToApply = pendingDestination ?? selectedDestination
+    if (!destinationToApply) {
+      setIsCategoryModalOpen(false)
+      setPendingDestination(null)
+      return
+    }
+
+    if (pendingDestination) {
+      setSelectedDestination(destinationToApply)
+      setDuration(2)
+      setCost(0)
+      setNotes('')
+    }
+    setSelectedCategory(category)
+    setIsCategoryModalOpen(false)
+    setPendingDestination(null)
+  }
+
+  const handleCategoryCancel = () => {
+    setIsCategoryModalOpen(false)
+    setPendingDestination(null)
+  }
+
+  const activeCategoryDestination = pendingDestination ?? selectedDestination
+  const categoryModalInitial = pendingDestination
+    ? pendingDestination.category
+    : selectedCategory ?? selectedDestination?.category
+  const displaySelectedCategory = (() => {
+    if (selectedCategory) {
+      const normalized = selectedCategory.toLowerCase()
+      const matchedOption = destinationCategoryOptions.find(
+        (option) => option.value === normalized,
+      )
+      return matchedOption ? matchedOption.label : selectedCategory
+    }
+    if (selectedDestination?.category) {
+      return getCategoryLabel(selectedDestination.category)
+    }
+    return 'Select a category'
+  })()
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -190,40 +255,45 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
                     <div className="text-sm text-white/60">No results found</div>
                   </div>
                 ) : (
-                  results.map((result) => (
-                    <button
-                      key={result.id}
-                      onClick={() => setSelectedDestination(result)}
-                      className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${
-                        selectedDestination?.id === result.id
-                          ? 'bg-blue-500/20 border border-blue-400/30'
-                          : 'bg-white/5 border border-white/10 hover:bg-white/10'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-                          <MapPin className="h-4 w-4 text-blue-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-white text-sm truncate">{result.name}</span>
-                            {result.category && (
-                              <span className="px-2 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded-full">
-                                {getCategoryLabel(result.category)}
-                              </span>
-                            )}
-                            {result.rating && (
-                              <div className="flex items-center gap-1">
-                                <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                                <span className="text-xs text-white/60">{result.rating.toFixed(1)}</span>
-                              </div>
-                            )}
+                  results.map((result) => {
+                    const isActive =
+                      selectedDestination?.id === result.id || pendingDestination?.id === result.id
+
+                    return (
+                      <button
+                        key={result.id}
+                        onClick={() => handleResultSelect(result)}
+                        className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${
+                          isActive
+                            ? 'bg-blue-500/20 border border-blue-400/30'
+                            : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
+                            <MapPin className="h-4 w-4 text-blue-400" />
                           </div>
-                          <div className="text-xs text-white/50 truncate">{result.fullName}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="mb-1 flex items-center gap-2">
+                              <span className="text-sm font-medium text-white truncate">{result.name}</span>
+                              {result.category && (
+                                <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs text-blue-400">
+                                  {getCategoryLabel(result.category)}
+                                </span>
+                              )}
+                              {result.rating && (
+                                <div className="flex items-center gap-1">
+                                  <Star className="h-3 w-3 text-yellow-400 fill-current" />
+                                  <span className="text-xs text-white/60">{result.rating.toFixed(1)}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-xs text-white/50 truncate">{result.context || result.fullName}</div>
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  ))
+                      </button>
+                    )
+                  })
                 )}
               </div>
             )}
@@ -235,6 +305,19 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
               <div className="p-4 rounded-lg bg-white/5 border border-white/10">
                 <h4 className="font-medium text-white mb-2">Destination Details</h4>
                 <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <span className="block text-sm text-white/80">Category</span>
+                      <span className="text-xs text-white/50">{displaySelectedCategory}</span>
+                    </div>
+                    <button
+                      onClick={() => openCategoryModal(selectedDestination)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 transition hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-white"
+                    >
+                      <Edit3 className="h-3 w-3" /> Change
+                    </button>
+                  </div>
+
                   <div>
                     <label className="block text-sm text-white/80 mb-1">Duration (hours)</label>
                     <input
@@ -314,6 +397,16 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
           </button>
         </div>
       </div>
+
+      {isCategoryModalOpen && activeCategoryDestination && (
+        <DestinationCategoryModal
+          placeName={activeCategoryDestination.name}
+          city={activeCategoryDestination.context || activeCategoryDestination.city}
+          initialCategory={categoryModalInitial}
+          onCancel={handleCategoryCancel}
+          onConfirm={handleCategoryConfirm}
+        />
+      )}
     </div>
   )
 }

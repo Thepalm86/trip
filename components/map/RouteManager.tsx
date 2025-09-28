@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
-import mapboxgl from 'mapbox-gl'
 import type { Trip } from '@/types'
 
 const isMapDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_MAP === 'true'

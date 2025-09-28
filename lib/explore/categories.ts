@@ -27,12 +27,12 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_COLORS: Record<string, MarkerColors> = {
   city: {
-    border: '#22d3ee',
-    ring: 'rgba(34, 211, 238, 0.25)',
+    border: '#2563eb',
+    ring: 'rgba(37, 99, 235, 0.25)',
   },
   attraction: {
-    border: '#3b82f6',
-    ring: 'rgba(59, 130, 246, 0.25)',
+    border: '#2563eb',
+    ring: 'rgba(37, 99, 235, 0.25)',
   },
   restaurant: {
     border: '#f97316',
@@ -43,12 +43,12 @@ const CATEGORY_COLORS: Record<string, MarkerColors> = {
     ring: 'rgba(168, 85, 247, 0.25)',
   },
   accommodation: {
-    border: '#a855f7',
-    ring: 'rgba(168, 85, 247, 0.25)',
+    border: '#34d399',
+    ring: 'rgba(52, 211, 153, 0.25)',
   },
   activity: {
-    border: '#22c55e',
-    ring: 'rgba(34, 197, 94, 0.25)',
+    border: '#2563eb',
+    ring: 'rgba(37, 99, 235, 0.25)',
   },
   other: {
     border: '#06b6d4',

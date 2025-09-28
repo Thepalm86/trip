@@ -29,7 +29,7 @@ function applyMarkerColors(
 ) {
   elements.outerRing.style.backgroundColor = colors.ring
   elements.mainCircle.style.borderColor = colors.border
-  elements.mainCircle.style.backgroundColor = colors.border
+  elements.mainCircle.style.backgroundColor = 'transparent'
 }
 
 function createMarkerElement(

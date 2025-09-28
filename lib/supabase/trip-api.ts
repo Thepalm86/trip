@@ -489,7 +489,7 @@ export const tripApi = {
     }
     
     // First check if the destination exists
-    const { data: existingDestination, error: checkError } = await supabase
+    const { error: checkError } = await supabase
       .from('trip_destinations')
       .select('id')
       .eq('id', destinationId)

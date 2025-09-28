@@ -3,11 +3,7 @@
 import { useState } from 'react'
 import { MapPin, Info, ChevronDown, ChevronUp, Home, Navigation, ArrowRight } from 'lucide-react'
 
-interface MapControlsProps {
-  map: any
-}
-
-export function MapControls({ map }: MapControlsProps) {
+export function MapControls() {
   const [isExpanded, setIsExpanded] = useState(false)
 
 

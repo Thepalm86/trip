@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MapPin, Eye, EyeOff, Check, ChevronDown } from 'lucide-react'
+import { MapPin, Eye, EyeOff, ChevronDown } from 'lucide-react'
 import { useExploreStore } from '@/lib/store/explore-store'
 import { cn } from '@/lib/utils'
 import { getExploreCategoryMetadata, MarkerColors } from '@/lib/explore/categories'
@@ -184,15 +184,20 @@ export function ExploreMarkersToggle({ map }: ExploreMarkersToggleProps) {
                     >
                       <span
                         className={cn(
-                          'flex h-4 w-4 items-center justify-center rounded border-[1.5px] text-[10px] transition-colors',
-                          isChecked ? 'text-slate-950' : 'text-transparent opacity-60'
+                          'relative flex h-4 w-4 items-center justify-center rounded-full border-[1.5px] transition-colors',
+                          isChecked ? 'opacity-100' : 'opacity-70'
                         )}
                         style={{
                           borderColor: option.colors.border,
-                          backgroundColor: isChecked ? option.colors.border : 'transparent',
+                          backgroundColor: 'transparent',
                         }}
                       >
-                        {isChecked && <Check className="h-3 w-3" />}
+                        {isChecked && (
+                          <span
+                            className="block h-2 w-2 rounded-full"
+                            style={{ backgroundColor: option.colors.border }}
+                          />
+                        )}
                       </span>
                       <span className="flex-1 truncate">{option.label}</span>
                       <span className="text-xs text-white/40">{option.count}</span>

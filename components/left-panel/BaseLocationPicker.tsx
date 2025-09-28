@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, MapPin, Search, Plus, Navigation } from 'lucide-react'
+import { X, MapPin, Search } from 'lucide-react'
 import { DayLocation } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { resolveCityFromPlace } from '@/lib/location/city'
@@ -45,8 +45,6 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<LocationResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedLocation, setSelectedLocation] = useState<LocationResult | null>(null)
-
   if (!currentTrip) {
     return null
   }
@@ -56,7 +54,6 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
   const baseLocations = day?.baseLocations || []
 
   // Nearby recommendations (future feature)
-  const [nearbyRecommendations, setNearbyRecommendations] = useState<LocationResult[]>([])
   const [showNearbyRecommendations, setShowNearbyRecommendations] = useState(false)
 
   // Google Places API search functionality (via Next.js API route)
@@ -71,8 +68,8 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
       try {
         setIsLoading(true)
         
-        // Use our Next.js API route to proxy Google Places API
-        const apiEndpoint = new URL('/api/places/search', window.location.origin)
+        // Use the shared explore search endpoint for consistent results
+        const apiEndpoint = new URL('/api/explore/search', window.location.origin)
         apiEndpoint.searchParams.set('query', query)
 
         const response = await fetch(apiEndpoint.toString(), { signal: controller.signal })
@@ -81,16 +78,16 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
         }
 
         const data = await response.json()
-        const googleResults = data.results ?? []
-        
-        const mapped: LocationResult[] = googleResults.slice(0, 6).map((place: any) => ({
-          id: `google-${place.place_id}`,
+        const exploreResults = data.results ?? []
+
+        const mapped: LocationResult[] = exploreResults.slice(0, 6).map((place: any) => ({
+          id: place.id,
           name: place.name,
-          fullName: place.formatted_address || place.name,
-          coordinates: [place.geometry.location.lng, place.geometry.location.lat] as [number, number],
-          context: place.formatted_address ? place.formatted_address.split(',').slice(-2).join(', ').trim() : place.name,
-          category: place.types?.[0] || 'location',
-          placeId: place.place_id,
+          fullName: place.fullName,
+          coordinates: place.coordinates,
+          context: place.context || place.fullName,
+          category: place.category || 'location',
+          placeId: place.metadata?.place_id,
         }))
 
         setResults(mapped)
@@ -127,13 +124,6 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
   }
 
   // Future feature: Get nearby recommendations based on selected location
-  const handleGetNearbyRecommendations = async (location: LocationResult) => {
-    setShowNearbyRecommendations(true)
-    // TODO: Implement nearby recommendations API call
-    // This would fetch popular attractions, restaurants, hotels, etc. near the selected location
-    console.log('Getting nearby recommendations for:', location.name)
-  }
-
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-2xl h-[80vh] overflow-hidden flex flex-col">

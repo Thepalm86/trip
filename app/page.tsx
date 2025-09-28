@@ -5,7 +5,6 @@ import { InteractiveMap, InteractiveMapRef } from '@/components/map/InteractiveM
 import { LeftPanel } from '@/components/left-panel/LeftPanel'
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { TripLoader } from '@/components/trip/TripLoader'
-import { GripVertical } from 'lucide-react'
 import { ResearchCommandPalette } from '@/components/research/ResearchCommandPalette'
 
 export default function HomePage() {
@@ -13,7 +12,6 @@ export default function HomePage() {
   const [map, setMap] = useState<any>(null)
   const [leftPanelWidth, setLeftPanelWidth] = useState(60) // Percentage
   const [isResizing, setIsResizing] = useState(false)
-  const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const animationFrameRef = useRef<number | null>(null)
 
   // Get map instance after component mounts

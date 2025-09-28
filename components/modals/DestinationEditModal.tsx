@@ -1,10 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X, MapPin, Edit3, Trash2, Save, Plus, ExternalLink, Link as LinkIcon } from 'lucide-react'
 import { Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { useExploreStore } from '@/lib/store/explore-store'
+import {
+  destinationCategoryOptions,
+  predefinedDestinationCategories,
+} from './destination-category-options'
 
 interface DestinationEditModalProps {
   dayId: string
@@ -22,16 +26,6 @@ const linkTypeOptions = [
   { value: 'other', label: 'Other', icon: '🔗' }
 ]
 
-const categoryOptions = [
-  { value: 'city', label: 'City' },
-  { value: 'attraction', label: 'Attraction' },
-  { value: 'restaurant', label: 'Restaurant' },
-  { value: 'hotel', label: 'Hotel' },
-  { value: 'accommodation', label: 'Accommodation' },
-  { value: 'activity', label: 'Activity' },
-  { value: 'other', label: 'Other' }
-]
-
 export function DestinationEditModal({ dayId, destination, onClose }: DestinationEditModalProps) {
   const { updateDestination } = useSupabaseTripStore()
   const updateExplorePlace = useExploreStore((state) => state.updateActivePlace)
@@ -41,9 +35,8 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
   const [newLink, setNewLink] = useState({ type: 'website', label: '', url: '' })
   
   // Initialize category states
-  const predefinedCategories = ['city', 'attraction', 'restaurant', 'hotel', 'accommodation', 'activity']
-  const isCustomCategory = !predefinedCategories.includes(destination.category || '')
-  
+  const isCustomCategory = !predefinedDestinationCategories.includes(destination.category || '')
+
   const [selectedCategory, setSelectedCategory] = useState<string>(() => {
     return isCustomCategory ? 'other' : (destination.category || 'city')
   })
@@ -130,7 +123,7 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
     if (category === 'other') {
       // When switching to "other", preserve any existing custom category text
       const currentCategory = editedDestination.category || ''
-      const isCurrentlyCustom = !predefinedCategories.includes(currentCategory)
+      const isCurrentlyCustom = !predefinedDestinationCategories.includes(currentCategory)
       if (isCurrentlyCustom) {
         // Already has custom text, keep it
         setCustomCategory(currentCategory)
@@ -243,7 +236,7 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
                 onChange={(e) => handleCategoryChange(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-800 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-green-400/50 focus:ring-1 focus:ring-green-400/20 transition-all duration-200"
               >
-                {categoryOptions.map(option => (
+                {destinationCategoryOptions.map(option => (
                   <option key={option.value} value={option.value} className="bg-slate-800 text-white">
                     {option.label}
                   </option>

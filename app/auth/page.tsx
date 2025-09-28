@@ -42,7 +42,7 @@ export default function AuthPage() {
           router.push('/')
         }
       }
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
@@ -61,7 +61,7 @@ export default function AuthPage() {
         setOauthLoading(null)
       }
       // Successful sign-in triggers an external redirect handled by Supabase.
-    } catch (err) {
+    } catch {
       setError('Unable to start social sign-in right now. Please try again.')
       setOauthLoading(null)
     }

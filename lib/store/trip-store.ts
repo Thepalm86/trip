@@ -57,7 +57,7 @@ const createInitialTrip = (): Trip => ({
 
 const initialTrip = createInitialTrip()
 
-export const useTripStore = create<TripStore>((set, get) => ({
+export const useTripStore = create<TripStore>((set) => ({
   // Initial state
   currentTrip: initialTrip,
   selectedDestination: null,

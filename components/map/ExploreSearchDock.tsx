@@ -5,6 +5,7 @@ import { Search, Loader2, MapPin, Sparkles, X } from 'lucide-react'
 import { useExploreStore } from '@/lib/store/explore-store'
 import type { ExplorePlace } from '@/types'
 import { getExploreCategoryMetadata } from '@/lib/explore/categories'
+import { destinationCategoryOptions } from '@/components/modals/destination-category-options'
 
 const MIN_QUERY_LENGTH = 2
 
@@ -18,7 +19,6 @@ export function ExploreSearchDock({ defaultExpanded = false }: ExploreSearchDock
   const results = useExploreStore((state) => state.results)
   const recent = useExploreStore((state) => state.recent)
   const isSearching = useExploreStore((state) => state.isSearching)
-  const selectedPlace = useExploreStore((state) => state.selectedPlace)
   const searchPlaces = useExploreStore((state) => state.searchPlaces)
   const setSelectedPlace = useExploreStore((state) => state.setSelectedPlace)
   const addRecent = useExploreStore((state) => state.addRecent)
@@ -224,16 +224,6 @@ function ResultList({ title, items, onSelect, isSearching }: ResultListProps) {
   )
 }
 
-const CATEGORY_OPTIONS = [
-  { value: 'city', label: 'City' },
-  { value: 'attraction', label: 'Attraction' },
-  { value: 'restaurant', label: 'Restaurant' },
-  { value: 'hotel', label: 'Hotel' },
-  { value: 'accommodation', label: 'Accommodation' },
-  { value: 'activity', label: 'Activity' },
-  { value: 'other', label: 'Other' },
-]
-
 interface CategorySelectionDialogProps {
   place: ExplorePlace
   selectedCategory: string
@@ -249,7 +239,7 @@ function CategorySelectionDialog({ place, selectedCategory, onSelectCategory, on
         <h3 className="text-lg font-semibold text-white">Choose category</h3>
         <p className="mt-1 text-sm text-white/60">{place.name}</p>
         <div className="mt-4 grid gap-2">
-          {CATEGORY_OPTIONS.map((option) => {
+          {destinationCategoryOptions.map((option) => {
             const isSelected = selectedCategory === option.value
             return (
               <button

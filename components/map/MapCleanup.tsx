@@ -16,8 +16,7 @@ export function MapCleanup({
   map, 
   hasTrip, 
   tripDays, 
-  selectedDayId, 
-  selectedDestination 
+  selectedDayId,
 }: MapCleanupProps) {
 
   // Enhanced map bounds fitting with day-specific centering
@@ -117,8 +116,6 @@ export function MapCleanup({
 
       // Only fit bounds if we have new coordinates or if it's the first load
       const currentCenter = map.getCenter()
-      const currentZoom = map.getZoom()
-      
       // Check if the map is showing the default Rome location (initial state)
       const isDefaultLocation = Math.abs(currentCenter.lng - 12.4964) < 0.1 && Math.abs(currentCenter.lat - 41.9028) < 0.1
       

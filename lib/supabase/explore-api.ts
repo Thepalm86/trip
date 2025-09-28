@@ -214,7 +214,7 @@ export class ExploreApiService {
         try {
           const addedPlace = await this.addExplorePlace(place)
           addedPlaces.push(addedPlace)
-        } catch (error) {
+        } catch {
           // Skip if place already exists (unique constraint)
           console.warn('ExploreApiService: Place already exists, skipping', place.name)
         }

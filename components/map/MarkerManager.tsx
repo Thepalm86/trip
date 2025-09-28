@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import type { Trip } from '@/types'
+import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 
 interface MarkerManagerProps {
   map: any
@@ -66,13 +67,16 @@ export function MarkerManager({
       }
 
       const baseLocationFeatures = daysToShow
-        .map((day, index) => {
+        .map((day) => {
           const firstBaseLocation = day.baseLocations?.[0]
           if (!firstBaseLocation) {
             return null
           }
 
           const dayIndex = tripDays.findIndex(d => d.id === day.id)
+          const categoryKey = (firstBaseLocation as any).category ?? 'accommodation'
+          const baseMetadata = getExploreCategoryMetadata(categoryKey)
+
           return {
             type: 'Feature' as const,
             geometry: {
@@ -92,7 +96,10 @@ export function MarkerManager({
             totalBaseLocations: day.baseLocations ? day.baseLocations.length : 0,
             city: firstBaseLocation.city || '',
             cardId: `base-${day.id}-0`,
-            isCardSelected: selectedCardId === `base-${day.id}-0`
+            isCardSelected: selectedCardId === `base-${day.id}-0`,
+            markerColorFill: baseMetadata.colors.border,
+            markerColorRing: baseMetadata.colors.ring,
+            markerCategory: baseMetadata.key,
           }
         }
         })
@@ -145,28 +152,31 @@ export function MarkerManager({
           return []
         }
 
-        // Use consistent blue color for all destination markers (matching legend)
-        const markerColor = '#3b82f6'
         return day.destinations.map((destination, destIndex) => ({
           type: 'Feature' as const,
           geometry: {
             type: 'Point' as const,
             coordinates: destination.coordinates
           },
-          properties: {
-            name: destination.name,
-            id: destination.id,
-            dayIndex,
-            dayNumber: dayIndex + 1,
-            dayId: day.id,
-            destIndex,
-            activityLetter: String.fromCharCode(65 + destIndex), // Convert to letters: A, B, C, etc.
-            destinationId: destination.id,
-            markerColor: markerColor, // Consistent blue color for all destination markers
-            city: destination.city || '',
-            cardId: `dest-${destination.id}`,
-            isCardSelected: selectedCardId === `dest-${destination.id}`
-          }
+          properties: (() => {
+            const metadata = getExploreCategoryMetadata(destination.category)
+            return {
+              name: destination.name,
+              id: destination.id,
+              dayIndex,
+              dayNumber: dayIndex + 1,
+              dayId: day.id,
+              destIndex,
+              activityLetter: String.fromCharCode(65 + destIndex),
+              destinationId: destination.id,
+              markerColorFill: metadata.colors.border,
+              markerColorRing: metadata.colors.ring,
+              markerCategory: metadata.key,
+              city: destination.city || '',
+              cardId: `dest-${destination.id}`,
+              isCardSelected: selectedCardId === `dest-${destination.id}`
+            }
+          })()
         }))
       })
 

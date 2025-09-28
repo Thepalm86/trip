@@ -198,8 +198,12 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           source: 'base-locations',
           paint: {
             'circle-radius': 18,
-            'circle-color': '#10b981',
-            'circle-opacity': 0.2,
+            'circle-color': [
+              'coalesce',
+              ['get', 'markerColorRing'],
+              '#10b981'
+            ],
+            'circle-opacity': 0.25,
             'circle-stroke-width': 0
           }
         })
@@ -218,10 +222,8 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               12
             ],
             'circle-color': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], '#34d399',
-              ['boolean', ['feature-state', 'hover'], false], '#22c55e',
-              ['get', 'isCardSelected'], '#34d399',
+              'coalesce',
+              ['get', 'markerColorFill'],
               '#10b981'
             ],
             'circle-stroke-width': [
@@ -303,15 +305,19 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           console.debug('MapInitializer: creating destination layers')
         }
         
-        // Destination outer ring (consistent blue)
+        // Destination outer ring
         map.addLayer({
           id: 'destinations-outer',
           type: 'circle',
           source: 'destinations',
           paint: {
             'circle-radius': 18,
-            'circle-color': '#3b82f6',
-            'circle-opacity': 0.2,
+            'circle-color': [
+              'coalesce',
+              ['get', 'markerColorRing'],
+              '#3b82f6'
+            ],
+            'circle-opacity': 0.25,
             'circle-stroke-width': 0
           }
         })
@@ -330,11 +336,9 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               12
             ],
             'circle-color': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false], '#3b82f6',
-              ['boolean', ['feature-state', 'hover'], false], '#60a5fa',
-              ['get', 'isCardSelected'], '#3b82f6',
-              ['coalesce', ['get', 'markerColor'], '#3b82f6']
+              'coalesce',
+              ['get', 'markerColorFill'],
+              '#3b82f6'
             ],
             'circle-stroke-width': [
               'case',

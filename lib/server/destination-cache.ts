@@ -126,7 +126,7 @@ export class DestinationCacheService {
       expiresAt.setHours(expiresAt.getHours() + this.CACHE_TTL_HOURS)
 
       // Prepare the data for insertion with enhanced metadata
-      const cacheData = {
+      const cacheData: Partial<DestinationModalContent> & { destination_name: string } = {
         destination_name: destinationKey,
         destination_coordinates: metadata.coordinates ? {
           x: metadata.coordinates[0],
@@ -190,7 +190,7 @@ export class DestinationCacheService {
       }
 
       // Filter images by quality threshold if quality_score exists
-      const filteredImages = data.filter((img: any) => 
+      const filteredImages = data.filter((img) => 
         !img.quality_score || img.quality_score >= this.QUALITY_THRESHOLD
       )
 
@@ -198,7 +198,7 @@ export class DestinationCacheService {
         return null
       }
 
-      const images = filteredImages.map((img: any) => ({
+      const images = filteredImages.map((img) => ({
         id: img.id,
         url: img.image_url,
         thumbnail: img.thumbnail_url,
@@ -246,7 +246,7 @@ export class DestinationCacheService {
         .eq('destination_name', destinationKey)
 
       // Prepare image data for insertion with enhanced metadata
-      const imageData = images.map((img, index) => ({
+      const imageData: Array<Partial<DestinationImage> & { destination_name: string; image_url: string; thumbnail_url: string; source: string }> = images.map((img, index) => ({
         destination_name: destinationKey,
         image_url: img.url,
         thumbnail_url: img.thumbnail,
