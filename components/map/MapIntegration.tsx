@@ -44,6 +44,8 @@ export function MapIntegration({ map }: MapIntegrationProps) {
     setSelectedCard,
     selectedBaseLocation,
     setSelectedBaseLocation,
+    selectedRouteSegmentId,
+    setSelectedRouteSegmentId,
   } = useSupabaseTripStore()
 
   const emptyTrip: Trip = {
@@ -103,6 +105,8 @@ export function MapIntegration({ map }: MapIntegrationProps) {
         selectedBaseLocation={selectedBaseLocation}
         setSelectedBaseLocation={setSelectedBaseLocation}
         setSelectedCard={setSelectedCard}
+        selectedRouteSegmentId={selectedRouteSegmentId}
+        setSelectedRouteSegmentId={setSelectedRouteSegmentId}
       />
       <MapCleanup
         map={map}

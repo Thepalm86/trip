@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Search, MapPin, Star, Clock, DollarSign, Plus } from 'lucide-react'
+import { X, Search, MapPin, Star } from 'lucide-react'
 import { Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { resolveCityFromPlace } from '@/lib/location/city'
@@ -21,6 +21,68 @@ interface SearchResult {
   contextLabel?: string
   rating?: number
   placeId?: string
+}
+
+const CATEGORY_OPTIONS = [
+  { value: 'city', label: 'City' },
+  { value: 'attraction', label: 'Attraction' },
+  { value: 'restaurant', label: 'Restaurant' },
+  { value: 'hotel', label: 'Hotel' },
+  { value: 'accommodation', label: 'Accommodation' },
+  { value: 'activity', label: 'Activity' },
+  { value: 'other', label: 'Other' },
+]
+
+interface CategorySelectionDialogProps {
+  placeName: string
+  selectedCategory: string
+  onSelectCategory: (category: string) => void
+  onCancel: () => void
+  onConfirm: () => void
+}
+
+function CategorySelectionDialog({ placeName, selectedCategory, onSelectCategory, onCancel, onConfirm }: CategorySelectionDialogProps) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur">
+      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl">
+        <h3 className="text-lg font-semibold text-white">Choose category</h3>
+        <p className="mt-1 text-sm text-white/60">{placeName}</p>
+        <div className="mt-4 grid gap-2">
+          {CATEGORY_OPTIONS.map((option) => {
+            const isSelected = selectedCategory === option.value
+            return (
+              <button
+                key={option.value}
+                onClick={() => onSelectCategory(option.value)}
+                className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm transition ${
+                  isSelected
+                    ? 'border-blue-500 bg-blue-500/10 text-white'
+                    : 'border-white/10 bg-white/5 text-white/70 hover:border-blue-500/40 hover:bg-blue-500/15 hover:text-white'
+                }`}
+              >
+                <span>{option.label}</span>
+                {isSelected && <span className="text-xs text-blue-300">Selected</span>}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 hover:text-white"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function getCategoryLabel(category: string): string {
@@ -54,6 +116,9 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
   const [notes, setNotes] = useState('')
   const [showNearbyRecommendations, setShowNearbyRecommendations] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [pendingDestination, setPendingDestination] = useState<SearchResult | null>(null)
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string>('attraction')
 
   // Google Places API search functionality (via Next.js API route)
   useEffect(() => {
@@ -138,6 +203,10 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
     }
   }
 
+  const activeSelectionId = categoryDialogOpen && pendingDestination
+    ? pendingDestination.id
+    : selectedDestination?.id
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-2xl h-[80vh] overflow-hidden flex flex-col">
@@ -193,9 +262,13 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
                   results.map((result) => (
                     <button
                       key={result.id}
-                      onClick={() => setSelectedDestination(result)}
+                      onClick={() => {
+                        setPendingDestination(result)
+                        setSelectedCategory(result.category ?? 'attraction')
+                        setCategoryDialogOpen(true)
+                      }}
                       className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${
-                        selectedDestination?.id === result.id
+                        activeSelectionId === result.id
                           ? 'bg-blue-500/20 border border-blue-400/30'
                           : 'bg-white/5 border border-white/10 hover:bg-white/10'
                       }`}
@@ -235,6 +308,24 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
               <div className="p-4 rounded-lg bg-white/5 border border-white/10">
                 <h4 className="font-medium text-white mb-2">Destination Details</h4>
                 <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-white/50">Category</p>
+                      <p className="text-sm font-medium text-white">
+                        {CATEGORY_OPTIONS.find((option) => option.value === selectedDestination.category)?.label ?? 'Custom'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setPendingDestination(selectedDestination)
+                        setSelectedCategory(selectedDestination.category ?? 'attraction')
+                        setCategoryDialogOpen(true)
+                      }}
+                      className="text-xs font-medium text-blue-300 hover:text-blue-200 transition-colors"
+                    >
+                      Change
+                    </button>
+                  </div>
                   <div>
                     <label className="block text-sm text-white/80 mb-1">Duration (hours)</label>
                     <input
@@ -314,6 +405,29 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
           </button>
         </div>
       </div>
+      {categoryDialogOpen && pendingDestination && (
+        <CategorySelectionDialog
+          placeName={pendingDestination.name}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+          onCancel={() => {
+            setPendingDestination(null)
+            setCategoryDialogOpen(false)
+          }}
+          onConfirm={() => {
+            if (!pendingDestination) {
+              return
+            }
+            const destinationWithCategory: SearchResult = {
+              ...pendingDestination,
+              category: selectedCategory,
+            }
+            setSelectedDestination(destinationWithCategory)
+            setPendingDestination(null)
+            setCategoryDialogOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }

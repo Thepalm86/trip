@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
+import type { LineString as GeoJSONLineString } from 'geojson'
 import type { Trip } from '@/types'
 
 function createElement(
@@ -68,6 +69,8 @@ interface MapEventHandlerProps {
   setSelectedDestination: (destination: any, origin?: 'map' | 'timeline') => void
   setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin?: 'map' | 'timeline') => void
   setSelectedCard: (cardId: string | null) => void
+  selectedRouteSegmentId: string | null
+  setSelectedRouteSegmentId: (routeId: string | null) => void
 }
 
 export function MapEventHandler({ 
@@ -81,6 +84,8 @@ export function MapEventHandler({
   setSelectedDestination,
   setSelectedBaseLocation,
   setSelectedCard,
+  selectedRouteSegmentId,
+  setSelectedRouteSegmentId,
 }: MapEventHandlerProps) {
   const [, setActivePopups] = useState<mapboxgl.Popup[]>([])
 
@@ -106,6 +111,72 @@ export function MapEventHandler({
   // Add enhanced click handlers with bidirectional interactions
   useEffect(() => {
     if (!map || !hasTrip) return
+
+    const applyRouteSelection = (routeId: string | null) => {
+      if (!map.getSource('route-segments')) {
+        return
+      }
+
+      const queryFeatures = map.querySourceFeatures('route-segments') as mapboxgl.MapboxGeoJSONFeature[]
+      const seen = new Set<string>()
+
+      queryFeatures.forEach((feature: mapboxgl.MapboxGeoJSONFeature) => {
+        const rawId = feature?.id ?? feature?.properties?.id
+        if (rawId === undefined || rawId === null) {
+          return
+        }
+
+        const featureId = String(rawId)
+        if (seen.has(featureId)) {
+          return
+        }
+        seen.add(featureId)
+
+        map.setFeatureState(
+          { source: 'route-segments', id: featureId },
+          {
+            active: routeId ? featureId === routeId : false,
+            dimmed: routeId ? featureId !== routeId : false
+          }
+        )
+      })
+    }
+
+    const focusRouteBounds = (routeId: string | null) => {
+      if (!routeId || !map.getSource('route-segments')) {
+        return
+      }
+
+      const candidates = map.querySourceFeatures('route-segments', {
+        filter: ['==', ['get', 'id'], routeId]
+      }) as mapboxgl.MapboxGeoJSONFeature[]
+
+      if (!candidates.length) {
+        return
+      }
+
+      const geometry = candidates[0].geometry as GeoJSONLineString | undefined
+      if (!geometry || !Array.isArray(geometry.coordinates) || geometry.coordinates.length === 0) {
+        return
+      }
+
+      let bounds: mapboxgl.LngLatBounds | undefined
+      geometry.coordinates.forEach(coord => {
+        if (!bounds) {
+          bounds = new mapboxgl.LngLatBounds(coord as [number, number], coord as [number, number])
+        } else {
+          bounds.extend(coord as [number, number])
+        }
+      })
+
+      if (bounds) {
+        map.fitBounds(bounds, {
+          padding: { top: 100, bottom: 140, left: 180, right: 180 },
+          duration: 450,
+          maxZoom: 12.5
+        })
+      }
+    }
 
     const handleBaseLocationClick = (e: any) => {
       const feature = e.features[0]
@@ -260,6 +331,16 @@ export function MapEventHandler({
         return
       }
 
+      const featureId = feature.id ?? feature.properties?.id
+      if (featureId) {
+        const featureIdStr = String(featureId)
+        const isSameSelection = selectedRouteSegmentId === featureIdStr
+        const nextSelection = isSameSelection ? null : featureIdStr
+        setSelectedRouteSegmentId(nextSelection)
+        applyRouteSelection(nextSelection)
+        focusRouteBounds(nextSelection)
+      }
+
       if (feature.properties.label) {
         // Clear any existing popups first
         clearPopups()
@@ -303,6 +384,45 @@ export function MapEventHandler({
 
     map.on('click', 'route-segments-layer', handleRouteSegmentClick)
 
+    const handleRouteSegmentMouseEnter = (e: any) => {
+      map.getCanvas().style.cursor = 'pointer'
+      const feature = e.features[0]
+      if (!feature) {
+        return
+      }
+
+      const featureId = feature.id ?? feature.properties?.id
+      if (!featureId) {
+        return
+      }
+
+      map.setFeatureState(
+        { source: 'route-segments', id: featureId },
+        { hover: true }
+      )
+    }
+
+    const handleRouteSegmentMouseLeave = (e: any) => {
+      map.getCanvas().style.cursor = ''
+      const feature = e.features && e.features[0]
+      if (!feature) {
+        return
+      }
+
+      const featureId = feature.id ?? feature.properties?.id
+      if (!featureId) {
+        return
+      }
+
+      map.setFeatureState(
+        { source: 'route-segments', id: featureId },
+        { hover: false }
+      )
+    }
+
+    map.on('mouseenter', 'route-segments-layer', handleRouteSegmentMouseEnter)
+    map.on('mouseleave', 'route-segments-layer', handleRouteSegmentMouseLeave)
+
     // Close popups when clicking on empty areas (not on route segments)
     const handleGeneralClick = (e: mapboxgl.MapMouseEvent) => {
       const routeFeatures = map.queryRenderedFeatures(e.point, {
@@ -333,6 +453,17 @@ export function MapEventHandler({
 
     map.on('click', handleGeneralClick)
 
+    const handleTimelineRouteSelect = (event: Event) => {
+      const customEvent = event as CustomEvent<{ routeId: string | null }>
+      const routeId = customEvent.detail?.routeId ?? null
+      applyRouteSelection(routeId)
+      if (routeId) {
+        focusRouteBounds(routeId)
+      }
+    }
+
+    window.addEventListener('timelineRouteSelect', handleTimelineRouteSelect)
+
     return () => {
       map.off('click', 'base-locations-layer', handleBaseLocationClick)
       map.off('click', 'destinations-layer', handleDestinationClick)
@@ -347,9 +478,12 @@ export function MapEventHandler({
       map.off('click', 'inter-day-routes-layer')
       map.off('click', 'intra-day-routes-layer')
       map.off('click', 'route-segments-layer', handleRouteSegmentClick)
+      map.off('mouseenter', 'route-segments-layer', handleRouteSegmentMouseEnter)
+      map.off('mouseleave', 'route-segments-layer', handleRouteSegmentMouseLeave)
       map.off('click', handleGeneralClick)
+      window.removeEventListener('timelineRouteSelect', handleTimelineRouteSelect)
     }
-  }, [map, hasTrip, tripDays, selectedDayId, selectedDestination, setSelectedDay, setSelectedDestination, setSelectedBaseLocation, setSelectedCard, clearPopups])
+  }, [map, hasTrip, tripDays, selectedDayId, selectedDestination, setSelectedDay, setSelectedDestination, setSelectedBaseLocation, setSelectedCard, selectedRouteSegmentId, setSelectedRouteSegmentId, clearPopups])
 
   return null
 }

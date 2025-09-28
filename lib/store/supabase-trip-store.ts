@@ -21,6 +21,7 @@ interface SupabaseTripStore {
   
   // Selection state
   selectedCardId: string | null
+  selectedRouteSegmentId: string | null
   
   // Maybe locations state
   maybeLocations: Destination[]
@@ -54,6 +55,7 @@ interface SupabaseTripStore {
   // Selection actions
   setSelectedCard: (cardId: string | null) => void
   setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin?: SelectionOrigin) => void
+  setSelectedRouteSegmentId: (routeId: string | null) => void
   
   // Maybe locations actions
   addMaybeLocation: (destination: Destination) => void
@@ -80,6 +82,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   
   // Selection state
   selectedCardId: null,
+  selectedRouteSegmentId: null,
   
   // Maybe locations state
   maybeLocations: [],
@@ -475,12 +478,13 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       selectedDestination: destination,
       selectedBaseLocation: destination ? null : state.selectedBaseLocation,
       selectionOrigin: destination ? origin : null,
+      selectedRouteSegmentId: destination ? null : state.selectedRouteSegmentId,
     }))
   },
 
   // Set selected day
   setSelectedDay: (dayId: string) => {
-    set({ selectedDayId: dayId })
+    set({ selectedDayId: dayId, selectedRouteSegmentId: null })
   },
 
   setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin: SelectionOrigin = 'timeline') => {
@@ -488,6 +492,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       selectedBaseLocation: payload,
       selectedDestination: payload ? null : state.selectedDestination,
       selectionOrigin: payload ? origin : null,
+      selectedRouteSegmentId: payload ? null : state.selectedRouteSegmentId,
     }))
   },
 
@@ -968,6 +973,10 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   // Set selected card
   setSelectedCard: (cardId: string | null) => {
     set({ selectedCardId: cardId })
+  },
+
+  setSelectedRouteSegmentId: (routeId: string | null) => {
+    set({ selectedRouteSegmentId: routeId })
   },
 
   // Maybe locations actions

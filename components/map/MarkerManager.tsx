@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import type { Trip } from '@/types'
+import { getDestinationColor } from '@/lib/map/route-style'
 
 interface MarkerManagerProps {
   map: any
@@ -145,8 +146,6 @@ export function MarkerManager({
           return []
         }
 
-        // Use consistent blue color for all destination markers (matching legend)
-        const markerColor = '#3b82f6'
         return day.destinations.map((destination, destIndex) => ({
           type: 'Feature' as const,
           geometry: {
@@ -162,7 +161,7 @@ export function MarkerManager({
             destIndex,
             activityLetter: String.fromCharCode(65 + destIndex), // Convert to letters: A, B, C, etc.
             destinationId: destination.id,
-            markerColor: markerColor, // Consistent blue color for all destination markers
+            markerColor: getDestinationColor(destIndex),
             city: destination.city || '',
             cardId: `dest-${destination.id}`,
             isCardSelected: selectedCardId === `dest-${destination.id}`

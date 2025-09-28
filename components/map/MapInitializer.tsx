@@ -90,16 +90,17 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             'line-cap': 'round'
           },
           paint: {
-            'line-color': [
+            'line-color': ['coalesce', ['get', 'lineColor'], '#3b82f6'],
+            'line-width': 7,
+            'line-opacity': [
               'case',
-              ['==', ['get', 'visibility'], 'overview'], '#f59e0b',        // Orange for overview inter-day routes
-              ['==', ['get', 'visibility'], 'selected-inbound'], '#10b981', // Green for inbound routes
-              ['==', ['get', 'visibility'], 'selected-intra-day'], '#3b82f6', // Blue for intra-day routes
-              '#8b5cf6' // Default purple for other cases
+              ['boolean', ['feature-state', 'active'], false], 0.6,
+              ['boolean', ['feature-state', 'dimmed'], false], 0.05,
+              ['==', ['get', 'visibility'], 'overview'], 0.15,
+              0.25
             ],
-            'line-width': 8,
-            'line-opacity': 0.2,
-            'line-blur': 2
+            'line-blur': 4,
+            'line-offset': ['coalesce', ['get', 'lineOffset'], 0]
           }
         })
 
@@ -113,24 +114,22 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             'line-cap': 'round'
           },
           paint: {
-            'line-color': [
-              'case',
-              ['==', ['get', 'visibility'], 'overview'], '#f59e0b',        // Orange for overview inter-day routes
-              ['==', ['get', 'visibility'], 'selected-inbound'], '#10b981', // Green for inbound routes
-              ['==', ['get', 'visibility'], 'selected-intra-day'], '#3b82f6', // Blue for intra-day routes
-              '#8b5cf6' // Default purple for other cases
-            ],
+            'line-color': ['coalesce', ['get', 'lineColor'], '#3b82f6'],
             'line-width': [
               'case',
-              ['boolean', ['feature-state', 'hover'], false], 6,
-              4
+              ['boolean', ['feature-state', 'active'], false], 5.5,
+              ['boolean', ['feature-state', 'hover'], false], 4.5,
+              3.5
             ],
             'line-opacity': [
               'case',
-              ['boolean', ['feature-state', 'hover'], false], 1,
-              ['==', ['get', 'visibility'], 'overview'], 0.6, // More subtle for overview routes
-              0.8
-            ]
+              ['boolean', ['feature-state', 'active'], false], 1,
+              ['boolean', ['feature-state', 'dimmed'], false], 0.25,
+              ['boolean', ['feature-state', 'hover'], false], 0.95,
+              ['==', ['get', 'visibility'], 'overview'], 0.55,
+              0.85
+            ],
+            'line-offset': ['coalesce', ['get', 'lineOffset'], 0]
           }
         })
 
@@ -156,6 +155,15 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             'icon-rotate': ['get', 'bearing'],
             'icon-allow-overlap': true,
             'icon-ignore-placement': true
+          },
+          paint: {
+            'icon-color': ['coalesce', ['get', 'lineColor'], '#ffffff'],
+            'icon-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'dimmed'], false], 0.3,
+              ['==', ['get', 'visibility'], 'overview'], 0.6,
+              0.9
+            ]
           }
         })
 
@@ -175,13 +183,7 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           },
           paint: {
             'text-color': '#ffffff',
-            'text-halo-color': [
-              'case',
-              ['==', ['get', 'visibility'], 'overview'], '#d97706',
-              ['==', ['get', 'visibility'], 'selected-inbound'], '#059669',
-              ['==', ['get', 'visibility'], 'selected-intra-day'], '#1e40af',
-              '#7c3aed'
-            ],
+            'text-halo-color': ['coalesce', ['get', 'lineColor'], '#2563eb'],
             'text-halo-width': 3,
             'text-opacity': 0 // Hidden by default
           }

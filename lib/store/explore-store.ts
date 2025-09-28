@@ -211,14 +211,15 @@ export const useExploreStore = create<ExploreStoreState>()(
           ...(updates.metadata ?? {}),
         }
 
-        const updatedPlace: ExplorePlace = {
-          ...existingPlace,
+        const sanitizedUpdates: Partial<ExplorePlace> = {
           ...updates,
-          metadata: mergedMetadata,
+          notes: updates.notes ?? undefined,
         }
 
-        if (Object.prototype.hasOwnProperty.call(updates, 'notes')) {
-          updatedPlace.notes = updates.notes ?? undefined
+        const updatedPlace: ExplorePlace = {
+          ...existingPlace,
+          ...sanitizedUpdates,
+          metadata: mergedMetadata,
         }
 
         // Ensure coordinates persist if not provided in updates

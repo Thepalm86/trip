@@ -2,7 +2,16 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
+import type { Feature, FeatureCollection, LineString } from 'geojson'
 import type { Trip } from '@/types'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
+import {
+  buildIntraFinalKey,
+  buildIntraSequenceKey,
+  buildInterDayKey,
+  getRouteColorForWaypoint,
+  getWaypointKey,
+} from '@/lib/map/route-style'
 
 const isMapDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_MAP === 'true'
 
@@ -21,6 +30,8 @@ interface RouteData {
     name: string
     dayId: string
     locationId?: string
+    listIndex?: number
+    baseIndex?: number
   }>
   segmentType?: 'base-to-destination' | 'destination-to-destination' | 'destination-to-base' | 'base-to-base' | 'inter-day'
   visibility?: 'overview' | 'selected-inbound' | 'selected-outbound' | 'selected-intra-day'
@@ -45,6 +56,12 @@ export function RouteManager({
 }: RouteManagerProps) {
   const routeCalculationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 const routeCache = useRef<Map<string, RouteData>>(new Map())
+  const currentFeatureIdsRef = useRef<string[]>([])
+  const selectedRouteSegmentIdRef = useRef<string | null>(null)
+
+  const selectedRouteSegmentId = useSupabaseTripStore(state => state.selectedRouteSegmentId)
+
+  selectedRouteSegmentIdRef.current = selectedRouteSegmentId
 
   // Calculate bearing between two points
   const calculateBearing = useCallback((start: [number, number], end: [number, number]) => {
@@ -65,12 +82,14 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
     return a[0] === b[0] && a[1] === b[1]
   }, [])
 
-  const toWaypoint = useCallback((dayId: string, role: 'base' | 'destination', payload: { name: string; coordinates: [number, number]; id?: string }) => ({
+  const toWaypoint = useCallback((dayId: string, role: 'base' | 'destination', payload: { name: string; coordinates: [number, number]; id?: string; index?: number }) => ({
     coordinates: payload.coordinates,
     type: role,
     name: payload.name,
     dayId,
-    locationId: payload.id
+    locationId: payload.id,
+    listIndex: role === 'destination' ? payload.index : undefined,
+    baseIndex: role === 'base' ? payload.index : undefined
   }), [])
 
   const getDayStartAnchor = useCallback((day: Trip['days'][0]) => {
@@ -78,13 +97,22 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
     // not the base location (where we sleep)
     const firstDestination = day.destinations[0]
     if (firstDestination) {
-      return toWaypoint(day.id, 'destination', firstDestination)
+      return toWaypoint(day.id, 'destination', {
+        name: firstDestination.name,
+        coordinates: firstDestination.coordinates,
+        id: firstDestination.id,
+        index: 0
+      })
     }
 
     // Fallback to base location only if no destinations exist
     const base = day.baseLocations?.[0]
     if (base) {
-      return toWaypoint(day.id, 'base', base)
+      return toWaypoint(day.id, 'base', {
+        name: base.name,
+        coordinates: base.coordinates,
+        index: 0
+      })
     }
 
     return null
@@ -93,12 +121,21 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
   const getDayEndAnchor = useCallback((day: Trip['days'][0]) => {
     const base = day.baseLocations?.[0]
     if (base) {
-      return toWaypoint(day.id, 'base', base)
+      return toWaypoint(day.id, 'base', {
+        name: base.name,
+        coordinates: base.coordinates,
+        index: 0
+      })
     }
 
     const lastDestination = day.destinations[day.destinations.length - 1]
     if (lastDestination) {
-      return toWaypoint(day.id, 'destination', lastDestination)
+      return toWaypoint(day.id, 'destination', {
+        name: lastDestination.name,
+        coordinates: lastDestination.coordinates,
+        id: lastDestination.id,
+        index: day.destinations.length - 1
+      })
     }
 
     return null
@@ -123,11 +160,23 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
 
     // Create sequential route through all destinations
     for (let i = 0; i < destinations.length - 1; i++) {
-      const current = toWaypoint(day.id, 'destination', destinations[i])
-      const next = toWaypoint(day.id, 'destination', destinations[i + 1])
+      const current = toWaypoint(day.id, 'destination', {
+        name: destinations[i].name,
+        coordinates: destinations[i].coordinates,
+        id: destinations[i].id,
+        index: i
+      })
+      const next = toWaypoint(day.id, 'destination', {
+        name: destinations[i + 1].name,
+        coordinates: destinations[i + 1].coordinates,
+        id: destinations[i + 1].id,
+        index: i + 1
+      })
       if (!coordinatesMatch(current.coordinates, next.coordinates)) {
+        const fromKey = getWaypointKey(current.locationId, current.coordinates)
+        const toKey = getWaypointKey(next.locationId, next.coordinates)
         segments.push({
-          key: `intra-${day.id}-sequence-${i}-${current.locationId ?? current.coordinates.join(',')}-${next.locationId ?? next.coordinates.join(',')}`,
+          key: buildIntraSequenceKey(day.id, i, fromKey, toKey),
           from: current,
           to: next,
           segmentType: 'destination-to-destination'
@@ -138,12 +187,23 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
     // Add route from last destination to base (if base exists and is different)
     const base = day.baseLocations?.[0]
     if (base && destinations.length > 0) {
-      const lastDestination = toWaypoint(day.id, 'destination', destinations[destinations.length - 1])
-      const baseWaypoint = toWaypoint(day.id, 'base', base)
+      const lastDestination = toWaypoint(day.id, 'destination', {
+        name: destinations[destinations.length - 1].name,
+        coordinates: destinations[destinations.length - 1].coordinates,
+        id: destinations[destinations.length - 1].id,
+        index: destinations.length - 1
+      })
+      const baseWaypoint = toWaypoint(day.id, 'base', {
+        name: base.name,
+        coordinates: base.coordinates,
+        index: 0
+      })
       
       if (!coordinatesMatch(lastDestination.coordinates, baseWaypoint.coordinates)) {
+        const fromKey = getWaypointKey(lastDestination.locationId, lastDestination.coordinates)
+        const toKey = getWaypointKey(baseWaypoint.locationId, baseWaypoint.coordinates)
         segments.push({
-          key: `intra-${day.id}-final-${lastDestination.locationId ?? lastDestination.coordinates.join(',')}-${baseWaypoint.locationId ?? baseWaypoint.coordinates.join(',')}`,
+          key: buildIntraFinalKey(day.id, fromKey, toKey),
           from: lastDestination,
           to: baseWaypoint,
           segmentType: 'destination-to-base'
@@ -225,12 +285,12 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
 
         if (segment) {
           interDayRoutes.push({
-            key: `inter-${fromDay.id}-${toDay.id}`,
-            fromDay,
-            toDay,
-            origin: segment.origin,
-            destination: segment.destination,
-            visibility: 'overview'
+          key: buildInterDayKey(fromDay.id, toDay.id),
+          fromDay,
+          toDay,
+          origin: segment.origin,
+          destination: segment.destination,
+          visibility: 'overview'
           })
         }
       }
@@ -252,7 +312,7 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
 
       if (inbound) {
         interDayRoutes.push({
-          key: `inter-${previousDay.id}-${selectedDay.id}`,
+          key: buildInterDayKey(previousDay.id, selectedDay.id),
           fromDay: previousDay,
           toDay: selectedDay,
           origin: inbound.origin,
@@ -324,39 +384,148 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
       await Promise.all(routePromises)
 
       // Update map sources with all segments
-      const allSegments = Array.from(newRoutes.entries()).map(([key, route]) => ({
-        type: 'Feature' as const,
-        geometry: {
-          type: 'LineString' as const,
-          coordinates: route.coordinates
-        },
-        properties: {
+      const allSegments: FeatureCollection<LineString>['features'] = Array.from(newRoutes.entries()).map(([key, route]) => {
+        const endWaypoint = route.waypoints[route.waypoints.length - 1]
+        const lineColor = getRouteColorForWaypoint(endWaypoint)
+        const startCoord = route.coordinates[0]
+        const endCoord = route.coordinates[route.coordinates.length - 1]
+        const startKey = `${startCoord[0]},${startCoord[1]}`
+        const endKey = `${endCoord[0]},${endCoord[1]}`
+        const normalizedKey = startKey < endKey ? `${startKey}|${endKey}` : `${endKey}|${startKey}`
+
+        const feature: Feature<LineString> = {
+          type: 'Feature',
           id: key,
-          routeType: 'segment',
-          segmentType: route.segmentType,
-          visibility: route.visibility,
-          duration: Math.round(route.duration / 60), // Convert to minutes
-          distance: Math.round(route.distance / 1000), // Convert to km
-          label: `${route.fromLocation} → ${route.toLocation}: ${Math.round(route.duration / 60)}min • ${Math.round(route.distance / 1000)}km`,
-          fromDayId: route.fromDayId,
-          toDayId: route.toDayId,
-          fromLocation: route.fromLocation,
-          toLocation: route.toLocation,
-          bearing: calculateBearing(route.coordinates[0], route.coordinates[route.coordinates.length - 1])
+          geometry: {
+            type: 'LineString',
+            coordinates: route.coordinates
+          },
+          properties: {
+            id: key,
+            routeType: 'segment',
+            segmentType: route.segmentType,
+            visibility: route.visibility,
+            duration: Math.round(route.duration / 60), // Convert to minutes
+            distance: Math.round(route.distance / 1000), // Convert to km
+            label: `${route.fromLocation} → ${route.toLocation}: ${Math.round(route.duration / 60)}min • ${Math.round(route.distance / 1000)}km`,
+            fromDayId: route.fromDayId,
+            toDayId: route.toDayId,
+            fromLocation: route.fromLocation,
+            toLocation: route.toLocation,
+            bearing: calculateBearing(startCoord, endCoord),
+            lineColor,
+            parallelGroupKey: normalizedKey
+          }
         }
-      }))
+
+        return feature
+      })
+
+      const parallelGroups = new Map<string, Feature<LineString>[]>()
+
+      allSegments.forEach(feature => {
+        const groupKey = feature.properties?.parallelGroupKey
+        if (!groupKey) return
+        if (!parallelGroups.has(groupKey)) {
+          parallelGroups.set(groupKey, [])
+        }
+        parallelGroups.get(groupKey)!.push(feature)
+      })
+
+      const baseSpacing = 6
+
+      parallelGroups.forEach(features => {
+        if (features.length === 1) {
+          features[0].properties = {
+            ...features[0].properties,
+            lineOffset: 0
+          }
+          return
+        }
+
+        const sorted = [...features].sort((a, b) => {
+          const idA = String(a.id ?? '')
+          const idB = String(b.id ?? '')
+          return idA.localeCompare(idB)
+        })
+
+        const count = sorted.length
+        const offsets: number[] = []
+
+        if (count % 2 === 1) {
+          const midpoint = (count - 1) / 2
+          for (let i = 0; i < count; i++) {
+            offsets.push((i - midpoint) * baseSpacing)
+          }
+        } else {
+          const midpoint = count / 2 - 0.5
+          for (let i = 0; i < count; i++) {
+            offsets.push((i - midpoint) * baseSpacing)
+          }
+        }
+
+        sorted.forEach((feature, index) => {
+          feature.properties = {
+            ...feature.properties,
+            lineOffset: offsets[index]
+          }
+        })
+      })
+
+      const selectedId = selectedRouteSegmentIdRef.current
+      const visibleSegments = selectedId
+        ? allSegments.filter(feature => {
+            const featureId = typeof feature.id === 'string' ? feature.id : feature.properties?.id
+            return featureId === selectedId
+          })
+        : []
 
       // Update map sources
       if (map.getSource('route-segments')) {
-        map.getSource('route-segments').setData({
+        const data: FeatureCollection<LineString> = {
           type: 'FeatureCollection',
-          features: allSegments
-        })
+          features: visibleSegments
+        }
+        map.getSource('route-segments').setData(data)
+        currentFeatureIdsRef.current = visibleSegments
+          .map(feature => (typeof feature.id === 'string' ? feature.id : feature.properties?.id))
+          .filter((id): id is string => typeof id === 'string')
       }
 
       if (isMapDebugEnabled) {
         console.debug('RouteManager: segments updated', {
           totalSegments: allSegments.length,
+          visibleSegments: visibleSegments.length,
+        })
+      }
+
+      if (map && selectedId && visibleSegments.length > 0) {
+        const segment = visibleSegments[0]
+        const coords = segment.geometry?.coordinates ?? []
+        if (coords.length > 0) {
+          let bounds = new mapboxgl.LngLatBounds(coords[0] as [number, number], coords[0] as [number, number])
+          coords.forEach(coord => {
+            bounds = bounds.extend(coord as [number, number])
+          })
+          map.fitBounds(bounds, {
+            padding: { top: 100, bottom: 140, left: 180, right: 180 },
+            duration: 450,
+            maxZoom: 12.5
+          })
+        }
+      }
+
+      // Reapply selection highlight after data refresh
+      if (map && map.getSource('route-segments')) {
+        const selectedId = selectedRouteSegmentIdRef.current
+        currentFeatureIdsRef.current.forEach(featureId => {
+          map.setFeatureState(
+            { source: 'route-segments', id: featureId },
+            {
+              active: selectedId ? featureId === selectedId : false,
+              dimmed: selectedId ? featureId !== selectedId : false
+            }
+          )
         })
       }
 
@@ -365,7 +534,7 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
       } finally {
         onLoadingChange(false)
       }
-  }, [map, hasTrip, token, tripDays, selectedDayId, getRoutesToShow, calculateSegmentRoute, calculateBearing, onLoadingChange])
+  }, [map, hasTrip, token, tripDays, selectedDayId, getRoutesToShow, calculateSegmentRoute, calculateBearing, onLoadingChange, selectedRouteSegmentId])
 
   // Debounced route calculation
   useEffect(() => {
@@ -383,6 +552,23 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
       }
     }
   }, [calculateRoutes])
+
+  // Apply feature state changes when selection updates
+  useEffect(() => {
+    if (!map || !map.getSource('route-segments')) {
+      return
+    }
+
+    currentFeatureIdsRef.current.forEach(featureId => {
+      map.setFeatureState(
+        { source: 'route-segments', id: featureId },
+        {
+          active: selectedRouteSegmentId ? featureId === selectedRouteSegmentId : false,
+          dimmed: selectedRouteSegmentId ? featureId !== selectedRouteSegmentId : false
+        }
+      )
+    })
+  }, [map, selectedRouteSegmentId])
 
   return null
 }
