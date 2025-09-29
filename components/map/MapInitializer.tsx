@@ -305,14 +305,14 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           console.debug('MapInitializer: creating destination layers')
         }
         
-        // Destination outer ring (consistent blue)
+        // Destination outer ring (match marker color with soft opacity)
         map.addLayer({
           id: 'destinations-outer',
           type: 'circle',
           source: 'destinations',
           paint: {
             'circle-radius': 18,
-            'circle-color': '#3b82f6',
+            'circle-color': ['coalesce', ['get', 'markerColor'], '#3b82f6'],
             'circle-opacity': 0.2,
             'circle-stroke-width': 0
           }
@@ -333,9 +333,12 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             ],
             'circle-color': [
               'case',
-              ['boolean', ['feature-state', 'selected'], false], '#3b82f6',
-              ['boolean', ['feature-state', 'hover'], false], '#60a5fa',
-              ['get', 'isCardSelected'], '#3b82f6',
+              ['boolean', ['feature-state', 'selected'], false],
+              ['coalesce', ['get', 'markerColorSelected'], ['coalesce', ['get', 'markerColor'], '#3b82f6']],
+              ['boolean', ['feature-state', 'hover'], false],
+              ['coalesce', ['get', 'markerColorHover'], ['coalesce', ['get', 'markerColor'], '#60a5fa']],
+              ['get', 'isCardSelected'],
+              ['coalesce', ['get', 'markerColorSelected'], ['coalesce', ['get', 'markerColor'], '#3b82f6']],
               ['coalesce', ['get', 'markerColor'], '#3b82f6']
             ],
             'circle-stroke-width': [

@@ -2,7 +2,30 @@
 
 import { useEffect, useRef } from 'react'
 import type { Trip } from '@/types'
-import { getDestinationColor } from '@/lib/map/route-style'
+import { getExploreCategoryMetadata } from '@/lib/explore/categories'
+
+const fallbackColor = '#3b82f6'
+
+const lightenColor = (hex: string | undefined, amount: number) => {
+  if (!hex || typeof hex !== 'string') return fallbackColor
+  const normalized = hex.trim().replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+    return fallbackColor
+  }
+
+  const num = parseInt(normalized, 16)
+  const r = (num >> 16) & 0xff
+  const g = (num >> 8) & 0xff
+  const b = num & 0xff
+
+  const mix = (channel: number) => {
+    const value = Math.round(channel + (255 - channel) * amount)
+    return Math.min(255, Math.max(0, value))
+  }
+
+  const lightened = (mix(r) << 16) | (mix(g) << 8) | mix(b)
+  return `#${lightened.toString(16).padStart(6, '0')}`
+}
 
 interface MarkerManagerProps {
   map: any
@@ -146,27 +169,36 @@ export function MarkerManager({
           return []
         }
 
-        return day.destinations.map((destination, destIndex) => ({
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Point' as const,
-            coordinates: destination.coordinates
-          },
-          properties: {
-            name: destination.name,
-            id: destination.id,
-            dayIndex,
-            dayNumber: dayIndex + 1,
-            dayId: day.id,
-            destIndex,
-            activityLetter: String.fromCharCode(65 + destIndex), // Convert to letters: A, B, C, etc.
-            destinationId: destination.id,
-            markerColor: getDestinationColor(destIndex),
-            city: destination.city || '',
-            cardId: `dest-${destination.id}`,
-            isCardSelected: selectedCardId === `dest-${destination.id}`
+        return day.destinations.map((destination, destIndex) => {
+          const metadata = getExploreCategoryMetadata(destination.category)
+          const baseColor = metadata.colors.border ?? fallbackColor
+          const hoverColor = lightenColor(baseColor, 0.25)
+          const selectedColor = lightenColor(baseColor, 0.12)
+
+          return {
+            type: 'Feature' as const,
+            geometry: {
+              type: 'Point' as const,
+              coordinates: destination.coordinates
+            },
+            properties: {
+              name: destination.name,
+              id: destination.id,
+              dayIndex,
+              dayNumber: dayIndex + 1,
+              dayId: day.id,
+              destIndex,
+              activityLetter: String.fromCharCode(65 + destIndex), // Convert to letters: A, B, C, etc.
+              destinationId: destination.id,
+              markerColor: baseColor,
+              markerColorHover: hoverColor,
+              markerColorSelected: selectedColor,
+              city: destination.city || '',
+              cardId: `dest-${destination.id}`,
+              isCardSelected: selectedCardId === `dest-${destination.id}`
+            }
           }
-        }))
+        })
       })
 
       const serializedFeatures = JSON.stringify(features)

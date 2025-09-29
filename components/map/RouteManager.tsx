@@ -12,6 +12,7 @@ import {
   getRouteColorForWaypoint,
   getWaypointKey,
 } from '@/lib/map/route-style'
+import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 
 const isMapDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_MAP === 'true'
 
@@ -32,6 +33,7 @@ interface RouteData {
     locationId?: string
     listIndex?: number
     baseIndex?: number
+    category?: string
   }>
   segmentType?: 'base-to-destination' | 'destination-to-destination' | 'destination-to-base' | 'base-to-base' | 'inter-day'
   visibility?: 'overview' | 'selected-inbound' | 'selected-outbound' | 'selected-intra-day'
@@ -82,14 +84,15 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
     return a[0] === b[0] && a[1] === b[1]
   }, [])
 
-  const toWaypoint = useCallback((dayId: string, role: 'base' | 'destination', payload: { name: string; coordinates: [number, number]; id?: string; index?: number }) => ({
+  const toWaypoint = useCallback((dayId: string, role: 'base' | 'destination', payload: { name: string; coordinates: [number, number]; id?: string; index?: number; category?: string }) => ({
     coordinates: payload.coordinates,
     type: role,
     name: payload.name,
     dayId,
     locationId: payload.id,
     listIndex: role === 'destination' ? payload.index : undefined,
-    baseIndex: role === 'base' ? payload.index : undefined
+    baseIndex: role === 'base' ? payload.index : undefined,
+    category: role === 'destination' ? payload.category : undefined
   }), [])
 
   const getDayStartAnchor = useCallback((day: Trip['days'][0]) => {
@@ -101,7 +104,8 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
         name: firstDestination.name,
         coordinates: firstDestination.coordinates,
         id: firstDestination.id,
-        index: 0
+        index: 0,
+        category: firstDestination.category
       })
     }
 
@@ -134,7 +138,8 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
         name: lastDestination.name,
         coordinates: lastDestination.coordinates,
         id: lastDestination.id,
-        index: day.destinations.length - 1
+        index: day.destinations.length - 1,
+        category: lastDestination.category
       })
     }
 
@@ -164,13 +169,15 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
         name: destinations[i].name,
         coordinates: destinations[i].coordinates,
         id: destinations[i].id,
-        index: i
+        index: i,
+        category: destinations[i].category
       })
       const next = toWaypoint(day.id, 'destination', {
         name: destinations[i + 1].name,
         coordinates: destinations[i + 1].coordinates,
         id: destinations[i + 1].id,
-        index: i + 1
+        index: i + 1,
+        category: destinations[i + 1].category
       })
       if (!coordinatesMatch(current.coordinates, next.coordinates)) {
         const fromKey = getWaypointKey(current.locationId, current.coordinates)
@@ -191,7 +198,8 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
         name: destinations[destinations.length - 1].name,
         coordinates: destinations[destinations.length - 1].coordinates,
         id: destinations[destinations.length - 1].id,
-        index: destinations.length - 1
+        index: destinations.length - 1,
+        category: destinations[destinations.length - 1].category
       })
       const baseWaypoint = toWaypoint(day.id, 'base', {
         name: base.name,
@@ -386,7 +394,11 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
       // Update map sources with all segments
       const allSegments: FeatureCollection<LineString>['features'] = Array.from(newRoutes.entries()).map(([key, route]) => {
         const endWaypoint = route.waypoints[route.waypoints.length - 1]
-        const lineColor = getRouteColorForWaypoint(endWaypoint)
+        let lineColor = getRouteColorForWaypoint(endWaypoint)
+
+        if (route.segmentType === 'destination-to-destination' && endWaypoint.category) {
+          lineColor = getExploreCategoryMetadata(endWaypoint.category).colors.border
+        }
         const startCoord = route.coordinates[0]
         const endCoord = route.coordinates[route.coordinates.length - 1]
         const startKey = `${startCoord[0]},${startCoord[1]}`
@@ -500,6 +512,10 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
       }
 
       if (map && selectedId && visibleSegments.length > 0) {
+        const skipFitConfig = (map as any).__skipNextRouteFit
+        if (skipFitConfig) {
+          (map as any).__skipNextRouteFit = null
+        }
         const segment = visibleSegments[0]
         const coords = segment.geometry?.coordinates ?? []
         if (coords.length > 0) {
@@ -507,11 +523,21 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
           coords.forEach(coord => {
             bounds = bounds.extend(coord as [number, number])
           })
-          map.fitBounds(bounds, {
-            padding: { top: 100, bottom: 140, left: 180, right: 180 },
-            duration: 450,
-            maxZoom: 12.5
-          })
+          if (skipFitConfig && typeof map.easeTo === 'function' && typeof bounds.getCenter === 'function') {
+            const preservedZoom = typeof skipFitConfig.zoom === 'number' ? skipFitConfig.zoom : map.getZoom?.()
+            const center = bounds.getCenter()
+            map.easeTo({
+              center,
+              zoom: preservedZoom,
+              duration: 450,
+            })
+          } else {
+            map.fitBounds(bounds, {
+              padding: { top: 100, bottom: 140, left: 180, right: 180 },
+              duration: 450,
+              maxZoom: 12.5
+            })
+          }
         }
       }
 

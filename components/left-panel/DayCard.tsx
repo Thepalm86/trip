@@ -4,7 +4,6 @@ import {
   MapPin, 
   Plus, 
   Edit3, 
-  BookOpen,
   Map,
   MoreVertical,
   Copy,
@@ -36,9 +35,9 @@ import {
   buildInterDayKey,
   buildIntraFinalKey,
   buildIntraSequenceKey,
-  getDestinationColor,
   getWaypointKey,
 } from '@/lib/map/route-style'
+import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 
 interface DayCardProps {
   day: TimelineDay
@@ -90,6 +89,9 @@ const formatCategoryLabel = (category?: string) => {
   const normalized = category.replace(/[_-]+/g, ' ').trim()
   return normalized.charAt(0).toUpperCase() + normalized.slice(1)
 }
+
+const getCategoryAccentColor = (category?: string) =>
+  getExploreCategoryMetadata(category).colors.border
 
 const buildBadgeStyle = (accent: string): CSSProperties => ({
   background: `linear-gradient(135deg, ${applyAlpha(accent, '36')} 0%, ${applyAlpha(accent, '12')} 100%)`,
@@ -366,7 +368,7 @@ export function DayCard({
   dayIndex, 
   isExpanded, 
   onAddDestination, 
-  onAddNotes,
+  onAddNotes: _onAddNotes,
   onSetBaseLocation,
   activeDestinationId,
   activeTargetDayId,
@@ -495,10 +497,11 @@ export function DayCard({
 
   const handleRouteSelect = (routeKey: string) => {
     setSelectedDay(day.id)
-    const nextRouteKey = selectedRouteSegmentId === routeKey ? null : routeKey
-    setSelectedRouteSegmentId(nextRouteKey)
+    if (selectedRouteSegmentId !== routeKey) {
+      setSelectedRouteSegmentId(routeKey)
+    }
     window.dispatchEvent(new CustomEvent('timelineRouteSelect', {
-      detail: { routeId: nextRouteKey }
+      detail: { routeId: routeKey, skipFocus: true }
     }))
   }
 
@@ -577,7 +580,7 @@ export function DayCard({
   }, [])
 
   const containerClasses = [
-    'h-full flex flex-col bg-white/[0.02] rounded-2xl border border-white/10 overflow-hidden hover:bg-white/[0.04] transition-all duration-200 cursor-pointer',
+    'relative h-full flex flex-col bg-white/[0.02] rounded-2xl border border-white/10 hover:bg-white/[0.04] transition-all duration-200 cursor-pointer',
     isTargetDay ? 'ring-2 ring-blue-400/60 border-blue-400/50 shadow-lg shadow-blue-500/20' : '',
     isSourceDay && !isTargetDay ? 'border-blue-400/40' : '',
   ]
@@ -623,57 +626,50 @@ export function DayCard({
               </button>
               
               {showDropdown && (
-                <div className="absolute right-0 top-full mt-1 w-48 bg-slate-800 border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
-                  <button
-                    onClick={() => {
-                      onAddDestination()
-                      setShowDropdown(false)
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors duration-200"
-                  >
-                    <Plus className="h-4 w-4 text-blue-400" />
-                    <span>Add Activity / Destination</span>
-                  </button>
+                <div className="absolute right-0 top-full mt-2 w-52 rounded-xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-black/40 backdrop-blur z-50 overflow-hidden">
+                  <div className="py-2">
+                    <button
+                      onClick={() => {
+                        onAddDestination()
+                        setShowDropdown(false)
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                    >
+                      <Plus className="h-4 w-4 text-sky-400" />
+                      <span>Add Activity / Destination</span>
+                    </button>
 
-                  <button
-                    onClick={() => {
-                      onSetBaseLocation()
-                      setShowDropdown(false)
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors duration-200"
-                  >
-                    <Map className="h-4 w-4 text-green-400" />
-                    <span>Add Accommodation</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      onAddNotes()
-                      setShowDropdown(false)
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors duration-200"
-                  >
-                    <BookOpen className="h-4 w-4 text-green-400" />
-                    <span>Add Notes</span>
-                  </button>
-                  
-                  <div className="border-t border-white/10 my-1"></div>
-                  
-                  <button
-                    onClick={handleDuplicateDay}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors duration-200"
-                  >
-                    <Copy className="h-4 w-4 text-blue-400" />
-                    <span>Duplicate Day</span>
-                  </button>
-                  
-                  <button
-                    onClick={handleRemoveDay}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-red-500/20 hover:text-red-400 transition-colors duration-200"
-                  >
-                    <X className="h-4 w-4 text-red-400" />
-                    <span>Remove Day</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        onSetBaseLocation()
+                        setShowDropdown(false)
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                    >
+                      <Plus className="h-4 w-4 text-emerald-400" />
+                      <span>Add Accommodation</span>
+                    </button>
+                  </div>
+
+                  <div className="border-t border-white/10" />
+
+                  <div className="py-2">
+                    <button
+                      onClick={handleDuplicateDay}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                    >
+                      <Copy className="h-4 w-4 text-blue-400" />
+                      <span>Duplicate Day</span>
+                    </button>
+
+                    <button
+                      onClick={handleRemoveDay}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-red-300 hover:bg-red-500/15 hover:text-red-200 transition-colors"
+                    >
+                      <X className="h-4 w-4 text-red-400" />
+                      <span>Remove Day</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -977,7 +973,7 @@ export function DayCard({
             </div>
           </div>
         ) : (
-          <div className="flex justify-end py-6">
+          <div className="flex justify-center py-6">
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -986,7 +982,7 @@ export function DayCard({
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-sm font-medium transition-all duration-200 hover:bg-emerald-500/30 hover:border-emerald-400/60"
             >
               <Plus className="h-4 w-4" />
-              Add Alternative Accommodation
+              Add Accommodation
             </button>
           </div>
         )}
@@ -1038,7 +1034,7 @@ export function DayCard({
                 strategy={verticalListSortingStrategy}
               >
                 {day.destinations.map((destination, index) => {
-                  const accentColor = getDestinationColor(index)
+                  const accentColor = getCategoryAccentColor(destination.category)
                   const nextDestination = day.destinations[index + 1]
                   const segmentNodes: ReactNode[] = []
                   const preConnectorNodes: ReactNode[] = []
@@ -1075,6 +1071,7 @@ export function DayCard({
                     nextDestination &&
                     !coordinatesAreEqual(destination.coordinates, nextDestination.coordinates)
                   ) {
+                    const nextAccentColor = getCategoryAccentColor(nextDestination.category)
                     const fromKey = getWaypointKey(destination.id, destination.coordinates)
                     const toKey = getWaypointKey(nextDestination.id, nextDestination.coordinates)
                     const routeKey = buildIntraSequenceKey(day.id, index, fromKey, toKey)
@@ -1082,7 +1079,7 @@ export function DayCard({
                     segmentNodes.push(
                       <RouteConnector
                         key={`connector-${routeKey}`}
-                        color={getDestinationColor(index + 1)}
+                        color={nextAccentColor}
                         label={`Route to ${nextDestination.name}`}
                         routeKey={routeKey}
                         isSelected={selectedRouteSegmentId === routeKey}

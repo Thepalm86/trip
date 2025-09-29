@@ -142,8 +142,11 @@ export function MapEventHandler({
       })
     }
 
-    const focusRouteBounds = (routeId: string | null) => {
-      if (!routeId || !map.getSource('route-segments')) {
+    const focusRouteBounds = (
+      routeId: string | null,
+      options: { skipFitBounds?: boolean } = {}
+    ) => {
+      if (!routeId || !map.getSource('route-segments') || options.skipFitBounds) {
         return
       }
 
@@ -334,11 +337,10 @@ export function MapEventHandler({
       const featureId = feature.id ?? feature.properties?.id
       if (featureId) {
         const featureIdStr = String(featureId)
-        const isSameSelection = selectedRouteSegmentId === featureIdStr
-        const nextSelection = isSameSelection ? null : featureIdStr
-        setSelectedRouteSegmentId(nextSelection)
-        applyRouteSelection(nextSelection)
-        focusRouteBounds(nextSelection)
+        ;(map as any).__skipNextRouteFit = null
+        setSelectedRouteSegmentId(featureIdStr)
+        applyRouteSelection(featureIdStr)
+        focusRouteBounds(featureIdStr)
       }
 
       if (feature.properties.label) {
@@ -454,11 +456,17 @@ export function MapEventHandler({
     map.on('click', handleGeneralClick)
 
     const handleTimelineRouteSelect = (event: Event) => {
-      const customEvent = event as CustomEvent<{ routeId: string | null }>
+      const customEvent = event as CustomEvent<{ routeId: string | null; skipFocus?: boolean }>
       const routeId = customEvent.detail?.routeId ?? null
+      const skipFocus = customEvent.detail?.skipFocus ?? false
+      if (skipFocus && typeof map?.getZoom === 'function') {
+        ;(map as any).__skipNextRouteFit = { zoom: map.getZoom() }
+      } else {
+        ;(map as any).__skipNextRouteFit = null
+      }
       applyRouteSelection(routeId)
       if (routeId) {
-        focusRouteBounds(routeId)
+        focusRouteBounds(routeId, { skipFitBounds: skipFocus })
       }
     }
 
