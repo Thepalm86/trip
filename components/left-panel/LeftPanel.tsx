@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Share2, Edit3, HelpCircle, Sparkles, Search, Calendar, Globe, ChevronDown, Settings } from 'lucide-react'
+import { Share2, Edit3, HelpCircle, Sparkles, Search, Calendar, Globe, ChevronDown, Settings, Loader2 } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
@@ -9,6 +9,8 @@ import { UserProfile } from '@/components/auth/user-profile'
 import { ONBOARDING_EVENT_NAME, ONBOARDING_STORAGE_KEY } from '@/components/onboarding/AppOnboarding'
 import { useResearchStore } from '@/lib/store/research-store'
 import { buildCountryOptions } from './CountrySelector'
+import { searchCountries, CountrySearchResult } from '@/lib/map/country-search'
+import { getCountryMeta, setCountryMeta } from '@/lib/map/country-cache'
 
 export function LeftPanel() {
   const { currentTrip, updateTrip } = useSupabaseTripStore()
@@ -19,6 +21,8 @@ export function LeftPanel() {
   const [showCountrySelector, setShowCountrySelector] = useState(false)
   const [isCountrySaving, setIsCountrySaving] = useState(false)
   const countryOptions = useMemo(() => buildCountryOptions(), [])
+  const [countryName, setCountryName] = useState<string | null>(null)
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ''
 
   useEffect(() => {
     if (currentTrip && !isEditingTripName) {
@@ -28,8 +32,57 @@ export function LeftPanel() {
 
   const selectedCountry = currentTrip?.country ?? null
   const countryLabel = selectedCountry
-    ? countryOptions.find(option => option.code === selectedCountry)?.name ?? selectedCountry
-    : 'Select a country'
+    ? countryName ?? selectedCountry
+    : 'Choose a country'
+
+  useEffect(() => {
+    if (!selectedCountry) {
+      setCountryName(null)
+      return
+    }
+
+    const normalized = selectedCountry.toUpperCase()
+    const meta = getCountryMeta(normalized)
+
+    if (meta?.name) {
+      setCountryName(meta.name)
+      return
+    }
+
+    const optionMatch = countryOptions.find(option => option.code.toUpperCase() === normalized)
+    if (optionMatch) {
+      setCountryName(optionMatch.name)
+      setCountryMeta(normalized, { name: optionMatch.name })
+      return
+    }
+
+    if (!mapboxToken) {
+      setCountryName(normalized)
+      return
+    }
+
+    let cancelled = false
+
+    searchCountries(normalized, mapboxToken, 1)
+      .then(results => {
+        if (cancelled) return
+        const match = results.find(result => result.code.toUpperCase() === normalized) ?? results[0]
+        if (match) {
+          setCountryName(match.name)
+          setCountryMeta(normalized, { name: match.name, bbox: match.bbox, center: match.center })
+        } else {
+          setCountryName(normalized)
+        }
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCountryName(normalized)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedCountry, countryOptions, mapboxToken])
 
   const dateRangeLabel = currentTrip?.startDate && currentTrip?.endDate
     ? `${currentTrip.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${currentTrip.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
@@ -72,13 +125,21 @@ export function LeftPanel() {
     }
   }
 
-  const handleCountrySelect = async (code: string) => {
+  const handleCountrySelect = async (option: CountrySelectionOption) => {
     if (!currentTrip) {
       return
     }
     setIsCountrySaving(true)
     try {
-      await updateTrip(currentTrip.id, { country: code })
+      if (option.name) {
+        setCountryName(option.name)
+      }
+      setCountryMeta(option.code, {
+        name: option.name,
+        bbox: option.bbox,
+        center: option.center,
+      })
+      await updateTrip(currentTrip.id, { country: option.code })
       setShowCountrySelector(false)
     } catch (error) {
       console.error('LeftPanel: failed to set country', error)
@@ -248,59 +309,113 @@ export function LeftPanel() {
           options={countryOptions}
           selectedCode={selectedCountry}
           isSaving={isCountrySaving}
+          token={mapboxToken}
         />
       )}
     </div>
   )
 }
 
-type CountryOption = ReturnType<typeof buildCountryOptions>[number]
+type StaticCountryOption = ReturnType<typeof buildCountryOptions>[number]
+
+interface CountrySelectionOption {
+  code: string
+  name: string
+  bbox?: [number, number, number, number]
+  center?: [number, number]
+}
 
 interface CountrySelectModalProps {
   onClose: () => void
-  onSelect: (code: string) => Promise<void>
-  options: CountryOption[]
+  onSelect: (option: CountrySelectionOption) => Promise<void>
+  options: StaticCountryOption[]
   selectedCode: string | null
   isSaving: boolean
+  token: string
 }
 
-function CountrySelectModal({ onClose, onSelect, options, selectedCode, isSaving }: CountrySelectModalProps) {
+function dedupeByCode(options: CountrySelectionOption[]): CountrySelectionOption[] {
+  const seen = new Set<string>()
+  const result: CountrySelectionOption[] = []
+  for (const option of options) {
+    const code = option.code.toUpperCase()
+    if (seen.has(code)) continue
+    seen.add(code)
+    result.push({ ...option, code })
+  }
+  return result
+}
+
+function CountrySelectModal({ onClose, onSelect, options, selectedCode, isSaving, token }: CountrySelectModalProps) {
   const [query, setQuery] = useState('')
+  const [results, setResults] = useState<CountrySelectionOption[]>([])
+  const [isSearching, setIsSearching] = useState(false)
 
   const selectedName = useMemo(() => {
     if (!selectedCode) return 'Not set'
-    return options.find(option => option.code === selectedCode)?.name ?? selectedCode
-  }, [options, selectedCode])
+    const fromResults = results.find(option => option.code.toUpperCase() === selectedCode.toUpperCase())
+    if (fromResults) return fromResults.name
+    const fromBase = options.find(option => option.code.toUpperCase() === selectedCode.toUpperCase())
+    return fromBase?.name ?? selectedCode
+  }, [options, results, selectedCode])
 
-  const filteredOptions = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
+  useEffect(() => {
+    let cancelled = false
+    const trimmed = query.trim()
 
-    if (!normalized) {
-      return options
+    if (!trimmed) {
+      setResults([])
+      setIsSearching(false)
+      return () => {
+        cancelled = true
+      }
     }
 
-    return options
-      .filter(option => 
-        option.name.toLowerCase().includes(normalized) || 
-        option.code.toLowerCase().includes(normalized)
-      )
-      .sort((a, b) => {
-        // Prioritize exact matches and matches at the beginning
-        const aName = a.name.toLowerCase()
-        const bName = b.name.toLowerCase()
-        
-        if (aName.startsWith(normalized) && !bName.startsWith(normalized)) return -1
-        if (!aName.startsWith(normalized) && bName.startsWith(normalized)) return 1
-        if (aName === normalized && bName !== normalized) return -1
-        if (aName !== normalized && bName === normalized) return 1
-        
-        return aName.localeCompare(bName)
-      })
-  }, [options, query])
+    if (!token) {
+      setResults([])
+      setIsSearching(false)
+      return () => {
+        cancelled = true
+      }
+    }
 
-  const handleSelect = async (code: string) => {
-    if (isSaving) return
-    await onSelect(code)
+    setIsSearching(true)
+
+    const timeoutId = window.setTimeout(() => {
+      searchCountries(trimmed, token, 8)
+        .then((found) => {
+          if (cancelled) return
+          if (found.length === 0) {
+            setResults([])
+          } else {
+            setResults(dedupeByCode(found.map((entry: CountrySearchResult) => ({
+              code: entry.code,
+              name: entry.name,
+              bbox: entry.bbox,
+              center: entry.center,
+            }))))
+          }
+        })
+        .catch((error) => {
+          if (cancelled) return
+          console.error('CountrySelectModal: search failed', error)
+          setResults([])
+        })
+        .finally(() => {
+          if (cancelled) return
+          setIsSearching(false)
+        })
+    }, 250)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [query, token])
+
+  const handleSelect = async (option: CountrySelectionOption) => {
+    if (isSaving || option.code.toUpperCase() === selectedCode?.toUpperCase()) return
+    await onSelect(option)
     setQuery('')
   }
 
@@ -332,19 +447,24 @@ function CountrySelectModal({ onClose, onSelect, options, selectedCode, isSaving
               placeholder="Search for a country..."
               className="w-full rounded-xl border border-white/10 bg-white/[0.06] py-3 pl-10 pr-4 text-sm text-white placeholder:text-white/40 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
             />
+            {isSearching && (
+              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-white/60" />
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto rounded-xl border border-white/5 bg-white/[0.02]">
-            {filteredOptions.length === 0 ? (
-              <div className="px-4 py-6 text-center text-sm text-white/50">No countries match your search.</div>
+            {results.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sm text-white/50">
+                {query.trim() ? 'No countries match your search.' : 'Start typing to find any country.'}
+              </div>
             ) : (
               <div className="divide-y divide-white/5">
-                {filteredOptions.map((option) => {
-                  const isSelected = option.code === selectedCode
+                {results.map((option) => {
+                  const isSelected = option.code.toUpperCase() === selectedCode?.toUpperCase()
                   return (
                     <button
                       key={option.code}
-                      onClick={() => handleSelect(option.code)}
+                      onClick={() => handleSelect(option)}
                       className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-white/80 transition hover:bg-blue-500/15 disabled:cursor-not-allowed disabled:text-white/40"
                       disabled={isSelected || isSaving}
                     >

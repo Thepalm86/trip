@@ -1,3 +1,5 @@
+import { getCountryMeta, setCountryMeta } from './country-cache'
+
 const boundsCache = new Map<string, [number, number, number, number]>()
 const inFlight = new Map<string, Promise<[number, number, number, number] | null>>()
 
@@ -39,6 +41,12 @@ export async function getCountryBounds(code: string, token: string): Promise<[nu
     return boundsCache.get(normalized) ?? null
   }
 
+  const storedMeta = getCountryMeta(normalized)
+  if (storedMeta?.bbox) {
+    boundsCache.set(normalized, storedMeta.bbox)
+    return storedMeta.bbox
+  }
+
   if (!token) {
     return null
   }
@@ -51,6 +59,7 @@ export async function getCountryBounds(code: string, token: string): Promise<[nu
     .then((bbox) => {
       if (bbox) {
         boundsCache.set(normalized, bbox)
+        setCountryMeta(normalized, { bbox })
       }
       inFlight.delete(normalized)
       return bbox

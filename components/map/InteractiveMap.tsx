@@ -32,12 +32,13 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/dark-v11', // Dark theme to match our design
-      center: [12.4964, 41.9028], // Rome coordinates
-      zoom: 12,
+      center: [0, 20],
+      zoom: 1.2,
       pitch: 0,
       bearing: 0,
       antialias: true,
       dragRotate: false,
+      minZoom: 1,
     })
 
     map.current.touchZoomRotate?.disableRotation()

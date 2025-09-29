@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { getCountryBounds } from '@/lib/map/country-bounds'
+import { getCountryMeta } from '@/lib/map/country-cache'
 
 interface CountryFocusProps {
   map: mapboxgl.Map | null
@@ -51,7 +52,7 @@ export function CountryFocus({ map }: CountryFocusProps) {
       map.flyTo({
         center: WORLD_VIEW.center,
         zoom: WORLD_VIEW.zoom,
-        duration: 700,
+        duration: 1200,
       })
       return
     }
@@ -63,6 +64,30 @@ export function CountryFocus({ map }: CountryFocusProps) {
         return
       }
       try {
+        const cachedBounds = normalizedCountries
+          .map(code => getCountryMeta(code)?.bbox ?? null)
+          .filter((entry): entry is [number, number, number, number] => Array.isArray(entry))
+
+        if (cachedBounds.length) {
+          const combinedCached = cachedBounds.reduce<mapboxgl.LngLatBounds | null>((acc, bbox) => {
+            const [west, south, east, north] = bbox
+            if (!acc) {
+              return new mapboxgl.LngLatBounds([west, south], [east, north])
+            }
+            acc.extend([west, south])
+            acc.extend([east, north])
+            return acc
+          }, null)
+
+          if (combinedCached) {
+            map.fitBounds(combinedCached, {
+              padding: { top: 120, bottom: 140, left: 160, right: 160 },
+              duration: 1400,
+              maxZoom: 6,
+            })
+          }
+        }
+
         const boundsList = await Promise.all(
           normalizedCountries.map(code => getCountryBounds(code, token))
         )
@@ -72,11 +97,13 @@ export function CountryFocus({ map }: CountryFocusProps) {
         const validBounds = boundsList.filter((entry): entry is [number, number, number, number] => Array.isArray(entry))
 
         if (!validBounds.length) {
-          map.flyTo({
-            center: WORLD_VIEW.center,
-            zoom: WORLD_VIEW.zoom,
-            duration: 700,
-          })
+          if (!cachedBounds.length) {
+            map.flyTo({
+              center: WORLD_VIEW.center,
+              zoom: WORLD_VIEW.zoom,
+              duration: 1200,
+            })
+          }
           return
         }
 
@@ -93,7 +120,7 @@ export function CountryFocus({ map }: CountryFocusProps) {
         if (combined) {
           map.fitBounds(combined, {
             padding: { top: 120, bottom: 140, left: 160, right: 160 },
-            duration: 700,
+            duration: 1400,
             maxZoom: 6,
           })
         }

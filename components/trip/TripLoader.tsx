@@ -28,7 +28,7 @@ export function TripLoader() {
             name: 'My First Trip',
             startDate: today,
             endDate: today,
-            country: 'IT',
+            country: '',
             days: [],
           }
 
