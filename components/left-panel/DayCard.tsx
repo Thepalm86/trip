@@ -117,8 +117,6 @@ interface RouteConnectorProps {
   routeKey: string
   isSelected: boolean
   onSelect: (routeKey: string) => void
-  showTopSegment?: boolean
-  showBottomSegment?: boolean
 }
 
 function RouteConnector({
@@ -127,8 +125,6 @@ function RouteConnector({
   routeKey,
   isSelected,
   onSelect,
-  showTopSegment = true,
-  showBottomSegment = true,
 }: RouteConnectorProps) {
   const capsuleStyle: CSSProperties = {
     borderColor: applyAlpha(color, isSelected ? 'AA' : '66'),
@@ -146,32 +142,8 @@ function RouteConnector({
     color: applyAlpha(color, 'F2')
   }
 
-  const topSegmentStyle: CSSProperties = {
-    background: `linear-gradient(180deg, rgba(148, 163, 184, 0) 0%, ${applyAlpha(color, '66')} 100%)`,
-    top: 0,
-    bottom: '50%'
-  }
-
-  const bottomSegmentStyle: CSSProperties = {
-    background: `linear-gradient(180deg, ${applyAlpha(color, '66')} 0%, rgba(148, 163, 184, 0) 100%)`,
-    top: '50%',
-    bottom: 0
-  }
-
   return (
     <div className="relative my-4 flex flex-col items-center py-5">
-      {showTopSegment ? (
-        <div
-          className="pointer-events-none absolute left-1/2 w-[2px] -translate-x-1/2 opacity-80"
-          style={topSegmentStyle}
-        />
-      ) : null}
-      {showBottomSegment ? (
-        <div
-          className="pointer-events-none absolute left-1/2 w-[2px] -translate-x-1/2 opacity-80"
-          style={bottomSegmentStyle}
-        />
-      ) : null}
       <button
         type="button"
         aria-pressed={isSelected}
@@ -1086,15 +1058,14 @@ export function DayCard({
                       ) {
                         const routeKey = buildInterDayKey(previousDay.id, day.id)
                         preConnectorNodes.push(
-                          <RouteConnector
-                            key={`connector-${routeKey}`}
-                            color={accentColor}
-                            label={`Route from ${originName}`}
-                            routeKey={routeKey}
-                            isSelected={selectedRouteSegmentId === routeKey}
-                            onSelect={handleRouteSelect}
-                            showTopSegment={false}
-                          />
+                      <RouteConnector
+                        key={`connector-${routeKey}`}
+                        color={accentColor}
+                        label={`Route from ${originName}`}
+                        routeKey={routeKey}
+                        isSelected={selectedRouteSegmentId === routeKey}
+                        onSelect={handleRouteSelect}
+                      />
                         )
                       }
                     }
@@ -1141,7 +1112,6 @@ export function DayCard({
                         routeKey={routeKey}
                         isSelected={selectedRouteSegmentId === routeKey}
                         onSelect={handleRouteSelect}
-                        showBottomSegment={false}
                       />
                     )
                   }

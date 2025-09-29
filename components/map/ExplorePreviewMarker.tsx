@@ -27,9 +27,10 @@ function applyMarkerColors(
   elements: Pick<MarkerElements, 'outerRing' | 'mainCircle'>,
   colors: MarkerColors
 ) {
-  elements.outerRing.style.backgroundColor = colors.ring
+  elements.outerRing.style.backgroundColor = 'transparent'
+  elements.outerRing.style.border = `2px solid ${colors.ring}`
   elements.mainCircle.style.borderColor = colors.border
-  elements.mainCircle.style.backgroundColor = colors.border
+  elements.mainCircle.style.backgroundColor = 'transparent'
 }
 
 function createMarkerElement(
@@ -47,6 +48,7 @@ function createMarkerElement(
 
   const outerRing = document.createElement('div')
   outerRing.className = 'absolute inset-0 w-8 h-8 rounded-full opacity-25 transition-colors duration-200'
+  outerRing.style.display = 'none'
   wrapper.appendChild(outerRing)
 
   const mainCircle = document.createElement('div')
