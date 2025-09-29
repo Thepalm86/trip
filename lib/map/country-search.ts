@@ -49,15 +49,20 @@ export async function searchCountries(query: string, token: string, limit = 10):
     }
 
     const data = await response.json()
-    const results: CountrySearchResult[] = (data?.features ?? []).map((feature: any) => {
+    const features = (Array.isArray(data?.features) ? data.features : []) as any[]
+
+    const results: CountrySearchResult[] = features.map((feature) => {
       const shortCode = feature?.properties?.short_code ?? feature?.properties?.wikidata ?? ''
-      const code = shortCode ? normalizeCode(shortCode.slice(-2)) : ''
-      const name: string = feature?.text_en ?? feature?.text ?? feature?.place_name ?? ''
+      const code = typeof shortCode === 'string' && shortCode.length >= 2
+        ? normalizeCode(shortCode.slice(-2))
+        : ''
+      const nameCandidate = feature?.text_en ?? feature?.text ?? feature?.place_name
+      const name = typeof nameCandidate === 'string' ? nameCandidate : ''
       const center = Array.isArray(feature?.center) && feature.center.length === 2
         ? [Number(feature.center[0]), Number(feature.center[1])] as [number, number]
         : undefined
       const bbox = Array.isArray(feature?.bbox) && feature.bbox.length === 4
-        ? feature.bbox.map(Number) as [number, number, number, number]
+        ? feature.bbox.map((value: unknown) => Number(value)) as [number, number, number, number]
         : undefined
 
       return {
@@ -67,7 +72,7 @@ export async function searchCountries(query: string, token: string, limit = 10):
         bbox,
       }
     })
-    .filter(entry => entry.code && entry.name)
+      .filter(entry => entry.code && entry.name)
 
     cache.set(normalizedQuery, results)
     controllers.delete(normalizedQuery)
@@ -87,4 +92,3 @@ export function clearCountrySearchCache() {
   controllers.forEach(controller => controller.abort())
   controllers.clear()
 }
-

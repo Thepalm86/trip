@@ -79,13 +79,13 @@ export function CountrySelector() {
     return null
   }
 
-  const selectedCodes = (currentTrip.countries && currentTrip.countries.length > 0)
-    ? currentTrip.countries
+  const selectedCodes: string[] = Array.isArray(currentTrip.countries) && currentTrip.countries.length > 0
+    ? currentTrip.countries.map((code) => code.toUpperCase())
     : currentTrip.country
-      ? [currentTrip.country]
+      ? [currentTrip.country.toUpperCase()]
       : []
 
-  const selectedOptions = selectedCodes.map(code => {
+  const selectedOptions = selectedCodes.map((code) => {
     const option = countryOptions.find(opt => opt.code === code)
     return option ?? { code, name: code }
   })
@@ -94,11 +94,11 @@ export function CountrySelector() {
 
   const filteredOptions = useMemo(() => {
     if (!queryLower) {
-      return countryOptions.filter(opt => !selectedCodes.includes(opt.code)).slice(0, 8)
+      return countryOptions.filter(opt => !selectedCodes.includes(opt.code.toUpperCase())).slice(0, 8)
     }
 
     return countryOptions
-      .filter(opt => !selectedCodes.includes(opt.code))
+      .filter(opt => !selectedCodes.includes(opt.code.toUpperCase()))
       .filter(opt => 
         opt.name.toLowerCase().includes(queryLower) ||
         opt.code.toLowerCase().includes(queryLower)
@@ -107,11 +107,12 @@ export function CountrySelector() {
   }, [countryOptions, queryLower, selectedCodes])
 
   const handleSelectCountry = async (option: CountryOption) => {
-    if (selectedCodes.includes(option.code) || !currentTrip) return
+    const normalizedCode = option.code.toUpperCase()
+    if (selectedCodes.includes(normalizedCode) || !currentTrip) return
 
     setIsSaving(true)
     try {
-      const next = [...selectedCodes, option.code]
+      const next = [...selectedCodes, normalizedCode]
       await updateTrip(currentTrip.id, { countries: next })
       setQuery('')
       setIsOpen(false)
@@ -125,7 +126,8 @@ export function CountrySelector() {
   const handleRemoveCountry = async (code: string) => {
     if (!currentTrip) return
 
-    const next = selectedCodes.filter(item => item !== code)
+    const normalizedCode = code.toUpperCase()
+    const next = selectedCodes.filter((item) => item !== normalizedCode)
     setIsSaving(true)
     try {
       await updateTrip(currentTrip.id, { countries: next })

@@ -31,6 +31,7 @@ export interface Trip {
   days: TimelineDay[]
   totalBudget?: number
   country: string
+  countries?: string[]
 }
 
 export interface LocationLink {

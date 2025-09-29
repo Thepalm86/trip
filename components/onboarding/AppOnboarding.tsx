@@ -69,7 +69,7 @@ export function AppOnboarding() {
         id: 'explore',
         selector: '[data-tour="explore"]',
         title: 'Discover places anywhere',
-        description: 'Search cities or points of interest, then add them to a day or save them for later consideration.'
+        description: 'Search cities or points of interest, add them to a day or save them for later, and notice the hollow explore markers contrast with filled itinerary pins.'
       },
       {
         id: 'profile',

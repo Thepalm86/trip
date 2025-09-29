@@ -51,6 +51,7 @@ interface SupabaseTripStore {
   moveDestination: (destinationId: string, fromDayId: string, toDayId: string, newIndex: number) => Promise<void>
   reorderDestinations: (dayId: string, startIndex: number, endIndex: number) => Promise<void>
   updateTripDates: (startDate: Date, endDate: Date) => Promise<void>
+  ensureDayCount: (desiredCount: number) => Promise<void>
 
   // Selection actions
   setSelectedCard: (cardId: string | null) => void
@@ -958,6 +959,31 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         isLoading: false 
       })
     }
+  },
+
+  ensureDayCount: async (desiredCount: number) => {
+    if (!Number.isFinite(desiredCount) || desiredCount <= 0) {
+      return
+    }
+
+    const state = get()
+    const trip = state.currentTrip
+    if (!trip) return
+
+    const start = trip.startDate ? new Date(trip.startDate) : null
+    if (!start || Number.isNaN(start.getTime())) {
+      return
+    }
+
+    start.setHours(0, 0, 0, 0)
+
+    const currentCount = trip.days.length
+    if (currentCount === desiredCount) {
+      return
+    }
+
+    const targetEnd = addDays(start, desiredCount - 1)
+    await state.updateTripDates(start, targetEnd)
   },
 
   // Set error

@@ -3,7 +3,7 @@ export type MarkerColors = {
   ring: string
 }
 
-const CATEGORY_ORDER: string[] = [
+export const CATEGORY_ORDER: string[] = [
   'city',
   'attraction',
   'restaurant',
@@ -43,8 +43,8 @@ const CATEGORY_COLORS: Record<string, MarkerColors> = {
     ring: 'rgba(168, 85, 247, 0.25)',
   },
   accommodation: {
-    border: '#a855f7',
-    ring: 'rgba(168, 85, 247, 0.25)',
+    border: '#10b981',
+    ring: 'rgba(16, 185, 129, 0.25)',
   },
   activity: {
     border: '#22c55e',
