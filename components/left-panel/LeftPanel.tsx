@@ -103,7 +103,7 @@ export function LeftPanel() {
         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-emerald-500/5"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(59,130,246,0.1),transparent_50%)]"></div>
         
-        <div className="relative z-10 p-6 border-b border-white/10">
+        <div className="relative z-10 p-6 border-b border-white/10" data-tour="trip-summary">
           {/* Trip Hero Section */}
           <div className="mb-2">
             {/* Trip Title - Hero with Profile and Actions */}
@@ -137,7 +137,7 @@ export function LeftPanel() {
               </div>
               
               {/* Actions and User Profile */}
-              <div className="ml-6 flex items-center gap-3">
+              <div className="ml-6 flex items-center gap-3" data-tour="header-actions">
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2">
                   <button 
@@ -177,7 +177,7 @@ export function LeftPanel() {
                 </div>
                 
                 {/* User Profile */}
-                <div className="ml-2">
+                <div className="ml-2" data-tour="profile">
                   <UserProfile />
                 </div>
               </div>

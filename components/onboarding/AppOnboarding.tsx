@@ -36,40 +36,46 @@ export function AppOnboarding() {
         centered: true
       },
       {
-        id: 'trip-summary',
+        id: 'trip-overview',
         selector: '[data-tour="trip-summary"]',
-        title: 'Trip name & dates',
-        description: 'Update your trip title and pick travel dates—each day you choose will drop into the timeline below.'
+        title: 'Trip overview header',
+        description: 'Rename the trip, choose a focus country, and set travel dates. The timeline stays in sync with your selections.'
+      },
+      {
+        id: 'header-actions',
+        selector: '[data-tour="header-actions"]',
+        title: 'Quick actions',
+        description: 'Reopen this guide, jump into research, and soon share settings—all from the action buttons beside the trip name.'
       },
       {
         id: 'timeline',
         selector: '[data-tour="timeline"]',
         title: 'Organize each day',
-        description: 'Use the day list to add new days, jump between them, and keep your itinerary structured.'
+        description: 'Add days, switch between them, and see counts for destinations at a glance in the refreshed day list.'
       },
       {
         id: 'day-details',
         selector: '[data-tour="day-details"]',
         title: 'Plan activities & stays',
-        description: 'Add accommodations, drag destinations, and capture notes for the day you have selected.'
+        description: 'Add accommodations, drag destinations, and capture notes inside the detailed planner for the selected day.'
       },
       {
         id: 'map',
         selector: '[data-tour="map"]',
         title: 'Visualize the trip',
-        description: 'The map updates with your selections so you can review routes, markers, and travel context instantly.'
+        description: 'The map reflects your itinerary choices so you can review routes, markers, and travel context instantly.'
       },
       {
         id: 'explore',
         selector: '[data-tour="explore"]',
         title: 'Discover places anywhere',
-        description: 'Search cities or points of interest and drop them into the itinerary or keep them for later discovery.'
+        description: 'Search cities or points of interest, then add them to a day or save them for later consideration.'
       },
       {
         id: 'profile',
         selector: '[data-tour="profile"]',
         title: 'Account & collaboration',
-        description: 'Access sharing options, profile actions, and future workspace tools from your account menu.'
+        description: 'Manage your account and prepare for upcoming collaboration tools from the profile menu.'
       }
     ], []
   )
