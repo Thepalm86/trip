@@ -45,6 +45,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<LocationResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [selectedLocation, setSelectedLocation] = useState<LocationResult | null>(null)
 
   if (!currentTrip) {
@@ -107,7 +108,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
     return () => controller.abort()
   }, [query])
 
-  const handleAddLocation = async (location: LocationResult) => {
+  const addLocation = async (location: LocationResult) => {
     const city = await resolveCityFromPlace(location.placeId, location.fullName ?? location.context ?? location.name)
 
     const dayLocation: DayLocation = {
@@ -120,6 +121,20 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
     await addBaseLocation(dayId, dayLocation)
     setQuery('')
     setResults([])
+    setSelectedLocation(null)
+  }
+
+  const handleConfirmAddLocation = async () => {
+    if (!selectedLocation || isSaving) {
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await addLocation(selectedLocation)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleRemoveLocation = (locationIndex: number) => {
@@ -205,7 +220,10 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
               <input
                 type="text"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  setSelectedLocation(null)
+                }}
                 placeholder="Search for cities, regions, or specific places..."
                 className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-green-400/50 transition-all duration-200"
               />
@@ -229,8 +247,12 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
                   results.map((result) => (
                     <button
                       key={result.id}
-                      onClick={() => handleAddLocation(result)}
-                      className="w-full p-3 rounded-lg text-left transition-all duration-200 bg-white/5 border border-white/10 hover:bg-green-500/10 hover:border-green-400/30"
+                      onClick={() => setSelectedLocation(result)}
+                      className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${
+                        selectedLocation?.id === result.id
+                          ? 'bg-green-500/20 border border-green-400/30'
+                          : 'bg-white/5 border border-white/10 hover:bg-green-500/10 hover:border-green-400/30'
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500/20 to-blue-500/20 flex items-center justify-center">
@@ -297,6 +319,18 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
             className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all duration-200"
           >
             Cancel
+          </button>
+          <button
+            onClick={handleConfirmAddLocation}
+            disabled={!selectedLocation || isSaving}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500 text-white font-medium transition-all duration-200 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSaving ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <Navigation className="h-4 w-4" />
+            )}
+            {isSaving ? 'Adding…' : 'Add Accommodation'}
           </button>
         </div>
       </div>
