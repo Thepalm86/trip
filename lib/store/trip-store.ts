@@ -292,13 +292,20 @@ export const useTripStore = create<TripStore>((set, get) => ({
         updatedDays = updatedDays.slice(0, daysDiff)
       }
 
+      const nextSelectedDayId = (() => {
+        if (!updatedDays.length) return null
+        const stillValid = state.selectedDayId && updatedDays.some(day => day.id === state.selectedDayId)
+        return stillValid ? state.selectedDayId : updatedDays[0].id
+      })()
+
       return {
         currentTrip: {
           ...state.currentTrip,
           startDate,
           endDate,
           days: updatedDays
-        }
+        },
+        selectedDayId: nextSelectedDayId
       }
     })
   },

@@ -947,12 +947,25 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       await tripApi.updateTripDates(currentTrip.id, startDate, endDate)
 
       const refreshedTrip = await tripApi.getTrip(currentTrip.id)
-      const { trips } = get()
+      const { trips, selectedDayId: currentSelectedDayId } = get()
+      const nextTrip = refreshedTrip ?? currentTrip
+      const nextSelectedDayId = (() => {
+        const days = nextTrip?.days ?? []
+        if (!days.length) return null
+        const stillValid = currentSelectedDayId && days.some(day => day.id === currentSelectedDayId)
+        return stillValid ? currentSelectedDayId : days[0].id
+      })()
+
       const updatedTrips = refreshedTrip
         ? trips.map(trip => (trip.id === currentTrip.id ? refreshedTrip : trip))
         : trips
 
-      set({ currentTrip: refreshedTrip ?? currentTrip, trips: updatedTrips, isLoading: false })
+      set({
+        currentTrip: nextTrip,
+        trips: updatedTrips,
+        selectedDayId: nextSelectedDayId,
+        isLoading: false,
+      })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to update trip dates',
