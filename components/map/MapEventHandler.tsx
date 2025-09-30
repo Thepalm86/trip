@@ -523,7 +523,7 @@ export function MapEventHandler({
       if (!style || !Array.isArray(style.layers)) {
         return false
       }
-      return style.layers.some(layer => layer.id === layerId)
+      return style.layers.some((layer: mapboxgl.AnyLayer) => layer.id === layerId)
     }
 
     return () => {
