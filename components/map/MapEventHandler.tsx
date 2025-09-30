@@ -515,7 +515,23 @@ export function MapEventHandler({
 
     window.addEventListener('timelineRouteSelect', handleTimelineRouteSelect)
 
+    const hasLayer = (layerId: string) => {
+      if (!map || typeof map.getStyle !== 'function') {
+        return false
+      }
+      const style = map.getStyle()
+      if (!style || !Array.isArray(style.layers)) {
+        return false
+      }
+      return style.layers.some(layer => layer.id === layerId)
+    }
+
     return () => {
+      if (!map) {
+        window.removeEventListener('timelineRouteSelect', handleTimelineRouteSelect)
+        return
+      }
+
       map.off('click', 'base-locations-layer', handleBaseLocationClick)
       map.off('click', 'destinations-layer', handleDestinationClick)
       map.off('mouseenter', 'base-locations-layer')
@@ -529,13 +545,15 @@ export function MapEventHandler({
       map.off('click', 'inter-day-routes-layer')
       map.off('click', 'intra-day-routes-layer')
       map.off('click', 'route-segments-layer', handleRouteSegmentClick)
-      if (map.getLayer('day-route-overlay')) {
+      if (hasLayer('day-route-overlay')) {
         map.off('click', 'day-route-overlay', handleDayRouteOverlayClick)
         map.off('mouseenter', 'day-route-overlay', handleDayRouteOverlayMouseEnter)
         map.off('mouseleave', 'day-route-overlay', handleDayRouteOverlayMouseLeave)
       }
-      map.off('mouseenter', 'route-segments-layer', handleRouteSegmentMouseEnter)
-      map.off('mouseleave', 'route-segments-layer', handleRouteSegmentMouseLeave)
+      if (hasLayer('route-segments-layer')) {
+        map.off('mouseenter', 'route-segments-layer', handleRouteSegmentMouseEnter)
+        map.off('mouseleave', 'route-segments-layer', handleRouteSegmentMouseLeave)
+      }
       map.off('click', handleGeneralClick)
       window.removeEventListener('timelineRouteSelect', handleTimelineRouteSelect)
     }
