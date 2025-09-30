@@ -293,19 +293,26 @@ function RouteConnector({
   isSelected,
   onSelect,
 }: RouteConnectorProps) {
+  const [isHovered, setIsHovered] = useState(false)
   const capsuleStyle: CSSProperties = {
-    borderColor: applyAlpha(color, isSelected ? 'AA' : '66'),
+    borderColor: applyAlpha(color, isSelected ? 'AA' : isHovered ? '88' : '66'),
     background: isSelected
       ? `linear-gradient(135deg, ${applyAlpha(color, '48')} 0%, ${applyAlpha(color, '18')} 100%)`
+      : isHovered
+      ? `linear-gradient(135deg, ${applyAlpha(color, '28')} 0%, rgba(30,41,59,0.55) 100%)`
       : `linear-gradient(135deg, rgba(15,23,42,0.65) 0%, rgba(30,41,59,0.35) 100%)`,
     boxShadow: isSelected
       ? `0px 16px 40px ${applyAlpha(color, '30')}`
+      : isHovered
+      ? `0px 18px 38px ${applyAlpha(color, '22')}`
       : `0px 12px 30px rgba(15, 23, 42, 0.35)`
   }
 
   const iconRingStyle: CSSProperties = {
-    borderColor: applyAlpha(color, 'AA'),
-    background: `linear-gradient(135deg, ${applyAlpha(color, '38')} 0%, ${applyAlpha(color, '14')} 100%)`,
+    borderColor: applyAlpha(color, isHovered || isSelected ? 'CC' : 'AA'),
+    background: isSelected
+      ? `linear-gradient(135deg, ${applyAlpha(color, '4C')} 0%, ${applyAlpha(color, '22')} 100%)`
+      : `linear-gradient(135deg, ${applyAlpha(color, isHovered ? '44' : '38')} 0%, ${applyAlpha(color, isHovered ? '1C' : '14')} 100%)`,
     color: applyAlpha(color, 'F2')
   }
 
@@ -319,7 +326,9 @@ function RouteConnector({
           onSelect(routeKey)
         }}
         onMouseDown={(event) => event.stopPropagation()}
-        className={`relative z-10 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold text-slate-100 transition-all duration-200 ${
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`relative z-10 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold text-slate-100 transition-all duration-150 ${
           isSelected
             ? 'ring-2 ring-white/20'
             : 'hover:border-white/30 hover:text-white'
@@ -351,6 +360,7 @@ function DraggableDestination({
   onDuplicateDestination,
   accentColor,
 }: DraggableDestinationProps) {
+  const [isHovered, setIsHovered] = useState(false)
   const {
     attributes,
     listeners,
@@ -373,14 +383,33 @@ function DraggableDestination({
   const shadowOver = `0 0 0 2px ${applyAlpha(accentColor, '40')}`
   const shadowSelected = `0 18px 36px ${applyAlpha(accentColor, '26')}`
 
+  const baseBackground = `linear-gradient(135deg, ${applyAlpha(accentColor, '14')} 0%, rgba(15, 23, 42, 0.55) 100%)`
+  const hoverBackground = `linear-gradient(135deg, ${applyAlpha(accentColor, '28')} 0%, rgba(15, 23, 42, 0.75) 100%)`
+
+  const computedBoxShadow = isDragging
+    ? shadowDragging
+    : isOver
+    ? shadowOver
+    : isSelected
+    ? shadowSelected
+    : isHovered
+    ? `0 18px 32px ${applyAlpha(accentColor, '26')}`
+    : 'none'
+
+  const computedBorderColor = isSelected
+    ? accentColor
+    : isHovered
+    ? applyAlpha(accentColor, '88')
+    : applyAlpha(accentColor, isHovered ? '77' : '55')
+
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.3 : 1,
     zIndex: isDragging ? 1000 : 'auto',
-    boxShadow: isDragging ? shadowDragging : isOver ? shadowOver : isSelected ? shadowSelected : 'none',
-    borderColor: isSelected ? accentColor : applyAlpha(accentColor, '55'),
-    background: `linear-gradient(135deg, ${applyAlpha(accentColor, '14')} 0%, rgba(15, 23, 42, 0.55) 100%)`,
+    boxShadow: computedBoxShadow,
+    borderColor: computedBorderColor,
+    background: isHovered ? hoverBackground : baseBackground,
   }
 
   const isActiveDrag = activeDestinationId === destination.id
@@ -412,15 +441,17 @@ function DraggableDestination({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group relative flex min-h-[100px] cursor-pointer flex-col justify-center rounded-2xl border bg-white/[0.02] transition-all duration-500 hover:bg-white/[0.04] overflow-visible ${
+      className={`group relative flex min-h-[100px] cursor-pointer flex-col justify-center rounded-2xl border bg-white/[0.02] transition-all duration-150 overflow-visible ${
         isSelected
           ? 'border-white/50'
           : isOver
           ? 'border-white/30'
           : isActiveDrag
           ? 'border-white/20'
-          : 'border-white/10 hover:border-white/20'
+          : 'border-white/10'
       }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onClick={(e) => {
         e.stopPropagation()
         onDestinationClick(destination)
@@ -879,7 +910,7 @@ export function DayCard({
   }, [])
 
   const containerClasses = [
-    'relative h-full flex flex-col bg-white/[0.02] rounded-2xl border border-white/10 hover:bg-white/[0.04] transition-all duration-200 cursor-pointer',
+    'relative h-full flex flex-col bg-white/[0.02] rounded-2xl border border-white/10 transition-all duration-200 cursor-pointer',
     isTargetDay ? 'ring-2 ring-blue-400/60 border-blue-400/50 shadow-lg shadow-blue-500/20' : '',
     isSourceDay && !isTargetDay ? 'border-blue-400/40' : '',
   ]
