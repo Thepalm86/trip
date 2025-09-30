@@ -64,6 +64,16 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           })
         }
 
+        if (!map.getSource('day-route-overlay')) {
+          map.addSource('day-route-overlay', {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: []
+            }
+          })
+        }
+
         // Selection highlight source
         if (!map.getSource('selection-highlight')) {
           map.addSource('selection-highlight', {
@@ -188,6 +198,25 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
             'text-opacity': 0 // Hidden by default
           }
         })
+      }
+
+      if (!map.getLayer('day-route-overlay')) {
+        map.addLayer({
+          id: 'day-route-overlay',
+          type: 'line',
+          source: 'day-route-overlay',
+          layout: {
+            'line-cap': 'round',
+            'line-join': 'round'
+          },
+          paint: {
+            'line-color': ['coalesce', ['get', 'lineColor'], '#38bdf8'],
+            'line-width': 3.5,
+            'line-opacity': 0.35,
+            'line-blur': 1.2,
+            'line-dasharray': [1.5, 1.5]
+          }
+        }, 'route-segments-shadow')
       }
 
 

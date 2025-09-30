@@ -17,6 +17,7 @@ import {
   Trash2,
   ArrowRight,
   Loader2,
+  Route,
 } from 'lucide-react'
 import { TimelineDay, DayLocation, Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
@@ -565,6 +566,8 @@ export function DayCard({
     currentTrip,
     duplicateBaseLocation,
     duplicateDestination,
+    showDayRouteOverlay,
+    toggleDayRouteOverlay,
   } = useSupabaseTripStore()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -614,6 +617,16 @@ export function DayCard({
       setDuplicateDestinationTargetIds([])
     }
   }, [duplicateDestinationConfig, allTripDays, day.id])
+
+  const isDayRouteOverlayActive = showDayRouteOverlay
+
+  const handleToggleDayRouteOverlay = (event: React.MouseEvent) => {
+    event.stopPropagation()
+    if (!isDayRouteOverlayActive) {
+      setSelectedDay(day.id)
+    }
+    toggleDayRouteOverlay()
+  }
 
   const handleRemoveDestination = (destinationId: string) => {
     removeDestinationFromDay(destinationId, day.id)
@@ -899,6 +912,20 @@ export function DayCard({
           </div>
           
           <div className="flex items-center gap-1">
+            <button
+              onClick={handleToggleDayRouteOverlay}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors duration-200 ${
+                isDayRouteOverlayActive
+                  ? 'border-blue-400/50 bg-blue-500/20 text-blue-100 hover:bg-blue-500/25'
+                  : 'border-white/10 text-white/60 hover:bg-white/10 hover:text-white'
+              }`}
+              aria-pressed={isDayRouteOverlayActive}
+              title={isDayRouteOverlayActive ? 'Hide all routes for this day' : 'Show all routes for this day'}
+              type="button"
+            >
+              <Route className="h-3.5 w-3.5" />
+              <span>Day routes</span>
+            </button>
             {/* Day Actions Dropdown */}
             <div className="relative" ref={dropdownRef}>
             <button

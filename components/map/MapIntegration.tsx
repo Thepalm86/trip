@@ -47,6 +47,7 @@ export function MapIntegration({ map }: MapIntegrationProps) {
     setSelectedBaseLocation,
     selectedRouteSegmentId,
     setSelectedRouteSegmentId,
+    showDayRouteOverlay,
   } = useSupabaseTripStore()
 
   const emptyTrip: Trip = {
@@ -87,6 +88,7 @@ export function MapIntegration({ map }: MapIntegrationProps) {
         selectedDayId={selectedDayId}
         token={token || ''}
         onLoadingChange={setIsLoadingRoutes}
+        showDayRouteOverlay={showDayRouteOverlay}
       />
       <MarkerManager
         map={map}

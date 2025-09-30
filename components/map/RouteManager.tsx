@@ -46,6 +46,7 @@ interface RouteManagerProps {
   selectedDayId: string | null
   token: string
   onLoadingChange: (loading: boolean) => void
+  showDayRouteOverlay: boolean
 }
 
 export function RouteManager({ 
@@ -54,7 +55,8 @@ export function RouteManager({
   tripDays, 
   selectedDayId, 
   token, 
-  onLoadingChange 
+  onLoadingChange,
+  showDayRouteOverlay,
 }: RouteManagerProps) {
   const routeCalculationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 const routeCache = useRef<Map<string, RouteData>>(new Map())
@@ -492,6 +494,10 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
           })
         : []
 
+      const overlaySegments = showDayRouteOverlay
+        ? allSegments.filter(feature => feature.properties?.visibility === 'selected-intra-day')
+        : []
+
       // Update map sources
       if (map.getSource('route-segments')) {
         const data: FeatureCollection<LineString> = {
@@ -502,6 +508,14 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
         currentFeatureIdsRef.current = visibleSegments
           .map(feature => (typeof feature.id === 'string' ? feature.id : feature.properties?.id))
           .filter((id): id is string => typeof id === 'string')
+      }
+
+      if (map.getSource('day-route-overlay')) {
+        const overlayData: FeatureCollection<LineString> = {
+          type: 'FeatureCollection',
+          features: overlaySegments
+        }
+        map.getSource('day-route-overlay').setData(overlayData)
       }
 
       if (isMapDebugEnabled) {
@@ -560,7 +574,7 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
       } finally {
         onLoadingChange(false)
       }
-  }, [map, hasTrip, token, tripDays, selectedDayId, getRoutesToShow, calculateSegmentRoute, calculateBearing, onLoadingChange, selectedRouteSegmentId])
+  }, [map, hasTrip, token, tripDays, selectedDayId, getRoutesToShow, calculateSegmentRoute, calculateBearing, onLoadingChange, selectedRouteSegmentId, showDayRouteOverlay])
 
   // Debounced route calculation
   useEffect(() => {

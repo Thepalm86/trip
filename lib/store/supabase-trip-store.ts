@@ -22,6 +22,7 @@ interface SupabaseTripStore {
   // Selection state
   selectedCardId: string | null
   selectedRouteSegmentId: string | null
+  showDayRouteOverlay: boolean
   
   // Maybe locations state
   maybeLocations: Destination[]
@@ -59,6 +60,8 @@ interface SupabaseTripStore {
   setSelectedCard: (cardId: string | null) => void
   setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin?: SelectionOrigin) => void
   setSelectedRouteSegmentId: (routeId: string | null) => void
+  setShowDayRouteOverlay: (show: boolean) => void
+  toggleDayRouteOverlay: () => void
   
   // Maybe locations actions
   addMaybeLocation: (destination: Destination) => void
@@ -86,6 +89,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   // Selection state
   selectedCardId: null,
   selectedRouteSegmentId: null,
+  showDayRouteOverlay: false,
   
   // Maybe locations state
   maybeLocations: [],
@@ -1018,6 +1022,14 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
 
   setSelectedRouteSegmentId: (routeId: string | null) => {
     set({ selectedRouteSegmentId: routeId })
+  },
+
+  setShowDayRouteOverlay: (show: boolean) => {
+    set({ showDayRouteOverlay: show })
+  },
+
+  toggleDayRouteOverlay: () => {
+    set((state) => ({ showDayRouteOverlay: !state.showDayRouteOverlay }))
   },
 
   // Maybe locations actions
