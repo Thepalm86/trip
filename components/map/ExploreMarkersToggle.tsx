@@ -29,7 +29,6 @@ export function ExploreMarkersToggle({ map }: ExploreMarkersToggleProps) {
   const showMarkers = useExploreStore((state) => state.showMarkers)
   const visibleCategories = useExploreStore((state) => state.visibleCategories)
   const setVisibleCategories = useExploreStore((state) => state.setVisibleCategories)
-  const setShowMarkers = useExploreStore((state) => state.setShowMarkers)
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -100,10 +99,6 @@ export function ExploreMarkersToggle({ map }: ExploreMarkersToggleProps) {
   })()
 
   const toggleDropdown = () => {
-    if (!showMarkers && selectedCategories.size === 0) {
-      setShowMarkers(true)
-      setVisibleCategories(null)
-    }
     setIsOpen((prev) => !prev)
   }
 
