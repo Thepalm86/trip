@@ -132,6 +132,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
     setIsSaving(true)
     try {
       await addLocation(selectedLocation)
+      onClose()
     } finally {
       setIsSaving(false)
     }

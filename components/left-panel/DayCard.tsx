@@ -7,14 +7,16 @@ import {
   Map,
   MoreVertical,
   Copy,
+  CopyPlus,
   X,
-  Eye,
+  Check,
   ExternalLink,
   Info,
   GripVertical,
   Edit,
   Trash2,
   ArrowRight,
+  Loader2,
 } from 'lucide-react'
 import { TimelineDay, DayLocation, Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
@@ -61,6 +63,7 @@ interface DraggableDestinationProps {
   onEditDestination: (destination: Destination) => void
   onRemoveDestination: (destinationId: string) => void
   onOpenOverview: (destination: Destination) => void
+  onDuplicateDestination: (destination: Destination) => void
   accentColor: string
 }
 
@@ -108,6 +111,167 @@ function CornerBadge({ label, accent }: { label: string; accent: string }) {
         style={buildBadgeStyle(accent)}
       >
         {label}
+      </div>
+    </div>
+  )
+}
+
+interface DuplicateAcrossDaysModalProps {
+  itemTypeLabel: string
+  itemName: string
+  days: TimelineDay[]
+  currentDayId: string
+  selectedDayIds: string[]
+  onToggleDay: (dayId: string) => void
+  onCancel: () => void
+  onConfirm: () => void
+  isDuplicating: boolean
+  accentVariant: 'emerald' | 'sky'
+}
+
+function DuplicateAcrossDaysModal({
+  itemTypeLabel,
+  itemName,
+  days,
+  currentDayId,
+  selectedDayIds,
+  onToggleDay,
+  onCancel,
+  onConfirm,
+  isDuplicating,
+  accentVariant,
+}: DuplicateAcrossDaysModalProps) {
+  const otherDays = days.filter(day => day.id !== currentDayId)
+
+  const accent = accentVariant === 'emerald'
+    ? {
+        badge: 'border-emerald-300 bg-emerald-500/30 text-emerald-100',
+        selectedButton: 'border-emerald-400/60 bg-emerald-500/15 text-white',
+        ctaEnabled: 'bg-emerald-500/30 text-emerald-100 hover:bg-emerald-500/40',
+        ctaDisabled: 'bg-emerald-500/20 text-emerald-200/60 cursor-not-allowed',
+      }
+    : {
+        badge: 'border-sky-300 bg-sky-500/30 text-sky-100',
+        selectedButton: 'border-sky-400/60 bg-sky-500/15 text-white',
+        ctaEnabled: 'bg-sky-500/30 text-sky-100 hover:bg-sky-500/40',
+        ctaDisabled: 'bg-sky-500/20 text-sky-200/60 cursor-not-allowed',
+      }
+
+  const formatDayLabel = (day: TimelineDay) => {
+    const dayIndex = days.findIndex(candidate => candidate.id === day.id)
+    const baseLabel = dayIndex >= 0 ? `Day ${dayIndex + 1}` : 'Day'
+    return baseLabel
+  }
+
+  const formatDate = (value: TimelineDay['date']) => {
+    const parsed = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(parsed.getTime())) {
+      return null
+    }
+    return parsed.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl shadow-black/40">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Duplicate {itemTypeLabel}</h3>
+            <p className="text-sm text-white/60">
+              Choose the day(s) to copy <span className="text-white/90 font-medium">{itemName}</span> into.
+            </p>
+          </div>
+          <button
+            onClick={onCancel}
+            className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors duration-200"
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="max-h-[50vh] overflow-y-auto px-6 py-4 space-y-3">
+          {otherDays.length === 0 ? (
+            <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/70">
+              Add another day to your itinerary to duplicate this {itemTypeLabel.toLowerCase()}.
+            </div>
+          ) : (
+            otherDays.map(day => {
+              const isSelected = selectedDayIds.includes(day.id)
+              const formattedDate = formatDate(day.date)
+
+              return (
+                <button
+                  key={day.id}
+                  type="button"
+                  onClick={() => onToggleDay(day.id)}
+                  className={`w-full rounded-xl border px-4 py-3 text-left transition-all duration-200 ${
+                    isSelected
+                      ? accent.selectedButton
+                      : 'border-white/10 bg-white/5 text-white/80 hover:border-white/20 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold tracking-wide">
+                        {formatDayLabel(day)}
+                      </div>
+                      {formattedDate && (
+                        <div className="mt-1 text-xs text-white/50">
+                          {formattedDate}
+                        </div>
+                      )}
+                    </div>
+                    <div
+                      className={`flex h-6 w-6 items-center justify-center rounded-md border text-xs font-medium uppercase tracking-wide ${
+                        isSelected ? accent.badge : 'border-white/20 text-white/40'
+                      }`}
+                    >
+                      {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
+                    </div>
+                  </div>
+                </button>
+              )
+            })
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/10">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-white/70 hover:text-white rounded-lg border border-white/10 hover:border-white/20 transition-colors duration-200"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={
+              isDuplicating ||
+              selectedDayIds.length === 0 ||
+              otherDays.length === 0
+            }
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors duration-200 ${
+              isDuplicating || selectedDayIds.length === 0 || otherDays.length === 0
+                ? accent.ctaDisabled
+                : accent.ctaEnabled
+            }`}
+          >
+            {isDuplicating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Duplicating…
+              </>
+            ) : (
+              `Duplicate${selectedDayIds.length > 0 ? ` (${selectedDayIds.length})` : ''}`
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -183,6 +347,7 @@ function DraggableDestination({
   onEditDestination,
   onRemoveDestination,
   onOpenOverview,
+  onDuplicateDestination,
   accentColor,
 }: DraggableDestinationProps) {
   const {
@@ -275,7 +440,18 @@ function DraggableDestination({
           style={actionButtonStyle}
           title="View Details"
         >
-          <Eye className="h-4 w-4" />
+          <Info className="h-4 w-4" />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDuplicateDestination(destination)
+          }}
+          className="p-2 rounded-lg border transition-all duration-200 hover:scale-105"
+          style={actionButtonStyle}
+          title="Duplicate to other days"
+        >
+          <CopyPlus className="h-4 w-4" />
         </button>
         <button
           onClick={(e) => {
@@ -294,7 +470,7 @@ function DraggableDestination({
             onRemoveDestination(destination.id)
           }}
           className="p-2 rounded-lg border transition-all duration-200 hover:scale-105"
-          style={{ ...actionButtonStyle, color: '#ffd5d5', borderColor: applyAlpha('#ef4444', '70'), background: applyAlpha('#ef4444', '18') }}
+          style={actionButtonStyle}
           title="Remove Destination"
         >
           <Trash2 className="h-4 w-4" />
@@ -387,6 +563,8 @@ export function DayCard({
     selectedRouteSegmentId,
     setSelectedRouteSegmentId,
     currentTrip,
+    duplicateBaseLocation,
+    duplicateDestination,
   } = useSupabaseTripStore()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -395,11 +573,47 @@ export function DayCard({
   const [editingDestination, setEditingDestination] = useState<Destination | null>(null)
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [overviewDestination, setOverviewDestination] = useState<Destination | null>(null)
+  const [duplicateConfig, setDuplicateConfig] = useState<{ location: DayLocation; index: number } | null>(null)
+  const [duplicateTargetDayIds, setDuplicateTargetDayIds] = useState<string[]>([])
+  const [isDuplicating, setIsDuplicating] = useState(false)
+  const [duplicateDestinationConfig, setDuplicateDestinationConfig] = useState<Destination | null>(null)
+  const [duplicateDestinationTargetIds, setDuplicateDestinationTargetIds] = useState<string[]>([])
+  const [isDuplicatingDestination, setIsDuplicatingDestination] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const isTargetDay = activeTargetDayId === day.id
   const isSourceDay = draggingFromDayId === day.id
   const allTripDays = currentTrip?.days ?? []
+
+  useEffect(() => {
+    if (duplicateConfig) {
+      const otherDayIds = allTripDays.filter(tripDay => tripDay.id !== day.id).map(tripDay => tripDay.id)
+      setDuplicateTargetDayIds(prev => {
+        const validSelections = prev.filter(id => otherDayIds.includes(id))
+        if (validSelections.length > 0) {
+          return validSelections
+        }
+        return otherDayIds.length === 1 ? [otherDayIds[0]] : []
+      })
+    } else {
+      setDuplicateTargetDayIds([])
+    }
+  }, [duplicateConfig, allTripDays, day.id])
+
+  useEffect(() => {
+    if (duplicateDestinationConfig) {
+      const otherDayIds = allTripDays.filter(tripDay => tripDay.id !== day.id).map(tripDay => tripDay.id)
+      setDuplicateDestinationTargetIds(prev => {
+        const validSelections = prev.filter(id => otherDayIds.includes(id))
+        if (validSelections.length > 0) {
+          return validSelections
+        }
+        return otherDayIds.length === 1 ? [otherDayIds[0]] : []
+      })
+    } else {
+      setDuplicateDestinationTargetIds([])
+    }
+  }, [duplicateDestinationConfig, allTripDays, day.id])
 
   const handleRemoveDestination = (destinationId: string) => {
     removeDestinationFromDay(destinationId, day.id)
@@ -437,6 +651,78 @@ export function DayCard({
           },
         }))
       }
+    }
+  }
+
+  const handleDuplicateBaseLocationRequest = (location: DayLocation, index: number) => {
+    setDuplicateConfig({ location, index })
+  }
+
+  const handleToggleDuplicateAccommodationDay = (targetDayId: string) => {
+    setDuplicateTargetDayIds(prev => {
+      if (prev.includes(targetDayId)) {
+        return prev.filter(id => id !== targetDayId)
+      }
+      return [...prev, targetDayId]
+    })
+  }
+
+  const handleCloseDuplicateModal = () => {
+    setDuplicateConfig(null)
+    setDuplicateTargetDayIds([])
+    setIsDuplicating(false)
+  }
+
+  const handleConfirmDuplicateAccommodation = async () => {
+    if (!duplicateConfig || duplicateTargetDayIds.length === 0) {
+      return
+    }
+
+    setIsDuplicating(true)
+    try {
+      await duplicateBaseLocation(day.id, duplicateConfig.index, duplicateTargetDayIds)
+      setDuplicateConfig(null)
+      setDuplicateTargetDayIds([])
+    } catch (error) {
+      console.error('DayCard: Failed to duplicate accommodation', error)
+    } finally {
+      setIsDuplicating(false)
+    }
+  }
+
+  const handleDuplicateDestinationRequest = (destination: Destination) => {
+    setDuplicateDestinationConfig(destination)
+  }
+
+  const handleToggleDuplicateDestinationDay = (targetDayId: string) => {
+    setDuplicateDestinationTargetIds(prev => {
+      if (prev.includes(targetDayId)) {
+        return prev.filter(id => id !== targetDayId)
+      }
+      return [...prev, targetDayId]
+    })
+  }
+
+  const handleCloseDuplicateDestinationModal = () => {
+    setDuplicateDestinationConfig(null)
+    setDuplicateDestinationTargetIds([])
+    setIsDuplicatingDestination(false)
+  }
+
+  const handleConfirmDuplicateDestination = async () => {
+    if (!duplicateDestinationConfig || duplicateDestinationTargetIds.length === 0) {
+      return
+    }
+
+    setIsDuplicatingDestination(true)
+    try {
+      await duplicateDestination(day.id, duplicateDestinationConfig.id, duplicateDestinationTargetIds)
+      setDuplicateDestinationConfig(null)
+      setDuplicateDestinationTargetIds([])
+    } catch (error) {
+      console.error('DayCard: Failed to duplicate destination', error)
+    } finally {
+      setIsDuplicatingDestination(false)
     }
   }
 
@@ -501,7 +787,7 @@ export function DayCard({
       setSelectedRouteSegmentId(routeKey)
     }
     window.dispatchEvent(new CustomEvent('timelineRouteSelect', {
-      detail: { routeId: routeKey, skipFocus: true }
+      detail: { routeId: routeKey }
     }))
   }
 
@@ -812,6 +1098,16 @@ export function DayCard({
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
+                      handleDuplicateBaseLocationRequest(day.baseLocations[0], 0)
+                    }}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-400 transition-all duration-200 backdrop-blur-sm"
+                    title="Duplicate to another day"
+                  >
+                    <CopyPlus className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
                       handleEditBaseLocation(day.baseLocations[0], 0)
                     }}
                     className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 backdrop-blur-sm"
@@ -831,6 +1127,14 @@ export function DayCard({
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
+                  <div
+                    className="p-2 rounded-xl bg-white/10 text-white/60 border border-white/10 cursor-grab active:cursor-grabbing hover:bg-white/20 hover:text-white transition-all duration-200 backdrop-blur-sm"
+                    title="Drag to reorder"
+                    onClick={(e) => e.stopPropagation()}
+                    role="presentation"
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -934,6 +1238,16 @@ export function DayCard({
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            handleDuplicateBaseLocationRequest(location, index + 1)
+                          }}
+                          className="p-1.5 rounded-lg bg-white/10 hover:bg-blue-500/20 text-white/60 hover:text-blue-400 transition-all duration-200"
+                          title="Duplicate to another day"
+                        >
+                          <CopyPlus className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
                             handleEditBaseLocation(location, index + 1)
                           }}
                           className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all duration-200"
@@ -953,6 +1267,14 @@ export function DayCard({
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>
+                        <div
+                          className="p-1.5 rounded-lg bg-white/10 text-white/50 border border-white/10 cursor-grab active:cursor-grabbing hover:bg-white/20 hover:text-white transition-all duration-200"
+                          title="Drag to reorder"
+                          onClick={(e) => e.stopPropagation()}
+                          role="presentation"
+                        >
+                          <GripVertical className="h-3 w-3" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1126,6 +1448,7 @@ export function DayCard({
                         onEditDestination={handleEditDestination}
                         onRemoveDestination={handleRemoveDestination}
                         onOpenOverview={handleOpenOverview}
+                        onDuplicateDestination={handleDuplicateDestinationRequest}
                         accentColor={accentColor}
                       />
                       {segmentNodes}
@@ -1173,6 +1496,36 @@ export function DayCard({
         <DestinationOverviewModal
           destination={overviewDestination}
           onClose={handleCloseOverviewModal}
+        />
+      )}
+
+      {duplicateConfig && (
+        <DuplicateAcrossDaysModal
+          itemTypeLabel="Accommodation"
+          itemName={duplicateConfig.location.name}
+          days={allTripDays}
+          currentDayId={day.id}
+          selectedDayIds={duplicateTargetDayIds}
+          onToggleDay={handleToggleDuplicateAccommodationDay}
+          onCancel={handleCloseDuplicateModal}
+          onConfirm={handleConfirmDuplicateAccommodation}
+          isDuplicating={isDuplicating}
+          accentVariant="emerald"
+        />
+      )}
+
+      {duplicateDestinationConfig && (
+        <DuplicateAcrossDaysModal
+          itemTypeLabel="Destination"
+          itemName={duplicateDestinationConfig.name}
+          days={allTripDays}
+          currentDayId={day.id}
+          selectedDayIds={duplicateDestinationTargetIds}
+          onToggleDay={handleToggleDuplicateDestinationDay}
+          onCancel={handleCloseDuplicateDestinationModal}
+          onConfirm={handleConfirmDuplicateDestination}
+          isDuplicating={isDuplicatingDestination}
+          accentVariant="sky"
         />
       )}
     </div>

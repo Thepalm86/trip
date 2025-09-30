@@ -47,6 +47,8 @@ interface SupabaseTripStore {
   removeBaseLocation: (dayId: string, locationIndex: number) => Promise<void>
   updateBaseLocation: (dayId: string, locationIndex: number, location: DayLocation) => Promise<void>
   reorderBaseLocations: (dayId: string, fromIndex: number, toIndex: number) => Promise<void>
+  duplicateBaseLocation: (sourceDayId: string, locationIndex: number, targetDayIds: string[]) => Promise<void>
+  duplicateDestination: (sourceDayId: string, destinationId: string, targetDayIds: string[]) => Promise<void>
 
   moveDestination: (destinationId: string, fromDayId: string, toDayId: string, newIndex: number) => Promise<void>
   reorderDestinations: (dayId: string, startIndex: number, endIndex: number) => Promise<void>
@@ -1049,4 +1051,208 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     }
   },
 
-}))
+  duplicateBaseLocation: async (sourceDayId: string, locationIndex: number, targetDayIds: string[]) => {
+    const uniqueTargets = Array.from(new Set(targetDayIds.filter(id => id && id !== sourceDayId)))
+    if (uniqueTargets.length === 0) {
+      return
+    }
+
+    console.log('SupabaseTripStore: Duplicating base location', { sourceDayId, locationIndex, targetDayIds: uniqueTargets })
+    set({ isLoading: true, error: null })
+
+    try {
+      const { currentTrip, trips } = get()
+      if (!currentTrip) {
+        throw new Error('No active trip selected')
+      }
+
+      const sourceDay = currentTrip.days.find(day => day.id === sourceDayId)
+      if (!sourceDay) {
+        throw new Error('Source day not found')
+      }
+
+      const baseLocation = sourceDay.baseLocations[locationIndex]
+      if (!baseLocation) {
+        throw new Error('Accommodation to duplicate was not found')
+      }
+
+      const generateLinkId = () => {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+          return crypto.randomUUID()
+        }
+        return `link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      }
+
+      const cloneLocation = (): DayLocation => ({
+        ...baseLocation,
+        links: baseLocation.links
+          ? baseLocation.links.map(link => ({
+              ...link,
+              id: generateLinkId(),
+            }))
+          : undefined,
+      })
+
+      const createdLocations: Record<string, DayLocation> = {}
+
+      for (const targetDayId of uniqueTargets) {
+        const targetDayExists = currentTrip.days.some(day => day.id === targetDayId)
+        if (!targetDayExists) {
+          console.warn('SupabaseTripStore: Target day not found while duplicating accommodation', { targetDayId })
+          continue
+        }
+
+        const clonedLocation = cloneLocation()
+        await tripApi.addBaseLocation(targetDayId, clonedLocation)
+        createdLocations[targetDayId] = clonedLocation
+      }
+
+      if (Object.keys(createdLocations).length === 0) {
+        set({ isLoading: false })
+        return
+      }
+
+      const updateDays = (days: Trip['days']) =>
+        days.map(day =>
+          createdLocations[day.id]
+            ? {
+                ...day,
+                baseLocations: [...day.baseLocations, createdLocations[day.id]],
+              }
+            : day
+        )
+
+      const updatedTrip: Trip = {
+        ...currentTrip,
+        days: updateDays(currentTrip.days),
+      }
+
+      const updatedTrips = trips.map(trip =>
+        trip.id === currentTrip.id
+          ? {
+              ...trip,
+              days: updateDays(trip.days),
+            }
+          : trip
+      )
+
+      set({
+        currentTrip: updatedTrip,
+        trips: updatedTrips,
+        isLoading: false,
+        lastUpdate: Date.now(),
+      })
+    } catch (error) {
+      console.error('SupabaseTripStore: Error duplicating base location:', error)
+      set({
+        error: error instanceof Error ? error.message : 'Failed to duplicate accommodation',
+        isLoading: false,
+      })
+      throw error
+    }
+  },
+
+  duplicateDestination: async (sourceDayId: string, destinationId: string, targetDayIds: string[]) => {
+    const uniqueTargets = Array.from(new Set(targetDayIds.filter(id => id && id !== sourceDayId)))
+    if (uniqueTargets.length === 0) {
+      return
+    }
+
+    console.log('SupabaseTripStore: Duplicating destination', { sourceDayId, destinationId, targetDayIds: uniqueTargets })
+    set({ isLoading: true, error: null })
+
+    try {
+      const { currentTrip, trips } = get()
+      if (!currentTrip) {
+        throw new Error('No active trip selected')
+      }
+
+      const sourceDay = currentTrip.days.find(day => day.id === sourceDayId)
+      if (!sourceDay) {
+        throw new Error('Source day not found')
+      }
+
+      const destination = sourceDay.destinations.find(dest => dest.id === destinationId)
+      if (!destination) {
+        throw new Error('Destination to duplicate was not found')
+      }
+
+      const generateLinkId = () => {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+          return crypto.randomUUID()
+        }
+        return `link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      }
+
+      const cloneDestination = (): Destination => ({
+        ...destination,
+        links: destination.links
+          ? destination.links.map(link => ({
+              ...link,
+              id: generateLinkId(),
+            }))
+          : undefined,
+      })
+
+      const createdDestinations: Record<string, Destination[]> = {}
+
+      for (const targetDayId of uniqueTargets) {
+        const targetDayExists = currentTrip.days.some(day => day.id === targetDayId)
+        if (!targetDayExists) {
+          console.warn('SupabaseTripStore: Target day not found while duplicating destination', { targetDayId })
+          continue
+        }
+
+        const destinationInput = cloneDestination()
+        const createdDestination = await tripApi.addDestinationToDay(targetDayId, destinationInput)
+        if (!createdDestinations[targetDayId]) {
+          createdDestinations[targetDayId] = []
+        }
+        createdDestinations[targetDayId].push(createdDestination)
+      }
+
+      if (Object.keys(createdDestinations).length === 0) {
+        set({ isLoading: false })
+        return
+      }
+
+      const updateDays = (days: Trip['days']) =>
+        days.map(day =>
+          createdDestinations[day.id]
+            ? {
+                ...day,
+                destinations: [...day.destinations, ...createdDestinations[day.id]],
+              }
+            : day
+        )
+
+      const updatedTrip: Trip = {
+        ...currentTrip,
+        days: updateDays(currentTrip.days),
+      }
+
+      const updatedTrips = trips.map(trip =>
+        trip.id === currentTrip.id
+          ? {
+              ...trip,
+              days: updateDays(trip.days),
+            }
+          : trip
+      )
+
+      set({
+        currentTrip: updatedTrip,
+        trips: updatedTrips,
+        isLoading: false,
+        lastUpdate: Date.now(),
+      })
+    } catch (error) {
+      console.error('SupabaseTripStore: Error duplicating destination:', error)
+      set({
+        error: error instanceof Error ? error.message : 'Failed to duplicate destination',
+        isLoading: false,
+      })
+      throw error
+    }
+  }
+}));

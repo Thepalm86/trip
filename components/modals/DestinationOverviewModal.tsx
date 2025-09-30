@@ -484,7 +484,7 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
       </div>
 
       {/* Optional manual controls (hidden unless multiple photos) */}
-      {photos.length > 1 && !isLoadingPhotos && !isCollapsed && (
+      {photos.length > 1 && !isLoadingPhotos && (
         <div
           style={{
             position: 'fixed',

@@ -3,11 +3,60 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
+// Retry short-lived network glitches so Supabase auth refresh doesn't die on idle tabs.
+const fetchWithBackoff: typeof fetch = async (url, init) => {
+  let attempt = 0
+
+  while (attempt < 3) {
+    try {
+      return await fetch(url, init)
+    } catch (error) {
+      const isBrowser = typeof navigator !== 'undefined'
+      const offline = isBrowser && !navigator.onLine
+      if (offline || attempt === 2) {
+        throw error
+      }
+
+      const delayMs = 500 * 2 ** attempt
+      await new Promise(resolve => setTimeout(resolve, delayMs))
+      attempt += 1
+    }
+  }
+
+  // Should never reach here because we either returned or threw in the loop.
+  throw new Error('fetchWithBackoff exhausted retries without throwing')
+}
+
 // Export the createClient function for use in other services
-export const createClient = () => createSupabaseClient(supabaseUrl, supabaseAnonKey)
+export const createClient = () =>
+  createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+    global: {
+      fetch: fetchWithBackoff,
+    },
+  })
 
 // Export a default client instance for backward compatibility
 export const supabase = createClient()
+
+if (typeof window !== 'undefined') {
+  const toggleAutoRefresh = () => {
+    if (document.visibilityState === 'visible' && navigator.onLine) {
+      supabase.auth.startAutoRefresh()
+    } else {
+      supabase.auth.stopAutoRefresh()
+    }
+  }
+
+  window.addEventListener('online', toggleAutoRefresh)
+  window.addEventListener('offline', toggleAutoRefresh)
+  document.addEventListener('visibilitychange', toggleAutoRefresh)
+
+  toggleAutoRefresh()
+}
 
 // Database types for TypeScript
 export interface Database {
