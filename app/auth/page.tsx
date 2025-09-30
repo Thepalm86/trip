@@ -5,6 +5,18 @@ import { useAuth } from '@/lib/auth/auth-context'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 
+const getSiteUrl = () => {
+  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL
+  }
+
+  if (typeof window !== 'undefined') {
+    return window.location.origin
+  }
+
+  return ''
+}
+
 export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
@@ -16,6 +28,7 @@ export default function AuthPage() {
 
   const { signUp, signIn } = useAuth()
   const router = useRouter()
+  const siteUrl = getSiteUrl()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,7 +68,13 @@ export default function AuthPage() {
     setOauthLoading(provider)
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({ provider })
+      const redirectTo = siteUrl ? `${siteUrl}/auth/callback` : undefined
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo,
+        },
+      })
       if (error) {
         setError(error.message)
         setOauthLoading(null)
