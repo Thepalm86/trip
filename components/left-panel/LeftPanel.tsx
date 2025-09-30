@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Share2, Edit3, HelpCircle, Sparkles, Search, Calendar, Globe, ChevronDown, Settings, Loader2 } from 'lucide-react'
+import { Share2, Edit3, HelpCircle, Sparkles, Search, Calendar, Globe, ChevronDown, Loader2 } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
 import { UserProfile } from '@/components/auth/user-profile'
 import { ONBOARDING_EVENT_NAME, ONBOARDING_STORAGE_KEY } from '@/components/onboarding/AppOnboarding'
 import { useResearchStore } from '@/lib/store/research-store'
+import { ShareTripModal } from '@/components/modals/ShareTripModal'
 import { buildCountryOptions } from './CountrySelector'
 import { searchCountries, CountrySearchResult } from '@/lib/map/country-search'
 import { getCountryMeta, setCountryMeta } from '@/lib/map/country-cache'
@@ -23,6 +24,7 @@ export function LeftPanel() {
   const countryOptions = useMemo(() => buildCountryOptions(), [])
   const [countryName, setCountryName] = useState<string | null>(null)
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ''
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
 
   useEffect(() => {
     if (currentTrip && !isEditingTripName) {
@@ -203,9 +205,9 @@ export function LeftPanel() {
                 <div className="flex items-center gap-2">
                   <button 
                     type="button"
-                    className="group p-2 rounded-lg bg-white/5 text-white/40 transition-all duration-200 disabled:cursor-not-allowed"
-                    aria-label="Share trip (coming soon)"
-                    disabled
+                    onClick={() => setIsShareModalOpen(true)}
+                    className="group p-2 rounded-lg bg-white/5 text-white/70 transition-all duration-200 hover:bg-blue-500/20 hover:text-blue-300"
+                    aria-label="Share trip"
                   >
                     <Share2 className="h-4 w-4" />
                   </button>
@@ -221,19 +223,12 @@ export function LeftPanel() {
                   <button
                     type="button"
                     onClick={openResearch}
-                    className="group p-2 rounded-lg bg-white/5 text-white/60 transition-all duration-200 hover:bg-emerald-500/20 hover:text-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20"
-                    title="Open research"
-                    aria-label="Open research"
-                  >
-                    <Sparkles className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
-                  </button>
-                  <button
-                    type="button"
                     className="group p-2 rounded-lg bg-white/5 text-white/40 transition-all duration-200 disabled:cursor-not-allowed"
-                    aria-label="Open settings (coming soon)"
+                    title="Open research (coming soon)"
+                    aria-label="Open research (coming soon)"
                     disabled
                   >
-                    <Settings className="h-4 w-4" />
+                    <Sparkles className="h-4 w-4" />
                   </button>
                 </div>
                 
@@ -312,6 +307,12 @@ export function LeftPanel() {
           token={mapboxToken}
         />
       )}
+
+      <ShareTripModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        trip={currentTrip}
+      />
     </div>
   )
 }

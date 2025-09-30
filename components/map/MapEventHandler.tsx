@@ -319,6 +319,48 @@ export function MapEventHandler({
       }
     })
 
+    const showRouteSegmentPopup = (feature: mapboxgl.MapboxGeoJSONFeature, lngLat: mapboxgl.LngLatLike) => {
+      if (!feature.properties?.label) {
+        return
+      }
+
+      clearPopups()
+      const segmentTypeLabels: Record<string, string> = {
+        'base-to-destination': 'Base to Destination',
+        'destination-to-destination': 'Destination to Destination',
+        'destination-to-base': 'Destination to Base',
+        'base-to-base': 'Base to Base',
+      }
+
+      const segmentTypeValue = typeof feature.properties.segmentType === 'string'
+        ? feature.properties.segmentType
+        : undefined
+
+      const segmentTypeLabel = segmentTypeValue && segmentTypeLabels[segmentTypeValue]
+        ? segmentTypeLabels[segmentTypeValue]
+        : 'Route Segment'
+
+      const popup = new mapboxgl.Popup({
+        closeButton: true,
+        closeOnClick: false,
+        className: 'route-segment-popup'
+      })
+        .setLngLat(lngLat)
+        .setDOMContent(
+          buildRouteSegmentPopupContent({
+            segmentTypeClass: segmentTypeValue ?? 'segment',
+            segmentTypeLabel,
+            fromLocation: feature.properties.fromLocation,
+            toLocation: feature.properties.toLocation,
+            durationLabel: formatDuration(feature.properties.duration),
+            distanceLabel: `${feature.properties.distance} km`,
+          })
+        )
+        .addTo(map)
+
+      setActivePopups(prev => [...prev, popup])
+    }
+
     // Route segment click handlers for distance/time popup
     const handleRouteSegmentClick = (e: any) => {
       const feature = e.features[0]
@@ -343,48 +385,49 @@ export function MapEventHandler({
         focusRouteBounds(featureIdStr)
       }
 
-      if (feature.properties.label) {
-        // Clear any existing popups first
-        clearPopups()
-        const segmentTypeLabels: Record<string, string> = {
-          'base-to-destination': 'Base to Destination',
-          'destination-to-destination': 'Destination to Destination',
-          'destination-to-base': 'Destination to Base',
-          'base-to-base': 'Base to Base',
-        }
-        const segmentTypeValue = typeof feature.properties.segmentType === 'string'
-          ? feature.properties.segmentType
-          : undefined
-        const segmentTypeLabel = segmentTypeValue && segmentTypeLabels[segmentTypeValue]
-          ? segmentTypeLabels[segmentTypeValue]
-          : 'Route Segment'
-
-        const popup = new mapboxgl.Popup({
-          closeButton: true,
-          closeOnClick: false, // Disable closeOnClick to prevent conflicts
-          className: 'route-segment-popup'
-        })
-          .setLngLat(e.lngLat)
-          .setDOMContent(
-            buildRouteSegmentPopupContent({
-              segmentTypeClass: segmentTypeValue ?? 'segment',
-              segmentTypeLabel,
-              fromLocation: feature.properties.fromLocation,
-              toLocation: feature.properties.toLocation,
-              durationLabel: formatDuration(feature.properties.duration),
-              distanceLabel: `${feature.properties.distance} km`,
-            })
-          )
-          .addTo(map)
-
-        // Add to active popups for tracking
-        setActivePopups(prev => {
-          return [...prev, popup]
-        })
-      }
+      showRouteSegmentPopup(feature, e.lngLat)
     }
 
     map.on('click', 'route-segments-layer', handleRouteSegmentClick)
+
+    const handleDayRouteOverlayClick = (e: any) => {
+      const feature = e.features[0]
+      if (!feature) {
+        return
+      }
+
+      const markerFeatures = map.queryRenderedFeatures(e.point, {
+        layers: ['destinations-layer', 'base-locations-layer']
+      })
+
+      if (markerFeatures.length > 0) {
+        return
+      }
+
+      const featureId = feature.id ?? feature.properties?.id
+      if (featureId) {
+        const featureIdStr = String(featureId)
+        setSelectedRouteSegmentId(featureIdStr)
+        applyRouteSelection(featureIdStr)
+        focusRouteBounds(featureIdStr)
+      }
+
+      showRouteSegmentPopup(feature, e.lngLat)
+    }
+
+    const handleDayRouteOverlayMouseEnter = () => {
+      map.getCanvas().style.cursor = 'pointer'
+    }
+
+    const handleDayRouteOverlayMouseLeave = () => {
+      map.getCanvas().style.cursor = ''
+    }
+
+    if (map.getLayer('day-route-overlay')) {
+      map.on('click', 'day-route-overlay', handleDayRouteOverlayClick)
+      map.on('mouseenter', 'day-route-overlay', handleDayRouteOverlayMouseEnter)
+      map.on('mouseleave', 'day-route-overlay', handleDayRouteOverlayMouseLeave)
+    }
 
     const handleRouteSegmentMouseEnter = (e: any) => {
       map.getCanvas().style.cursor = 'pointer'
@@ -428,7 +471,7 @@ export function MapEventHandler({
     // Close popups when clicking on empty areas (not on route segments)
     const handleGeneralClick = (e: mapboxgl.MapMouseEvent) => {
       const routeFeatures = map.queryRenderedFeatures(e.point, {
-        layers: ['route-segments-layer']
+        layers: ['route-segments-layer', 'day-route-overlay']
       })
 
       if (routeFeatures.length > 0) {
@@ -486,6 +529,11 @@ export function MapEventHandler({
       map.off('click', 'inter-day-routes-layer')
       map.off('click', 'intra-day-routes-layer')
       map.off('click', 'route-segments-layer', handleRouteSegmentClick)
+      if (map.getLayer('day-route-overlay')) {
+        map.off('click', 'day-route-overlay', handleDayRouteOverlayClick)
+        map.off('mouseenter', 'day-route-overlay', handleDayRouteOverlayMouseEnter)
+        map.off('mouseleave', 'day-route-overlay', handleDayRouteOverlayMouseLeave)
+      }
       map.off('mouseenter', 'route-segments-layer', handleRouteSegmentMouseEnter)
       map.off('mouseleave', 'route-segments-layer', handleRouteSegmentMouseLeave)
       map.off('click', handleGeneralClick)
