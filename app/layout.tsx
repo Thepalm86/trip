@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, Playfair_Display } from 'next/font/google'
 import './globals.css'
+import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider } from '@/lib/auth/auth-context'
 import { AppClientShell } from '@/components/providers/AppClientShell'
 
@@ -37,6 +38,7 @@ export default function RootLayout({
             {children}
           </AppClientShell>
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   )
