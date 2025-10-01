@@ -1,15 +1,30 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Search, MapPin, Star } from 'lucide-react'
-import { Destination } from '@/types'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  X,
+  Search,
+  MapPin,
+  Star,
+  ArrowLeft,
+  Plus,
+  Trash2,
+  ExternalLink,
+} from 'lucide-react'
+import type { Destination, LocationLink } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { resolveCityFromPlace } from '@/lib/location/city'
+import {
+  CATEGORY_ORDER,
+  getExploreCategoryMetadata,
+  normalizeExploreCategoryKey,
+} from '@/lib/explore/categories'
 
 interface AddDestinationModalProps {
   dayId: string
   onClose: () => void
   onAddToMaybe?: (destination: Destination) => void
+  allowAccommodationCategory?: boolean
 }
 
 interface SearchResult {
@@ -23,103 +38,147 @@ interface SearchResult {
   placeId?: string
 }
 
-const CATEGORY_OPTIONS = [
-  { value: 'city', label: 'City' },
-  { value: 'attraction', label: 'Attraction' },
-  { value: 'restaurant', label: 'Restaurant' },
-  { value: 'activity', label: 'Activity' },
+interface StepDefinition {
+  id: number
+  label: string
+}
+
+const STEP_DEFINITIONS: StepDefinition[] = [
+  { id: 1, label: 'Location' },
+  { id: 2, label: 'Category' },
+  { id: 3, label: 'Details' },
+]
+
+const LINK_TYPE_OPTIONS: { value: LocationLink['type']; label: string }[] = [
+  { value: 'website', label: 'Website' },
+  { value: 'google_maps', label: 'Google Maps' },
+  { value: 'tripadvisor', label: 'TripAdvisor' },
+  { value: 'airbnb', label: 'Airbnb' },
+  { value: 'booking', label: 'Booking.com' },
+  { value: 'hotels', label: 'Hotels.com' },
   { value: 'other', label: 'Other' },
 ]
 
-interface CategorySelectionDialogProps {
-  placeName: string
-  selectedCategory: string
-  onSelectCategory: (category: string) => void
-  onCancel: () => void
-  onConfirm: () => void
+type LinkDraft = {
+  id: string
+  type: LocationLink['type']
+  label: string
+  url: string
 }
 
-function CategorySelectionDialog({ placeName, selectedCategory, onSelectCategory, onCancel, onConfirm }: CategorySelectionDialogProps) {
+const createEmptyLinkDraft = (): LinkDraft => {
+  const randomId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+
+  return {
+    id: `link-${randomId}`,
+    type: 'website',
+    label: '',
+    url: '',
+  }
+}
+
+function StepIndicator({ steps, currentStep }: { steps: StepDefinition[]; currentStep: number }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur">
-      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-white">Choose category</h3>
-        <p className="mt-1 text-sm text-white/60">{placeName}</p>
-        <div className="mt-4 grid gap-2">
-          {CATEGORY_OPTIONS.map((option) => {
-            const isSelected = selectedCategory === option.value
-            return (
-              <button
-                key={option.value}
-                onClick={() => onSelectCategory(option.value)}
-                className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm transition ${
-                  isSelected
-                    ? 'border-blue-500 bg-blue-500/10 text-white'
-                    : 'border-white/10 bg-white/5 text-white/70 hover:border-blue-500/40 hover:bg-blue-500/15 hover:text-white'
+    <div className="flex w-full items-center gap-4">
+      {steps.map((step, index) => {
+        const isActive = step.id === currentStep
+        const isComplete = step.id < currentStep
+        const indicator = (
+          <div
+            className={`flex h-8 w-8 items-center justify-center rounded-full border text-sm font-medium transition-colors ${
+              isActive
+                ? 'border-blue-400/80 bg-blue-500/25 text-white'
+                : isComplete
+                ? 'border-blue-400/50 bg-blue-500/15 text-blue-100'
+                : 'border-white/15 bg-white/5 text-white/60'
+            }`}
+          >
+            {index + 1}
+          </div>
+        )
+
+        return (
+          <div key={step.id} className="flex flex-1 items-center">
+            <div className="flex items-center gap-3">
+              {indicator}
+              <span
+                className={`text-sm font-medium ${
+                  isActive ? 'text-white' : isComplete ? 'text-white/70' : 'text-white/50'
                 }`}
               >
-                <span>{option.label}</span>
-                {isSelected && <span className="text-xs text-blue-300">Selected</span>}
-              </button>
-            )
-          })}
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 hover:text-white"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
-          >
-            Continue
-          </button>
-        </div>
-      </div>
+                {step.label}
+              </span>
+            </div>
+            {index < steps.length - 1 && (
+              <div
+                className={`ml-4 hidden h-px flex-1 md:block ${
+                  isComplete ? 'bg-blue-400/40' : 'bg-white/15'
+                }`}
+              />
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-function getCategoryLabel(category: string): string {
-  const categoryLabels: Record<string, string> = {
-    'country': 'Country',
-    'administrative_area_level_1': 'State/Province',
-    'administrative_area_level_2': 'Region/County',
-    'locality': 'City',
-    'sublocality': 'Town/Neighborhood',
-    'establishment': 'Business',
-    'tourist_attraction': 'Attraction',
-    'restaurant': 'Restaurant',
-    'lodging': 'Hotel',
-    'shopping_mall': 'Shopping',
-    'museum': 'Museum',
-    'park': 'Park',
-    'attraction': 'Attraction',
-    'location': 'Location'
-  }
-  return categoryLabels[category] || 'Location'
-}
-
-export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestinationModalProps) {
+export function AddDestinationModal({
+  dayId,
+  onClose,
+  onAddToMaybe,
+  allowAccommodationCategory = false,
+}: AddDestinationModalProps) {
   const { addDestinationToDay } = useSupabaseTripStore()
+
+  const [step, setStep] = useState<number>(1)
+  const totalSteps = STEP_DEFINITIONS.length
+
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedDestination, setSelectedDestination] = useState<SearchResult | null>(null)
-  const [duration, setDuration] = useState(2)
-  const [cost, setCost] = useState(0)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [duration, setDuration] = useState<number>(2)
+  const [cost, setCost] = useState<number>(0)
   const [notes, setNotes] = useState('')
-  const [showNearbyRecommendations, setShowNearbyRecommendations] = useState(false)
+  const [linkDrafts, setLinkDrafts] = useState<LinkDraft[]>([])
   const [isSaving, setIsSaving] = useState(false)
-  const [pendingDestination, setPendingDestination] = useState<SearchResult | null>(null)
-  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<string>('attraction')
 
-  // Google Places API search functionality (via Next.js API route)
+  const allowedCategoryValues = useMemo(
+    () =>
+      CATEGORY_ORDER.filter((category) => {
+        if (category === 'hotel') {
+          return false
+        }
+        if (!allowAccommodationCategory && category === 'accommodation') {
+          return false
+        }
+        return true
+      }),
+    [allowAccommodationCategory],
+  )
+
+  const categoryOptions = useMemo(
+    () =>
+      allowedCategoryValues.map((value) => {
+        const metadata = getExploreCategoryMetadata(value)
+        return {
+          value,
+          label: metadata.label,
+        }
+      }),
+    [allowedCategoryValues],
+  )
+
   useEffect(() => {
+    if (step !== 1) {
+      return
+    }
+
     if (query.trim().length < 2) {
       setResults([])
       return
@@ -129,8 +188,6 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
     const fetchResults = async () => {
       try {
         setIsLoading(true)
-        
-        // Use our Next.js API route to proxy Google Places API
         const apiEndpoint = new URL('/api/places/search', window.location.origin)
         apiEndpoint.searchParams.set('query', query)
 
@@ -141,15 +198,15 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
 
         const data = await response.json()
         const googleResults = data.results ?? []
-        
+
         const mapped: SearchResult[] = googleResults.slice(0, 6).map((place: any) => ({
           id: `google-${place.place_id}`,
           name: place.name,
           fullName: place.formatted_address,
           coordinates: [place.geometry.location.lng, place.geometry.location.lat] as [number, number],
           category: place.types?.[0] || 'attraction',
-          contextLabel: place.formatted_address.split(',').slice(-2).join(', ').trim(),
-          rating: place.rating || Math.random() * 2 + 3,
+          contextLabel: place.formatted_address?.split(',').slice(-2).join(', ').trim(),
+          rating: place.rating,
           placeId: place.place_id,
         }))
 
@@ -164,15 +221,93 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
     }
 
     fetchResults()
+
     return () => controller.abort()
-  }, [query])
+  }, [query, step])
+
+  const canProceed = useMemo(() => {
+    if (step === 1) {
+      return Boolean(selectedDestination)
+    }
+    if (step === 2) {
+      return Boolean(selectedCategory)
+    }
+    return true
+  }, [selectedDestination, selectedCategory, step])
+
+  const primaryLabel = step === totalSteps ? (isSaving ? 'Adding…' : 'Add Destination') : 'Next'
+  const isPrimaryDisabled = !canProceed || (step === totalSteps && isSaving)
+
+  const handleSelectDestination = (result: SearchResult) => {
+    const normalizedCategory = normalizeExploreCategoryKey(result.category)
+
+    let fallbackCategory: string
+    if (normalizedCategory === 'hotel') {
+      fallbackCategory = allowAccommodationCategory ? 'accommodation' : 'other'
+    } else if (normalizedCategory === 'accommodation') {
+      fallbackCategory = allowAccommodationCategory ? 'accommodation' : 'other'
+    } else {
+      fallbackCategory = normalizedCategory
+    }
+
+    const resolvedCategory = allowedCategoryValues.includes(fallbackCategory)
+      ? fallbackCategory
+      : 'other'
+
+    setSelectedDestination(result)
+    setSelectedCategory(resolvedCategory)
+    setDuration(2)
+    setCost(0)
+    setNotes('')
+    setLinkDrafts([])
+    setStep(2)
+  }
+
+  const handleAddLinkDraft = () => {
+    setLinkDrafts((prev) => [...prev, createEmptyLinkDraft()])
+  }
+
+  const handleUpdateLinkDraft = (id: string, field: keyof Omit<LinkDraft, 'id'>, value: string) => {
+    setLinkDrafts((prev) =>
+      prev.map((link) => (link.id === id ? { ...link, [field]: value } : link)),
+    )
+  }
+
+  const handleRemoveLinkDraft = (id: string) => {
+    setLinkDrafts((prev) => prev.filter((link) => link.id !== id))
+  }
+
+  const handlePrimaryAction = async () => {
+    if (step === totalSteps) {
+      await handleAddDestination()
+    } else {
+      setStep((prev) => Math.min(prev + 1, totalSteps))
+    }
+  }
 
   const handleAddDestination = async () => {
-    if (!selectedDestination) return
+    if (!selectedDestination || !selectedCategory) {
+      return
+    }
+
     setIsSaving(true)
 
     try {
-      const city = await resolveCityFromPlace(selectedDestination.placeId, selectedDestination.fullName)
+      const city = await resolveCityFromPlace(
+        selectedDestination.placeId,
+        selectedDestination.fullName ?? selectedDestination.name,
+      )
+
+      const preparedLinks: LocationLink[] = linkDrafts
+        .map((link) => ({
+          id: link.id,
+          type: link.type,
+          label: link.label.trim(),
+          url: link.url.trim(),
+        }))
+        .filter((link) => link.label && link.url)
+
+      const trimmedNotes = notes.trim()
 
       const destination: Destination = {
         id: `search-${Date.now()}`,
@@ -180,11 +315,12 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
         description: selectedDestination.fullName,
         coordinates: selectedDestination.coordinates,
         city: city === 'Unknown' ? undefined : city,
-        category: (selectedDestination.category as Destination['category']) ?? 'attraction',
+        category: selectedCategory as Destination['category'],
+        rating: selectedDestination.rating,
         estimatedDuration: duration,
         cost: cost > 0 ? cost : undefined,
-        rating: selectedDestination.rating,
-        notes: notes || undefined,
+        notes: trimmedNotes ? trimmedNotes : undefined,
+        links: preparedLinks.length ? preparedLinks : undefined,
       }
 
       if (dayId === 'maybe' && onAddToMaybe) {
@@ -201,231 +337,305 @@ export function AddDestinationModal({ dayId, onClose, onAddToMaybe }: AddDestina
     }
   }
 
-  const activeSelectionId = categoryDialogOpen && pendingDestination
-    ? pendingDestination.id
-    : selectedDestination?.id
+  const renderStepContent = () => {
+    if (step === 1) {
+      const activeSelectionId = selectedDestination?.id
 
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-2xl h-[80vh] overflow-hidden flex flex-col">
-        {/* Enhanced Header with Icon */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
-              <MapPin className="h-4 w-4 text-white" />
+      return (
+        <div className="space-y-5">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+            <input
+              type="text"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search for attractions, restaurants, hotels, landmarks..."
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-10 py-3 text-white placeholder:text-white/40 focus:border-blue-400/50 focus:outline-none focus:ring-0"
+              autoFocus
+            />
+          </div>
+
+          {query.length >= 2 && (
+            <div className="max-h-72 space-y-2 overflow-y-auto scrollbar-hide">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-6 text-sm text-white/60">Searching…</div>
+              ) : results.length === 0 ? (
+                <div className="rounded-lg border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
+                  No results found. Try a different search term.
+                </div>
+              ) : (
+                results.map((result) => {
+                  const isSelected = activeSelectionId === result.id
+
+                  return (
+                    <button
+                      key={result.id}
+                      onClick={() => handleSelectDestination(result)}
+                      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                        isSelected
+                          ? 'border-blue-400/40 bg-blue-500/20'
+                          : 'border-white/10 bg-white/5 hover:border-blue-400/40 hover:bg-blue-500/15'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20">
+                          <MapPin className="h-4 w-4 text-blue-300" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium text-white">{result.name}</span>
+                            {result.rating && (
+                              <span className="flex items-center gap-1 text-xs text-yellow-300">
+                                <Star className="h-3 w-3 fill-current" />
+                                {result.rating.toFixed(1)}
+                              </span>
+                            )}
+                          </div>
+                          {result.fullName && (
+                            <p className="truncate text-xs text-white/50">{result.fullName}</p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    if (step === 2 && selectedDestination) {
+      return (
+        <div className="space-y-5">
+          <div>
+            <h4 className="text-sm font-semibold uppercase tracking-widest text-white/60">Choose category</h4>
+            <p className="mt-1 text-xs text-white/50">
+              We use categories to color-code the itinerary and personalize suggestions.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {categoryOptions.map((option) => {
+                const isSelected = selectedCategory === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setSelectedCategory(option.value)}
+                    className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition ${
+                      isSelected
+                        ? 'border-blue-400 bg-blue-500/25 text-white shadow-lg shadow-blue-500/10'
+                        : 'border-white/10 bg-white/5 text-white/70 hover:border-blue-400/40 hover:bg-blue-500/15 hover:text-white'
+                    }`}
+                  >
+                    <span>{option.label}</span>
+                    {isSelected && (
+                      <span className="text-xs font-medium text-blue-200">Selected</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (step === 3 && selectedDestination) {
+      return (
+        <div className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-white/80">Duration (hours)</label>
+              <input
+                type="number"
+                min="0.5"
+                max="12"
+                step="0.5"
+                value={duration}
+                onChange={(event) => setDuration(Number(event.target.value))}
+                className="mt-2 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white focus:border-blue-400/50 focus:outline-none"
+              />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Add Destination</h3>
-              <p className="text-sm text-white/60">Search for attractions, restaurants, hotels, landmarks</p>
+              <label className="block text-sm font-medium text-white/80">Estimated cost (€)</label>
+              <input
+                type="number"
+                min="0"
+                value={cost}
+                onChange={(event) => setCost(Number(event.target.value))}
+                className="mt-2 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white focus:border-blue-400/50 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/80">Notes</label>
+            <textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Add context or reminders for this stop."
+              className="mt-2 h-24 w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:border-blue-400/50 focus:outline-none"
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-white/80">Links</label>
+              <button
+                type="button"
+                onClick={handleAddLinkDraft}
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-1.5 text-xs font-medium text-blue-100 transition hover:border-blue-400/60 hover:bg-blue-500/25"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add link
+              </button>
+            </div>
+            {linkDrafts.length === 0 ? (
+              <p className="text-sm text-white/50">
+                Attach booking confirmations, official websites, or Google Maps links to access them quickly later.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {linkDrafts.map((link) => (
+                  <div
+                    key={link.id}
+                    className="rounded-lg border border-white/10 bg-white/5 p-3"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-white/50">
+                          Type
+                        </label>
+                        <select
+                          value={link.type}
+                          onChange={(event) => handleUpdateLinkDraft(link.id, 'type', event.target.value)}
+                          className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white focus:border-blue-400/50 focus:outline-none"
+                        >
+                          {LINK_TYPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value} className="bg-slate-900">
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-xs font-medium uppercase tracking-wide text-white/50">
+                            Label
+                          </label>
+                          <input
+                            type="text"
+                            value={link.label}
+                            onChange={(event) => handleUpdateLinkDraft(link.id, 'label', event.target.value)}
+                            placeholder="e.g. Official site"
+                            className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-blue-400/50 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium uppercase tracking-wide text-white/50">
+                            URL
+                          </label>
+                          <div className="relative mt-1">
+                            <ExternalLink className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+                            <input
+                              type="url"
+                              value={link.url}
+                              onChange={(event) => handleUpdateLinkDraft(link.id, 'url', event.target.value)}
+                              placeholder="https://"
+                              className="w-full rounded-lg border border-white/10 bg-white/10 px-10 py-2 text-sm text-white placeholder:text-white/40 focus:border-blue-400/50 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLinkDraft(link.id)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="flex h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500">
+                <MapPin className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Add Destination</h3>
+                <p className="text-sm text-white/60">Guide the user through the essentials in a few quick steps.</p>
+              </div>
+            </div>
+            <div className="pt-1">
+              <StepIndicator steps={STEP_DEFINITIONS} currentStep={step} />
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
+            className="rounded-lg p-2 text-white/60 transition hover:bg-white/10 hover:text-white"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6">
-          {/* Search */}
-          <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/40" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search for attractions, restaurants, hotels, landmarks..."
-                className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-400/50 transition-all duration-200"
-              />
-            </div>
-
-            {/* Search Results */}
-            {query.length >= 2 && (
-              <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-hide">
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <div className="flex items-center gap-3 text-sm text-white/60">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-transparent" />
-                      <span>Searching...</span>
-                    </div>
-                  </div>
-                ) : results.length === 0 ? (
-                  <div className="text-center py-4">
-                    <div className="text-sm text-white/60">No results found</div>
-                  </div>
-                ) : (
-                  results.map((result) => (
-                    <button
-                      key={result.id}
-                      onClick={() => {
-                        setPendingDestination(result)
-                        setSelectedCategory(result.category ?? 'attraction')
-                        setCategoryDialogOpen(true)
-                      }}
-                      className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${
-                        activeSelectionId === result.id
-                          ? 'bg-blue-500/20 border border-blue-400/30'
-                          : 'bg-white/5 border border-white/10 hover:bg-white/10'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-                          <MapPin className="h-4 w-4 text-blue-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-white text-sm truncate">{result.name}</span>
-                            {result.category && (
-                              <span className="px-2 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded-full">
-                                {getCategoryLabel(result.category)}
-                              </span>
-                            )}
-                            {result.rating && (
-                              <div className="flex items-center gap-1">
-                                <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                                <span className="text-xs text-white/60">{result.rating.toFixed(1)}</span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-xs text-white/50 truncate">{result.fullName}</div>
-                        </div>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Destination Details */}
-          {selectedDestination && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                <h4 className="font-medium text-white mb-2">Destination Details</h4>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-white/50">Category</p>
-                      <p className="text-sm font-medium text-white">
-                        {CATEGORY_OPTIONS.find((option) => option.value === selectedDestination.category)?.label ?? 'Custom'}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setPendingDestination(selectedDestination)
-                        setSelectedCategory(selectedDestination.category ?? 'attraction')
-                        setCategoryDialogOpen(true)
-                      }}
-                      className="text-xs font-medium text-blue-300 hover:text-blue-200 transition-colors"
-                    >
-                      Change
-                    </button>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-white/80 mb-1">Duration (hours)</label>
-                    <input
-                      type="number"
-                      min="0.5"
-                      max="12"
-                      step="0.5"
-                      value={duration}
-                      onChange={(e) => setDuration(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-blue-400/50"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm text-white/80 mb-1">Estimated Cost (€)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={cost}
-                      onChange={(e) => setCost(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-blue-400/50"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm text-white/80 mb-1">Notes (optional)</label>
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Add any notes about this destination..."
-                      className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-400/50 resize-none h-20"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Nearby Recommendations (Future Feature) */}
-          {selectedDestination && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-white/80">Nearby Recommendations</h4>
-                <button
-                  onClick={() => setShowNearbyRecommendations(!showNearbyRecommendations)}
-                  className="text-xs text-white/60 hover:text-white transition-colors"
-                >
-                  {showNearbyRecommendations ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              {showNearbyRecommendations && (
-                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <div className="text-sm text-blue-400 mb-2">🚀 Coming Soon</div>
-                  <p className="text-xs text-blue-300">
-                    This feature will show similar attractions, restaurants, and activities near {selectedDestination.name}.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto px-6 py-6">
+          {renderStepContent()}
         </div>
 
         {/* Footer */}
-        <div className="flex-shrink-0 flex items-center justify-end gap-3 p-6 border-t border-white/10">
+        <div className="flex items-center justify-between border-t border-white/10 px-6 py-4">
           <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all duration-200"
+            onClick={() => setStep((prev) => Math.max(prev - 1, 1))}
+            disabled={step === 1 || isSaving}
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition ${
+              step === 1 || isSaving
+                ? 'cursor-not-allowed border-white/5 text-white/30'
+                : 'border-white/10 text-white/70 hover:border-white/20 hover:bg-white/10 hover:text-white'
+            }`}
           >
-            Cancel
+            <ArrowLeft className="h-4 w-4" /> Back
           </button>
-          <button
-            onClick={handleAddDestination}
-            disabled={!selectedDestination || isSaving}
-            className="px-4 py-2 rounded-lg bg-blue-500 text-white font-medium transition-all duration-200 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSaving ? 'Adding…' : 'Add Destination'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="hidden rounded-lg border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 hover:text-white md:inline-flex"
+              disabled={isSaving}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handlePrimaryAction}
+              disabled={isPrimaryDisabled}
+              className={`inline-flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-semibold transition ${
+                isPrimaryDisabled
+                  ? 'cursor-not-allowed bg-blue-500/40 text-white/70'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
+            >
+              {primaryLabel}
+            </button>
+          </div>
         </div>
       </div>
-      {categoryDialogOpen && pendingDestination && (
-        <CategorySelectionDialog
-          placeName={pendingDestination.name}
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-          onCancel={() => {
-            setPendingDestination(null)
-            setCategoryDialogOpen(false)
-          }}
-          onConfirm={() => {
-            if (!pendingDestination) {
-              return
-            }
-            const destinationWithCategory: SearchResult = {
-              ...pendingDestination,
-              category: selectedCategory,
-            }
-            setSelectedDestination(destinationWithCategory)
-            setPendingDestination(null)
-            setCategoryDialogOpen(false)
-          }}
-        />
-      )}
     </div>
   )
 }

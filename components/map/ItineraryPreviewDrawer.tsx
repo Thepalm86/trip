@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, Edit3, Eye, X } from 'lucide-react'
+import { Calendar, Edit3, Info } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { DestinationOverviewModal } from '@/components/modals/DestinationOverviewModal'
 import { BaseLocationEditModal } from '@/components/modals/BaseLocationEditModal'
@@ -88,11 +88,6 @@ export function ItineraryPreviewDrawer() {
     }
   }, [selectedBaseLocation, baseContext, setSelectedBaseLocation])
 
-  const closeDrawer = () => {
-    setSelectedDestination(null)
-    setSelectedBaseLocation(null)
-  }
-
   const handleFocusTimeline = () => {
     if (destinationContext) {
       setSelectedDay(destinationContext.day.id)
@@ -171,7 +166,7 @@ export function ItineraryPreviewDrawer() {
                 </div>
               )}
             </div>
-            <div className="pointer-events-none absolute top-5 right-5 hidden flex-wrap items-center justify-end gap-2 group-hover:flex">
+            <div className="pointer-events-none absolute bottom-5 right-5 hidden flex-wrap items-center justify-end gap-2 group-hover:flex">
               {activeDestination && (
                 <button
                   onClick={() => setIsOverviewOpen(true)}
@@ -179,7 +174,7 @@ export function ItineraryPreviewDrawer() {
                   style={quickActionStyle}
                   title="View details"
                 >
-                  <Eye className="h-4 w-4" />
+                  <Info className="h-4 w-4" />
                 </button>
               )}
               {activeBase && (
@@ -192,13 +187,6 @@ export function ItineraryPreviewDrawer() {
                   <Edit3 className="h-4 w-4" />
                 </button>
               )}
-              <button
-                onClick={closeDrawer}
-                className="pointer-events-auto rounded-xl border border-white/10 bg-white/5 p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-                title="Close preview"
-              >
-                <X className="h-4 w-4" />
-              </button>
             </div>
           </div>
 

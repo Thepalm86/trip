@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, MapPin, Calendar, Trash2, Eye, Edit } from 'lucide-react'
+import { Plus, MapPin, Calendar, Trash2, Eye, Edit, ExternalLink } from 'lucide-react'
 import { Destination, TimelineDay } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { AddDestinationModal } from './AddDestinationModal'
@@ -114,6 +114,7 @@ function MaybeLocationCard({ destination, index }: { destination: Destination; i
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingDestination, setEditingDestination] = useState<Destination | null>(null)
+  const primaryLink = destination.links?.find(link => link.url)
 
   const isSelected = selectedCardId === destination.id
 
@@ -157,7 +158,22 @@ function MaybeLocationCard({ destination, index }: { destination: Destination; i
         onClick={handleDestinationClick}
       >
         {/* Action Buttons */}
-        <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+        <div className="absolute bottom-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+          {primaryLink && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (!primaryLink.url) {
+                  return
+                }
+                window.open(primaryLink.url, '_blank', 'noopener,noreferrer')
+              }}
+              className="p-2 rounded-lg transition-all duration-200 bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/50 hover:border-cyan-300"
+              title={primaryLink.label ? `Open ${primaryLink.label}` : 'Open link'}
+            >
+              <ExternalLink className="h-4 w-4 text-cyan-200" />
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -404,6 +420,7 @@ export function ExplorationTab() {
             addMaybeLocation(destination)
             setShowAddDestination(false)
           }}
+          allowAccommodationCategory
         />
       )}
     </DndContext>

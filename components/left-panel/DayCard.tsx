@@ -437,6 +437,8 @@ function DraggableDestination({
     color: '#e0ecff'
   }
 
+  const primaryDestinationLink = destination.links?.find(link => link.url)
+
   return (
     <div
       ref={setNodeRef}
@@ -461,8 +463,24 @@ function DraggableDestination({
         className="pointer-events-none absolute inset-y-3 left-[2px] w-[2px] rounded-r-full opacity-70"
         style={{ ...accentBarStyle, background: `linear-gradient(180deg, ${applyAlpha(accentColor, '99')} 0%, ${applyAlpha(accentColor, '22')} 90%)` }}
       />
-      {/* Action Buttons moved to bottom */}
-      <div className="absolute bottom-3 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+      {/* Hover actions */}
+      <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20">
+        {primaryDestinationLink && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              if (!primaryDestinationLink.url) {
+                return
+              }
+              window.open(primaryDestinationLink.url, '_blank', 'noopener,noreferrer')
+            }}
+            className="p-2 rounded-lg border transition-all duration-200 hover:scale-105"
+            style={actionButtonStyle}
+            title={primaryDestinationLink.label ? `Open ${primaryDestinationLink.label}` : 'Open link'}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -618,6 +636,8 @@ export function DayCard({
   const isTargetDay = activeTargetDayId === day.id
   const isSourceDay = draggingFromDayId === day.id
   const allTripDays = currentTrip?.days ?? []
+  const defaultBaseLocation = day.baseLocations[0]
+  const defaultBasePrimaryLink = defaultBaseLocation?.links?.find(link => link.url)
 
   useEffect(() => {
     if (duplicateConfig) {
@@ -1030,12 +1050,7 @@ export function DayCard({
               <div className="w-6 h-6 rounded-lg bg-green-500/20 flex items-center justify-center">
                 <Map className="h-3 w-3 text-green-400" />
               </div>
-              <h4 className="text-[0.95rem] font-semibold text-white/80">Accommodations</h4>
-              {day.baseLocations.length > 1 && (
-                <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-full">
-                  {day.baseLocations.length}
-                </span>
-              )}
+              <h4 className="text-[0.95rem] font-semibold text-white/80">Accommodation</h4>
             </div>
             <button
               onClick={onSetBaseLocation}
@@ -1101,39 +1116,27 @@ export function DayCard({
                       </div>
                     </div>
                   )}
-                  
-                  {/* Links */}
-                  {day.baseLocations[0].links && day.baseLocations[0].links.length > 0 && (
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-white/60 font-medium uppercase tracking-wide">Quick Access</span>
-                      <div className="flex items-center gap-2">
-                        {day.baseLocations[0].links.slice(0, 2).map((link, _linkIndex) => (
-                          <a
-                            key={link.id}
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 rounded-lg text-xs font-medium transition-all duration-200 border border-blue-500/30 hover:border-blue-400/50"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            {link.label}
-                          </a>
-                        ))}
-                        {day.baseLocations[0].links.length > 2 && (
-                          <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-lg border border-white/10">
-                            +{day.baseLocations[0].links.length - 2} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
                 
                 <CornerBadge label="Accommodation" accent={BASE_ROUTE_COLOR} />
 
                 {/* Action Buttons */}
-                <div className="absolute bottom-3 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
+                  {defaultBasePrimaryLink && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!defaultBasePrimaryLink.url) {
+                          return
+                        }
+                        window.open(defaultBasePrimaryLink.url, '_blank', 'noopener,noreferrer')
+                      }}
+                      className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-300 transition-all duration-200 backdrop-blur-sm"
+                      title={defaultBasePrimaryLink.label ? `Open ${defaultBasePrimaryLink.label}` : 'Open link'}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -1198,159 +1201,6 @@ export function DayCard({
             </div>
 
             {/* Additional Base Locations */}
-            {day.baseLocations.length > 1 && (
-              <div className="space-y-2">
-                {day.baseLocations.slice(1).map((location, index) => (
-                  <div key={index} className="relative group">
-                    <div 
-                      className={`relative overflow-hidden rounded-xl bg-gradient-to-br from-white/8 via-white/5 to-white/3 border transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-white/5 ${
-                        selectedCardId === `base-${day.id}-${index + 1}` 
-                          ? 'border-white/40 border-2 shadow-lg shadow-white/10' 
-                          : 'border-white/15 hover:border-white/25'
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleBaseLocationClick(location, index + 1)
-                      }}
-                    >
-                      {/* Content */}
-                      <div className="relative p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
-                            <Map className="h-5 w-5 text-white/70" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-semibold text-white/95 mb-1">{location.name}</h4>
-                            <div className="flex items-center gap-2">
-                              {location.city && (
-                                <span className="text-xs font-medium" style={{ color: '#cbd5f5' }}>
-                                  {location.city}
-                                </span>
-                              )}
-                              {location.city && <div className="w-1 h-1 bg-white/40 rounded-full"></div>}
-                              <span className="text-xs text-white/50">Alternative</span>
-                            </div>
-                          </div>
-                          
-                        </div>
-                        
-                        {location.notes && (
-                          <div className="mt-3 bg-white/5 rounded-lg p-2 border border-white/10">
-                            <p className="text-xs text-white/70 italic">
-                              "{location.notes}"
-                            </p>
-                          </div>
-                        )}
-                        
-                        {/* Links */}
-                        {location.links && location.links.length > 0 && (
-                          <div className="mt-3">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs text-white/60 font-medium uppercase tracking-wide">Quick Access</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {location.links.slice(0, 2).map((link, _linkIndex) => (
-                                <a
-                                  key={link.id}
-                                  href={link.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 rounded-lg text-xs font-medium transition-all duration-200 border border-blue-500/30 hover:border-blue-400/50"
-                                >
-                                  <ExternalLink className="h-3 w-3" />
-                                  {link.label}
-                                </a>
-                              ))}
-                              {location.links.length > 2 && (
-                                <span className="text-xs text-white/50 bg-white/5 px-2 py-1 rounded-lg border border-white/10">
-                                  +{location.links.length - 2} more
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Action Buttons */}
-                      <div className="absolute bottom-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            // Create a temporary destination for overview
-                            const tempDestination: Destination = {
-                              id: `temp-base-${location.name}`,
-                              name: location.name,
-                              description: location.context,
-                              coordinates: location.coordinates,
-                              city: location.city,
-                              category: 'city'
-                            }
-                            handleOpenOverview(tempDestination)
-                          }}
-                          className="p-1.5 rounded-lg bg-white/10 hover:bg-blue-500/20 text-white/60 hover:text-blue-400 transition-all duration-200"
-                          title="View overview"
-                        >
-                          <Info className="h-3 w-3" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDuplicateBaseLocationRequest(location, index + 1)
-                          }}
-                          className="p-1.5 rounded-lg bg-white/10 hover:bg-blue-500/20 text-white/60 hover:text-blue-400 transition-all duration-200"
-                          title="Duplicate to another day"
-                        >
-                          <CopyPlus className="h-3 w-3" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEditBaseLocation(location, index + 1)
-                          }}
-                          className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all duration-200"
-                          title="Edit accommodation"
-                        >
-                          <Edit3 className="h-3 w-3" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (confirm('Are you sure you want to remove this accommodation?')) {
-                              removeBaseLocation(day.id, index + 1)
-                            }
-                          }}
-                          className="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/20 text-white/60 hover:text-red-400 transition-all duration-200"
-                          title="Remove accommodation"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                        <div
-                          className="p-1.5 rounded-lg bg-white/10 text-white/50 border border-white/10 cursor-grab active:cursor-grabbing hover:bg-white/20 hover:text-white transition-all duration-200"
-                          title="Drag to reorder"
-                          onClick={(e) => e.stopPropagation()}
-                          role="presentation"
-                        >
-                          <GripVertical className="h-3 w-3" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex justify-end pt-4">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSetBaseLocation()
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-sm font-medium transition-all duration-200 hover:bg-emerald-500/30 hover:border-emerald-400/60"
-              >
-                <Plus className="h-4 w-4" />
-                Add Alternative Accommodation
-              </button>
-            </div>
           </div>
         ) : (
           <div className="flex justify-center py-6">

@@ -1,8 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, MapPin, Search, Plus, Navigation } from 'lucide-react'
-import { DayLocation } from '@/types'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  X,
+  MapPin,
+  Search,
+  Plus,
+  ArrowLeft,
+  Trash2,
+  ExternalLink,
+} from 'lucide-react'
+import type { DayLocation, LocationLink } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { resolveCityFromPlace } from '@/lib/location/city'
 
@@ -21,58 +29,155 @@ interface LocationResult {
   placeId?: string
 }
 
-function getCategoryLabel(category: string): string {
-  const categoryLabels: Record<string, string> = {
-    'country': 'Country',
-    'administrative_area_level_1': 'State/Province',
-    'administrative_area_level_2': 'Region/County',
-    'locality': 'City',
-    'sublocality': 'Town/Neighborhood',
-    'establishment': 'Business',
-    'tourist_attraction': 'Attraction',
-    'restaurant': 'Restaurant',
-    'lodging': 'Hotel',
-    'shopping_mall': 'Shopping',
-    'museum': 'Museum',
-    'park': 'Park',
-    'location': 'Location'
+interface StepDefinition {
+  id: number
+  label: string
+}
+
+const STEP_DEFINITIONS: StepDefinition[] = [
+  { id: 1, label: 'Location' },
+  { id: 2, label: 'Details' },
+]
+
+const LINK_TYPE_OPTIONS: { value: LocationLink['type']; label: string }[] = [
+  { value: 'website', label: 'Website' },
+  { value: 'google_maps', label: 'Google Maps' },
+  { value: 'tripadvisor', label: 'TripAdvisor' },
+  { value: 'airbnb', label: 'Airbnb' },
+  { value: 'booking', label: 'Booking.com' },
+  { value: 'hotels', label: 'Hotels.com' },
+  { value: 'other', label: 'Other' },
+]
+
+type LinkDraft = {
+  id: string
+  type: LocationLink['type']
+  label: string
+  url: string
+}
+
+const createEmptyLinkDraft = (): LinkDraft => {
+  const randomId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+
+  return {
+    id: `link-${randomId}`,
+    type: 'website',
+    label: '',
+    url: '',
   }
-  return categoryLabels[category] || 'Location'
+}
+
+function StepIndicator({ steps, currentStep }: { steps: StepDefinition[]; currentStep: number }) {
+  return (
+    <div className="flex w-full items-center gap-4">
+      {steps.map((step, index) => {
+        const isActive = step.id === currentStep
+        const isComplete = step.id < currentStep
+
+        return (
+          <div key={step.id} className="flex flex-1 items-center">
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-full border text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'border-emerald-400/80 bg-emerald-500/25 text-white'
+                    : isComplete
+                    ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-100'
+                    : 'border-white/15 bg-white/5 text-white/60'
+                }`}
+              >
+                {index + 1}
+              </div>
+              <span
+                className={`text-sm font-medium ${
+                  isActive ? 'text-white' : isComplete ? 'text-white/70' : 'text-white/50'
+                }`}
+              >
+                {step.label}
+              </span>
+            </div>
+            {index < steps.length - 1 && (
+              <div
+                className={`ml-4 hidden h-px flex-1 md:block ${
+                  isComplete ? 'bg-emerald-400/40' : 'bg-white/15'
+                }`}
+              />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function SelectedLocationPreview({ location, onChange }: { location: LocationResult; onChange?: () => void }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500/20 to-sky-500/20">
+        <MapPin className="h-5 w-5 text-emerald-300" />
+      </div>
+      <div className="flex-1 space-y-1">
+        <p className="text-base font-semibold text-white">{location.name}</p>
+        {(location.fullName || location.context) && (
+          <p className="text-xs text-white/60">{location.fullName ?? location.context}</p>
+        )}
+        {onChange && (
+          <button
+            type="button"
+            onClick={onChange}
+            className="text-xs font-medium text-emerald-200 transition-colors hover:text-emerald-100"
+          >
+            Change selection
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) {
-  const { currentTrip, addBaseLocation, removeBaseLocation } = useSupabaseTripStore()
+  const { currentTrip, addBaseLocation, removeBaseLocation, updateBaseLocation } = useSupabaseTripStore()
+
+  const [step, setStep] = useState(1)
+  const totalSteps = STEP_DEFINITIONS.length
+
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<LocationResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
   const [selectedLocation, setSelectedLocation] = useState<LocationResult | null>(null)
+  const [notes, setNotes] = useState('')
+  const [linkDrafts, setLinkDrafts] = useState<LinkDraft[]>([])
+  const [isSaving, setIsSaving] = useState(false)
 
   if (!currentTrip) {
     return null
   }
 
-  const day = currentTrip.days.find(d => d.id === dayId)
-  const dayIndex = currentTrip.days.findIndex(d => d.id === dayId)
-  const baseLocations = day?.baseLocations || []
+  const day = currentTrip.days.find((candidate) => candidate.id === dayId)
+  const dayIndex = currentTrip.days.findIndex((candidate) => candidate.id === dayId)
+  const baseLocations = day?.baseLocations ?? []
+  const formattedDayDate = day?.date
+    ? new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null
 
-  // Nearby recommendations (future feature)
-  const [nearbyRecommendations, setNearbyRecommendations] = useState<LocationResult[]>([])
-  const [showNearbyRecommendations, setShowNearbyRecommendations] = useState(false)
-
-  // Google Places API search functionality (via Next.js API route)
   useEffect(() => {
+    if (step !== 1) {
+      return
+    }
+
     if (query.trim().length < 2) {
       setResults([])
       return
     }
 
     const controller = new AbortController()
+
     const fetchResults = async () => {
       try {
         setIsLoading(true)
-        
-        // Use our Next.js API route to proxy Google Places API
         const apiEndpoint = new URL('/api/places/search', window.location.origin)
         apiEndpoint.searchParams.set('query', query)
 
@@ -83,13 +188,15 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
 
         const data = await response.json()
         const googleResults = data.results ?? []
-        
+
         const mapped: LocationResult[] = googleResults.slice(0, 6).map((place: any) => ({
           id: `google-${place.place_id}`,
           name: place.name,
           fullName: place.formatted_address || place.name,
           coordinates: [place.geometry.location.lng, place.geometry.location.lat] as [number, number],
-          context: place.formatted_address ? place.formatted_address.split(',').slice(-2).join(', ').trim() : place.name,
+          context: place.formatted_address
+            ? place.formatted_address.split(',').slice(-2).join(', ').trim()
+            : place.name,
           category: place.types?.[0] || 'location',
           placeId: place.place_id,
         }))
@@ -105,23 +212,47 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
     }
 
     fetchResults()
+
     return () => controller.abort()
-  }, [query])
+  }, [query, step])
 
-  const addLocation = async (location: LocationResult) => {
-    const city = await resolveCityFromPlace(location.placeId, location.fullName ?? location.context ?? location.name)
-
-    const dayLocation: DayLocation = {
-      name: location.name,
-      coordinates: location.coordinates,
-      context: location.context,
-      city: city === 'Unknown' ? undefined : city,
+  const canProceed = useMemo(() => {
+    if (step === 1) {
+      return Boolean(selectedLocation)
     }
+    return true
+  }, [selectedLocation, step])
 
-    await addBaseLocation(dayId, dayLocation)
-    setQuery('')
-    setResults([])
-    setSelectedLocation(null)
+  const primaryLabel = step === totalSteps ? (isSaving ? 'Saving…' : 'Save accommodation') : 'Next'
+  const isPrimaryDisabled = !canProceed || (step === totalSteps && isSaving)
+
+  const handleSelectLocation = (location: LocationResult) => {
+    setSelectedLocation(location)
+    setNotes('')
+    setLinkDrafts([])
+    setStep(2)
+  }
+
+  const handleAddLinkDraft = () => {
+    setLinkDrafts((prev) => [...prev, createEmptyLinkDraft()])
+  }
+
+  const handleUpdateLinkDraft = (id: string, field: keyof Omit<LinkDraft, 'id'>, value: string) => {
+    setLinkDrafts((prev) =>
+      prev.map((link) => (link.id === id ? { ...link, [field]: value } : link)),
+    )
+  }
+
+  const handleRemoveLinkDraft = (id: string) => {
+    setLinkDrafts((prev) => prev.filter((link) => link.id !== id))
+  }
+
+  const handlePrimaryAction = async () => {
+    if (step === totalSteps) {
+      await handleConfirmAddLocation()
+    } else {
+      setStep((prev) => Math.min(prev + 1, totalSteps))
+    }
   }
 
   const handleConfirmAddLocation = async () => {
@@ -130,209 +261,310 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
     }
 
     setIsSaving(true)
+
     try {
-      await addLocation(selectedLocation)
+      const city = await resolveCityFromPlace(
+        selectedLocation.placeId,
+        selectedLocation.fullName ?? selectedLocation.context ?? selectedLocation.name,
+      )
+
+      const preparedLinks: LocationLink[] = linkDrafts
+        .map((link) => ({
+          id: link.id,
+          type: link.type,
+          label: link.label.trim(),
+          url: link.url.trim(),
+        }))
+        .filter((link) => link.label && link.url)
+
+      const trimmedNotes = notes.trim()
+
+      const dayLocation: DayLocation = {
+        name: selectedLocation.name,
+        coordinates: selectedLocation.coordinates,
+        context: selectedLocation.fullName ?? selectedLocation.context,
+        city: city === 'Unknown' ? undefined : city,
+        notes: trimmedNotes ? trimmedNotes : undefined,
+        links: preparedLinks.length ? preparedLinks : undefined,
+      }
+
+      if (baseLocations.length > 0) {
+        await updateBaseLocation(dayId, 0, dayLocation)
+      } else {
+        await addBaseLocation(dayId, dayLocation)
+      }
       onClose()
+    } catch (error) {
+      console.error('BaseLocationPicker: failed to save base location', error)
     } finally {
       setIsSaving(false)
     }
   }
 
-  const handleRemoveLocation = (locationIndex: number) => {
-    removeBaseLocation(dayId, locationIndex)
-  }
-
-  // Future feature: Get nearby recommendations based on selected location
-  const handleGetNearbyRecommendations = async (location: LocationResult) => {
-    setShowNearbyRecommendations(true)
-    // TODO: Implement nearby recommendations API call
-    // This would fetch popular attractions, restaurants, hotels, etc. near the selected location
-    console.log('Getting nearby recommendations for:', location.name)
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-2xl h-[80vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center">
-              <MapPin className="h-4 w-4 text-white" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-white">Set Accommodation</h3>
-              <p className="text-sm text-white/60">Day {dayIndex + 1} • {day?.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6">
-          {/* Current Base Locations */}
+  const renderStepContent = () => {
+    if (step === 1) {
+      return (
+        <div className="space-y-6">
           {baseLocations.length > 0 && (
             <div className="space-y-3">
-              <h4 className="text-sm font-medium text-blue-400">Accommodations</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-emerald-300">Current accommodation</h4>
+                <span className="text-xs text-white/40">Day {dayIndex + 1}</span>
+              </div>
               <div className="space-y-2">
-                {baseLocations.map((location, index) => (
-                  <div key={index} className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                          <MapPin className="h-4 w-4 text-blue-400" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-white flex items-center gap-2">
-                            {location.name}
-                            {index === 0 && (
-                              <span className="px-2 py-0.5 text-xs bg-green-500/20 text-green-400 rounded-full">
-                                Default
-                              </span>
-                            )}
-                          </div>
-                          {location.context && (
-                            <div className="text-sm text-white/60">{location.context}</div>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveLocation(index)}
-                        className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
-                        title="Remove accommodation"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                {baseLocations.slice(0, 1).map((location, index) => (
+                  <div
+                    key={`${location.name}-${index}`}
+                    className="flex items-center justify-between rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-4"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-white">{location.name}</p>
+                      {location.context && (
+                        <p className="text-xs text-white/60">{location.context}</p>
+                      )}
+                      {location.city && (
+                        <p className="text-xs text-emerald-200">{location.city}</p>
+                      )}
                     </div>
+                    <button
+                      onClick={() => removeBaseLocation(dayId, index)}
+                      className="rounded-lg border border-emerald-400/30 px-3 py-1.5 text-xs text-emerald-200 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
+                    >
+                      Remove
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Search */}
           <div className="space-y-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/40" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
               <input
                 type="text"
                 value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value)
-                  setSelectedLocation(null)
-                }}
-                placeholder="Search for cities, regions, or specific places..."
-                className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-green-400/50 transition-all duration-200"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search for hotels, apartments, or neighborhoods"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-10 py-3 text-white placeholder:text-white/40 focus:border-emerald-400/50 focus:outline-none focus:ring-0"
+                autoFocus
               />
             </div>
 
-            {/* Search Results */}
             {query.length >= 2 && (
-              <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-hide">
+              <div className="max-h-72 space-y-2 overflow-y-auto scrollbar-hide">
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <div className="flex items-center gap-3 text-sm text-white/60">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-400 border-t-transparent" />
-                      <span>Searching...</span>
-                    </div>
-                  </div>
+                  <div className="flex items-center justify-center py-6 text-sm text-white/60">Searching…</div>
                 ) : results.length === 0 ? (
-                  <div className="text-center py-4">
-                    <div className="text-sm text-white/60">No results found</div>
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
+                    No results found. Try a different search term.
                   </div>
                 ) : (
-                  results.map((result) => (
-                    <button
-                      key={result.id}
-                      onClick={() => setSelectedLocation(result)}
-                      className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${
-                        selectedLocation?.id === result.id
-                          ? 'bg-green-500/20 border border-green-400/30'
-                          : 'bg-white/5 border border-white/10 hover:bg-green-500/10 hover:border-green-400/30'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500/20 to-blue-500/20 flex items-center justify-center">
-                          <MapPin className="h-4 w-4 text-green-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-white text-sm truncate">{result.name}</span>
-                            {result.category && (
-                              <span className="px-2 py-0.5 text-xs bg-green-500/20 text-green-400 rounded-full">
-                                {getCategoryLabel(result.category)}
-                              </span>
+                  results.map((result) => {
+                    const isSelected = selectedLocation?.id === result.id
+                    return (
+                      <button
+                        key={result.id}
+                        onClick={() => handleSelectLocation(result)}
+                        className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                          isSelected
+                            ? 'border-emerald-400/50 bg-emerald-500/20'
+                            : 'border-white/10 bg-white/5 hover:border-emerald-400/40 hover:bg-emerald-500/15'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500/20 to-sky-500/20">
+                            <MapPin className="h-4 w-4 text-emerald-200" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate text-sm font-medium text-white">{result.name}</p>
+                            {(result.fullName || result.context) && (
+                              <p className="truncate text-xs text-white/50">
+                                {result.fullName ?? result.context}
+                              </p>
                             )}
                           </div>
-                          <div className="text-xs text-white/50 truncate">{result.fullName}</div>
                         </div>
-                      </div>
-                    </button>
-                  ))
+                      </button>
+                    )
+                  })
                 )}
               </div>
             )}
           </div>
+        </div>
+      )
+    }
 
-          {/* Nearby Recommendations (Future Feature) */}
-          {showNearbyRecommendations && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-white/80">Nearby Recommendations</h4>
-                <button
-                  onClick={() => setShowNearbyRecommendations(false)}
-                  className="text-xs text-white/60 hover:text-white transition-colors"
-                >
-                  Hide
-                </button>
+    if (step === 2 && selectedLocation) {
+      return (
+        <div className="space-y-5">
+          <SelectedLocationPreview location={selectedLocation} onChange={() => setStep(1)} />
+
+          <div>
+            <label className="block text-sm font-medium text-white/80">Notes</label>
+            <textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Add arrival details, check-in reminders, or personal tips."
+              className="mt-2 h-24 w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:border-emerald-400/50 focus:outline-none"
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-white/80">Links</label>
+              <button
+                type="button"
+                onClick={handleAddLinkDraft}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-100 transition hover:border-emerald-400/60 hover:bg-emerald-500/25"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add link
+              </button>
+            </div>
+            {linkDrafts.length === 0 ? (
+              <p className="text-sm text-white/50">
+                Store booking confirmations or property pages so they are always one click away.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {linkDrafts.map((link) => (
+                  <div key={link.id} className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-white/50">
+                          Type
+                        </label>
+                        <select
+                          value={link.type}
+                          onChange={(event) => handleUpdateLinkDraft(link.id, 'type', event.target.value)}
+                          className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white focus:border-emerald-400/50 focus:outline-none"
+                        >
+                          {LINK_TYPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value} className="bg-slate-900">
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-xs font-medium uppercase tracking-wide text-white/50">
+                            Label
+                          </label>
+                          <input
+                            type="text"
+                            value={link.label}
+                            onChange={(event) => handleUpdateLinkDraft(link.id, 'label', event.target.value)}
+                            placeholder="e.g. Booking reference"
+                            className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-emerald-400/50 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium uppercase tracking-wide text-white/50">
+                            URL
+                          </label>
+                          <div className="relative mt-1">
+                            <ExternalLink className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+                            <input
+                              type="url"
+                              value={link.url}
+                              onChange={(event) => handleUpdateLinkDraft(link.id, 'url', event.target.value)}
+                              placeholder="https://"
+                              className="w-full rounded-lg border border-white/10 bg-white/10 px-10 py-2 text-sm text-white placeholder:text-white/40 focus:border-emerald-400/50 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLinkDraft(link.id)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <div className="text-sm text-blue-400 mb-2">🚀 Coming Soon</div>
-                <p className="text-xs text-blue-300">
-                  This feature will show popular attractions, restaurants, and hotels near your selected accommodation.
-                </p>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="flex h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500">
+                <MapPin className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Set accommodation</h3>
+                {formattedDayDate && (
+                  <p className="text-sm text-white/60">Day {dayIndex + 1} • {formattedDayDate}</p>
+                )}
               </div>
             </div>
-          )}
-
-          {/* Info */}
-          <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-            <h4 className="text-sm font-medium text-green-400 mb-2">About Accommodations</h4>
-            <ul className="text-xs text-green-300 space-y-1">
-              <li>• Add multiple potential accommodations for this day</li>
-              <li>• The first location is the default and will be shown on the map</li>
-              <li>• All activities and destinations will be planned around these locations</li>
-              <li>• Can be hotels, landmarks, or any points of interest</li>
-              <li>• Helps organize multi-city trips and explore different options</li>
-              <li>• Can be reordered, added, or removed anytime</li>
-            </ul>
+            <div className="pt-1">
+              <StepIndicator steps={STEP_DEFINITIONS} currentStep={step} />
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-white/60 transition hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-6">
+          {renderStepContent()}
         </div>
 
         {/* Footer */}
-        <div className="flex-shrink-0 flex items-center justify-end gap-3 p-6 border-t border-white/10">
+        <div className="flex items-center justify-between border-t border-white/10 px-6 py-4">
           <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all duration-200"
+            onClick={() => setStep((prev) => Math.max(prev - 1, 1))}
+            disabled={step === 1 || isSaving}
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition ${
+              step === 1 || isSaving
+                ? 'cursor-not-allowed border-white/5 text-white/30'
+                : 'border-white/10 text-white/70 hover:border-white/20 hover:bg-white/10 hover:text-white'
+            }`}
           >
-            Cancel
+            <ArrowLeft className="h-4 w-4" /> Back
           </button>
-          <button
-            onClick={handleConfirmAddLocation}
-            disabled={!selectedLocation || isSaving}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500 text-white font-medium transition-all duration-200 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSaving ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            ) : (
-              <Navigation className="h-4 w-4" />
-            )}
-            {isSaving ? 'Adding…' : 'Add Accommodation'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="hidden rounded-lg border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 hover:text-white md:inline-flex"
+              disabled={isSaving}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handlePrimaryAction}
+              disabled={isPrimaryDisabled}
+              className={`inline-flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-semibold transition ${
+                isPrimaryDisabled
+                  ? 'cursor-not-allowed bg-emerald-500/40 text-white/70'
+                  : 'bg-emerald-500 text-white hover:bg-emerald-600'
+              }`}
+            >
+              {primaryLabel}
+            </button>
+          </div>
         </div>
       </div>
     </div>

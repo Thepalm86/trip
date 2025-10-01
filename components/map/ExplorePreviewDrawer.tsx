@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { X, MapPin, PlusCircle, Building2, Eye, Edit, Trash2 } from 'lucide-react'
+import { MapPin, PlusCircle, Eye, Edit, Trash2 } from 'lucide-react'
 import { useExploreStore } from '@/lib/store/explore-store'
 import { AddExplorePlaceModal } from '../modals/AddExplorePlaceModal'
 import { DestinationOverviewModal } from '../modals/DestinationOverviewModal'
@@ -21,15 +21,10 @@ export function ExplorePreviewDrawer() {
   const selectedPlace = useExploreStore((state) => state.selectedPlace)
   const setSelectedPlace = useExploreStore((state) => state.setSelectedPlace)
   const removeActivePlace = useExploreStore((state) => state.removeActivePlace)
-  const [mode, setMode] = useState<'destination' | 'base' | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    return () => {
-      setMode(null)
-    }
-  }, [])
 
   useEffect(() => {
     if (!selectedPlace) return
@@ -44,6 +39,12 @@ export function ExplorePreviewDrawer() {
     document.addEventListener('pointerdown', handlePointerDown)
     return () => document.removeEventListener('pointerdown', handlePointerDown)
   }, [selectedPlace, setSelectedPlace])
+
+  useEffect(() => {
+    if (!selectedPlace) {
+      setShowAddModal(false)
+    }
+  }, [selectedPlace])
 
   // Helper function to convert explore place to destination format
   const convertToDestination = (place: any): Destination => ({
@@ -139,11 +140,11 @@ export function ExplorePreviewDrawer() {
                 )}
               </div>
             </div>
-            <div className="pointer-events-none absolute top-5 right-5 hidden flex-wrap items-center justify-end gap-2 group-hover:flex">
+            <div className="pointer-events-none absolute bottom-5 right-5 hidden flex-wrap items-center justify-end gap-2 group-hover:flex">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  setMode('destination')
+                  setShowAddModal(true)
                 }}
                 className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
                 style={quickActionStyle}
@@ -151,18 +152,6 @@ export function ExplorePreviewDrawer() {
                 aria-label="Add as activity"
               >
                 <PlusCircle className="h-4 w-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setMode('base')
-                }}
-                className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
-                style={quickActionStyle}
-                title="Set as accommodation"
-                aria-label="Set as accommodation"
-              >
-                <Building2 className="h-4 w-4" />
               </button>
               <button
                 onClick={(e) => {
@@ -200,14 +189,6 @@ export function ExplorePreviewDrawer() {
               >
                 <Trash2 className="h-4 w-4" />
               </button>
-              <button
-                onClick={() => setSelectedPlace(null)}
-                className="pointer-events-auto rounded-xl border border-white/10 bg-white/5 p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-                title="Close preview"
-                aria-label="Close preview"
-              >
-                <X className="h-4 w-4" />
-              </button>
             </div>
           </div>
 
@@ -229,13 +210,12 @@ export function ExplorePreviewDrawer() {
         </div>
       </div>
 
-      {mode && (
+      {showAddModal && (
         <AddExplorePlaceModal
           place={selectedPlace}
-          mode={mode}
-          onClose={() => setMode(null)}
+          onClose={() => setShowAddModal(false)}
           onComplete={() => {
-            setMode(null)
+            setShowAddModal(false)
             setSelectedPlace(null)
           }}
         />

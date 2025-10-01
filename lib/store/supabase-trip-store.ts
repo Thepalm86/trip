@@ -1274,8 +1274,17 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           continue
         }
 
+        const targetDay = currentTrip.days.find(day => day.id === targetDayId)
+        if (!targetDay) {
+          continue
+        }
+
         const clonedLocation = cloneLocation()
-        await tripApi.addBaseLocation(targetDayId, clonedLocation)
+        if (targetDay.baseLocations.length > 0) {
+          await tripApi.updateBaseLocation(targetDayId, 0, clonedLocation)
+        } else {
+          await tripApi.addBaseLocation(targetDayId, clonedLocation)
+        }
         createdLocations[targetDayId] = clonedLocation
       }
 
@@ -1289,7 +1298,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           createdLocations[day.id]
             ? {
                 ...day,
-                baseLocations: [...day.baseLocations, createdLocations[day.id]],
+                baseLocations: [createdLocations[day.id]],
               }
             : day
         )
