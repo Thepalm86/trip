@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { X, MapPin, PlusCircle, Building2, Eye, Edit, Trash2, MoreVertical } from 'lucide-react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { X, MapPin, PlusCircle, Building2, Eye, Edit, Trash2 } from 'lucide-react'
 import { useExploreStore } from '@/lib/store/explore-store'
 import { AddExplorePlaceModal } from '../modals/AddExplorePlaceModal'
 import { DestinationOverviewModal } from '../modals/DestinationOverviewModal'
@@ -10,6 +10,13 @@ import { Destination } from '@/types'
 import { fallbackCityFromFullName } from '@/lib/location/city'
 import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 
+const applyAlpha = (hex: string, alpha: string) => {
+  if (hex.startsWith('#') && hex.length === 7) {
+    return `${hex}${alpha}`
+  }
+  return hex
+}
+
 export function ExplorePreviewDrawer() {
   const selectedPlace = useExploreStore((state) => state.selectedPlace)
   const setSelectedPlace = useExploreStore((state) => state.setSelectedPlace)
@@ -17,25 +24,26 @@ export function ExplorePreviewDrawer() {
   const [mode, setMode] = useState<'destination' | 'base' | null>(null)
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [showDropdown, setShowDropdown] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  // Close dropdown when clicking outside
+  const containerRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false)
+    return () => {
+      setMode(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedPlace) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!containerRef.current) return
+      if (!containerRef.current.contains(event.target as Node)) {
+        setSelectedPlace(null)
       }
     }
 
-    if (showDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showDropdown])
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [selectedPlace, setSelectedPlace])
 
   // Helper function to convert explore place to destination format
   const convertToDestination = (place: any): Destination => ({
@@ -75,12 +83,35 @@ export function ExplorePreviewDrawer() {
     }
   }
 
+  const categoryMetadata = useMemo(
+    () => getExploreCategoryMetadata(selectedPlace?.category),
+    [selectedPlace?.category],
+  )
+
+  const accentColor = categoryMetadata.colors.border
+
+  const quickActionStyle = useMemo(
+    () => ({
+      background: `linear-gradient(135deg, ${applyAlpha(accentColor, '22')} 0%, rgba(15, 23, 42, 0.85) 100%)`,
+      borderColor: applyAlpha(accentColor, '88'),
+      color: '#e2e8f0',
+    }),
+    [accentColor],
+  )
+
+  const containerStyle = useMemo(
+    () => ({
+      background: `linear-gradient(135deg, ${applyAlpha(accentColor, '24')} 0%, rgba(15, 23, 42, 0.78) 100%)`,
+      borderColor: applyAlpha(accentColor, '88'),
+      boxShadow: `0 24px 60px ${applyAlpha(accentColor, '24')}`,
+    }),
+    [accentColor],
+  )
 
   if (!selectedPlace) {
     return null
   }
-
-  const categoryMetadata = getExploreCategoryMetadata(selectedPlace.category)
+  
   const fallbackCity = fallbackCityFromFullName(selectedPlace.fullName)
   const displayCity = (() => {
     if (selectedPlace.city && selectedPlace.city.length > 0) {
@@ -92,10 +123,10 @@ export function ExplorePreviewDrawer() {
 
   return (
     <>
-      <div className="pointer-events-auto absolute bottom-6 left-1/2 z-20 w-full max-w-lg -translate-x-1/2">
-        <div className="group rounded-3xl border border-white/10 bg-slate-900/80 backdrop-blur-2xl shadow-2xl">
-          <div className="flex items-start justify-between gap-4 p-5">
-            <div className="flex-1 min-w-0">
+      <div ref={containerRef} className="pointer-events-auto absolute bottom-6 left-1/2 z-20 w-full max-w-lg -translate-x-1/2">
+        <div className="group rounded-3xl border bg-slate-900/80 backdrop-blur-2xl" style={containerStyle}>
+          <div className="relative flex items-start justify-between gap-4 p-5">
+            <div className="flex-1 min-w-0 pr-28">
               <div className="text-xs font-semibold uppercase tracking-widest text-white/50">Preview</div>
               <div className="mt-2 space-y-1">
                 <h2 className="text-2xl font-light text-white leading-tight">
@@ -108,88 +139,72 @@ export function ExplorePreviewDrawer() {
                 )}
               </div>
             </div>
-            
-            {/* Fixed Action Buttons Container */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {/* Action Dropdown Menu */}
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setShowDropdown(!showDropdown)
-                  }}
-                  className="p-2 rounded-lg transition-all duration-200 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30"
-                  title="More Actions"
-                >
-                  <MoreVertical className="h-4 w-4 text-white/70" />
-                </button>
-                
-                {showDropdown && (
-                  <div className="absolute right-0 bottom-full mb-2 w-48 rounded-xl border border-white/10 bg-slate-900/95 backdrop-blur-2xl shadow-2xl z-50">
-                    <div className="p-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setMode('destination')
-                          setShowDropdown(false)
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 hover:bg-blue-500/20 text-left"
-                      >
-                        <PlusCircle className="h-4 w-4 text-blue-400" />
-                        <span className="text-sm text-white">Add as Activity</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setMode('base')
-                          setShowDropdown(false)
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 hover:bg-emerald-500/20 text-left"
-                      >
-                        <Building2 className="h-4 w-4 text-emerald-400" />
-                        <span className="text-sm text-white">Set as Accommodation</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleViewDetails()
-                          setShowDropdown(false)
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 hover:bg-blue-500/20 text-left"
-                      >
-                        <Eye className="h-4 w-4 text-blue-400" />
-                        <span className="text-sm text-white">View Details</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleEdit()
-                          setShowDropdown(false)
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 hover:bg-blue-500/20 text-left"
-                      >
-                        <Edit className="h-4 w-4 text-blue-400" />
-                        <span className="text-sm text-white">Edit</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleRemoveMarker()
-                          setShowDropdown(false)
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 hover:bg-red-500/20 text-left"
-                      >
-                        <Trash2 className="h-4 w-4 text-red-400" />
-                        <span className="text-sm text-white">Remove Marker</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-              
+            <div className="pointer-events-none absolute top-5 right-5 hidden flex-wrap items-center justify-end gap-2 group-hover:flex">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMode('destination')
+                }}
+                className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
+                style={quickActionStyle}
+                title="Add as activity"
+                aria-label="Add as activity"
+              >
+                <PlusCircle className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMode('base')
+                }}
+                className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
+                style={quickActionStyle}
+                title="Set as accommodation"
+                aria-label="Set as accommodation"
+              >
+                <Building2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleViewDetails()
+                }}
+                className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
+                style={quickActionStyle}
+                title="View details"
+                aria-label="View details"
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEdit()
+                }}
+                className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
+                style={quickActionStyle}
+                title="Edit"
+                aria-label="Edit"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleRemoveMarker()
+                }}
+                className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
+                style={quickActionStyle}
+                title="Remove"
+                aria-label="Remove"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
               <button
                 onClick={() => setSelectedPlace(null)}
-                className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                className="pointer-events-auto rounded-xl border border-white/10 bg-white/5 p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                title="Close preview"
+                aria-label="Close preview"
               >
                 <X className="h-4 w-4" />
               </button>

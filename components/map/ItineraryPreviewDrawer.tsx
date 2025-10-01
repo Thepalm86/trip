@@ -1,10 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, Edit, Eye, MapPin, X } from 'lucide-react'
+import { Calendar, Edit3, Eye, X } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { DestinationOverviewModal } from '@/components/modals/DestinationOverviewModal'
 import { BaseLocationEditModal } from '@/components/modals/BaseLocationEditModal'
+import { getExploreCategoryMetadata } from '@/lib/explore/categories'
+
+const applyAlpha = (hex: string, alpha: string) => {
+  if (hex.startsWith('#') && hex.length === 7) {
+    return `${hex}${alpha}`
+  }
+  return hex
+}
 
 export function ItineraryPreviewDrawer() {
   const {
@@ -99,6 +107,36 @@ export function ItineraryPreviewDrawer() {
   const activeBase = Boolean(baseContext)
   const allowDrawer = selectionOrigin === 'map'
 
+  const accentColor = useMemo(() => {
+    if (activeDestination && destinationContext) {
+      return getExploreCategoryMetadata(destinationContext.destination.category).colors.border
+    }
+
+    if (activeBase) {
+      return getExploreCategoryMetadata('accommodation').colors.border
+    }
+
+    return '#38bdf8'
+  }, [activeDestination, activeBase, destinationContext])
+
+  const quickActionStyle = useMemo(
+    () => ({
+      background: `linear-gradient(135deg, ${applyAlpha(accentColor, '22')} 0%, rgba(15, 23, 42, 0.85) 100%)`,
+      borderColor: applyAlpha(accentColor, '88'),
+      color: '#e2e8f0',
+    }),
+    [accentColor],
+  )
+
+  const containerStyle = useMemo(
+    () => ({
+      background: `linear-gradient(135deg, ${applyAlpha(accentColor, '24')} 0%, rgba(15, 23, 42, 0.78) 100%)`,
+      borderColor: applyAlpha(accentColor, '88'),
+      boxShadow: `0 24px 60px ${applyAlpha(accentColor, '24')}`,
+    }),
+    [accentColor],
+  )
+
   if (!allowDrawer || (!activeDestination && !activeBase)) {
     return null
   }
@@ -118,25 +156,27 @@ export function ItineraryPreviewDrawer() {
   return (
     <>
       <div className="pointer-events-auto absolute bottom-6 left-1/2 z-20 w-full max-w-lg -translate-x-1/2">
-        <div className="group rounded-3xl border border-white/10 bg-slate-900/80 backdrop-blur-2xl shadow-2xl">
-          <div className="flex items-start justify-between gap-5 p-5">
-            <div className="flex-1 min-w-0 space-y-3">
+        <div className="group rounded-3xl border bg-slate-900/80 backdrop-blur-2xl" style={containerStyle}>
+          <div className="relative flex items-start justify-between gap-5 p-5">
+            <div className="flex-1 min-w-0 space-y-3 pr-28">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">Preview</div>
               <div className="space-y-2">
                 <h2 className="text-2xl font-light text-white leading-tight">{title}</h2>
                 <p className="text-sm text-white/70 leading-relaxed line-clamp-2">{subtitle}</p>
               </div>
-              <div className="flex items-center gap-2 text-xs text-white/50 pt-1">
-                <Calendar className="h-3.5 w-3.5" />
-                {dayLabel}
-              </div>
+              {activeDestination && (
+                <div className="flex items-center gap-2 text-xs text-white/50 pt-1">
+                  <Calendar className="h-3.5 w-3.5" />
+                  {dayLabel}
+                </div>
+              )}
             </div>
-
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="pointer-events-none absolute top-5 right-5 hidden flex-wrap items-center justify-end gap-2 group-hover:flex">
               {activeDestination && (
                 <button
                   onClick={() => setIsOverviewOpen(true)}
-                  className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                  className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
+                  style={quickActionStyle}
                   title="View details"
                 >
                   <Eye className="h-4 w-4" />
@@ -145,15 +185,16 @@ export function ItineraryPreviewDrawer() {
               {activeBase && (
                 <button
                   onClick={() => setIsBaseEditOpen(true)}
-                  className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                  className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
+                  style={quickActionStyle}
                   title="Edit accommodation"
                 >
-                  <Edit className="h-4 w-4" />
+                  <Edit3 className="h-4 w-4" />
                 </button>
               )}
               <button
                 onClick={closeDrawer}
-                className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                className="pointer-events-auto rounded-xl border border-white/10 bg-white/5 p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
                 title="Close preview"
               >
                 <X className="h-4 w-4" />
@@ -162,11 +203,9 @@ export function ItineraryPreviewDrawer() {
           </div>
 
           <div className="flex items-center justify-between border-t border-white/10 px-5 py-4 text-xs text-white/60">
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              {activeDestination
-                ? (destinationContext!.destination.category || 'Destination')
-                : 'Accommodation'}
+            <span className="inline-flex items-center gap-2">
+              <Calendar className="h-3.5 w-3.5" />
+              {dayLabel}
             </span>
             <button
               onClick={handleFocusTimeline}
