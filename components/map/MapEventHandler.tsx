@@ -568,7 +568,7 @@ export function MapEventHandler({
     map.on('mouseenter', 'route-segments-layer', handleRouteSegmentMouseEnter)
     map.on('mouseleave', 'route-segments-layer', handleRouteSegmentMouseLeave)
 
-    const handleMapMouseMove = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+    const handleMapMouseMove = (e: mapboxgl.MapMouseEvent) => {
       if (!map) {
         return
       }

@@ -7,6 +7,11 @@ import { exploreApiService } from '@/lib/supabase/explore-api'
 import { resolveCityFromPlace, fallbackCityFromFullName } from '@/lib/location/city'
 import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 
+interface RouteSelectionState {
+  start: ExplorePlace | null
+  end: ExplorePlace | null
+}
+
 interface ExploreStoreState {
   query: string
   results: ExplorePlace[]
@@ -19,6 +24,7 @@ interface ExploreStoreState {
   showMarkers: boolean
   visibleCategories: string[] | null
   lastAddedPlace: ExplorePlace | null
+  routeSelection: RouteSelectionState
   setQuery: (query: string) => void
   searchPlaces: (query: string) => Promise<void>
   setSelectedPlace: (place: ExplorePlace | null) => void
@@ -34,6 +40,10 @@ interface ExploreStoreState {
   setVisibleCategories: (categories: string[] | null) => void
   reset: () => void
   clearLastAddedPlace: () => void
+  setRouteSelectionStart: (place: ExplorePlace | null) => void
+  setRouteSelectionEnd: (place: ExplorePlace | null) => void
+  setRouteSelection: (selection: RouteSelectionState) => void
+  clearRouteSelection: () => void
 }
 
 const noopStorage = {
@@ -60,6 +70,7 @@ export const useExploreStore = create<ExploreStoreState>()(
       showMarkers: true,
       visibleCategories: null,
       lastAddedPlace: null,
+      routeSelection: { start: null, end: null },
       setQuery: (query) => set({ query }),
       searchPlaces: async (query: string) => {
         const trimmed = query.trim()
@@ -330,6 +341,20 @@ export const useExploreStore = create<ExploreStoreState>()(
           showMarkers: shouldShowMarkers,
         })
       },
+      setRouteSelectionStart: (place) => set((state) => ({
+        routeSelection: {
+          ...state.routeSelection,
+          start: place,
+        },
+      })),
+      setRouteSelectionEnd: (place) => set((state) => ({
+        routeSelection: {
+          ...state.routeSelection,
+          end: place,
+        },
+      })),
+      setRouteSelection: (selection) => set({ routeSelection: selection }),
+      clearRouteSelection: () => set({ routeSelection: { start: null, end: null } }),
       clearLastAddedPlace: () => set({ lastAddedPlace: null }),
       reset: () => {
         const { showMarkers, visibleCategories } = get()
@@ -345,6 +370,7 @@ export const useExploreStore = create<ExploreStoreState>()(
           showMarkers,
           visibleCategories,
           lastAddedPlace: null,
+          routeSelection: { start: null, end: null },
         })
       },
     }),
