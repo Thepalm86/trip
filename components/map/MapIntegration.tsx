@@ -14,6 +14,7 @@ import { ExploreMarkersToggle } from './ExploreMarkersToggle'
 import { ItineraryPreviewDrawer } from './ItineraryPreviewDrawer'
 import { ExploreMapFocus } from './ExploreMapFocus'
 import { CountryFocus } from './CountryFocus'
+import { MapLegendToggle, MapRouteToggle } from './MapControls'
 
 /**
  * MapIntegration - Orchestrates all map-related components
@@ -119,9 +120,13 @@ export function MapIntegration({ map }: MapIntegrationProps) {
         selectedDestination={selectedDestination}
       />
       <ExplorePreviewMarker map={map} />
-      <ExploreMarkersToggle map={map} />
       <ExploreMapFocus map={map} />
       <CountryFocus map={map} />
+      <div className="absolute bottom-4 left-4 z-10 flex items-start gap-3">
+        <MapLegendToggle map={map} />
+        <ExploreMarkersToggle map={map} positioned={false} className="flex-shrink-0" />
+        <MapRouteToggle map={map} />
+      </div>
       <div className="absolute top-4 right-4 z-10">
         {isLoadingRoutes && (
           <div className="glass-card rounded-lg p-3 shadow-lg">

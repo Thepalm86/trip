@@ -1,69 +1,114 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Info, ChevronDown, ChevronUp } from 'lucide-react'
+import { Info, ChevronDown, ChevronUp, Route as RouteIcon } from 'lucide-react'
 import { CATEGORY_ORDER, getExploreCategoryMetadata, ExploreCategoryMetadata } from '@/lib/explore/categories'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 
-interface MapControlsProps {
+interface MapToggleProps {
   map: any
+  className?: string
 }
 
-export function MapControls({ map }: MapControlsProps) {
+export function MapLegendToggle({ map, className }: MapToggleProps) {
+  void map
   const [isExpanded, setIsExpanded] = useState(false)
   const categories: ExploreCategoryMetadata[] = useMemo(() => {
     return CATEGORY_ORDER.filter((key) => key !== 'hotel').map((key) => getExploreCategoryMetadata(key))
   }, [])
 
   return (
-    <div className="absolute bottom-4 left-4 z-10">
-      <div className="bg-slate-900/90 backdrop-blur-sm border border-white/10 rounded-lg shadow-lg overflow-hidden">
-        {/* Legend Header */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 px-3 py-2 w-full text-left hover:bg-white/5 transition-all duration-200"
-        >
-          <Info className="h-4 w-4 text-white/60" />
-          <span className="text-sm font-medium text-white">Legend</span>
-          {isExpanded ? (
-            <ChevronDown className="h-4 w-4 text-white/60 ml-auto" />
-          ) : (
-            <ChevronUp className="h-4 w-4 text-white/60 ml-auto" />
-          )}
-        </button>
+    <div className={`relative ${className ?? ''}`}>
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex min-h-[3rem] items-center gap-2 rounded-lg border border-white/10 bg-slate-900/90 px-3 text-left text-white shadow-lg transition-all duration-200 hover:bg-white/5"
+        aria-expanded={isExpanded}
+      >
+        <Info className="h-4 w-4 text-white/60" />
+        <span className="text-sm font-medium text-white">Legend</span>
+        {isExpanded ? (
+          <ChevronDown className="ml-auto h-4 w-4 text-white/60" />
+        ) : (
+          <ChevronUp className="ml-auto h-4 w-4 text-white/60" />
+        )}
+      </button>
 
-        {/* Legend Content */}
-        {isExpanded && (
-          <div className="px-3 pb-3 border-t border-white/10">
-            <div className="space-y-3 pt-3">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-white/50 mb-2">Marker categories</p>
-                <div className="space-y-2">
-                  {categories.map((category) => (
-                    <div key={category.key} className="flex items-center gap-2">
-                      <div
-                        className="h-4 w-4 rounded-full border border-white/20"
-                        style={{ backgroundColor: category.colors.border }}
-                        aria-hidden
-                      />
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-white">{category.label}</p>
-                      </div>
+      {isExpanded && (
+        <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 min-w-[220px] rounded-lg border border-white/10 bg-slate-950/95 px-3 pb-3 shadow-xl backdrop-blur-sm">
+          <div className="space-y-3 pt-3">
+            <div>
+              <p className="mb-2 text-xs uppercase tracking-wider text-white/50">Marker categories</p>
+              <div className="space-y-2">
+                {categories.map((category) => (
+                  <div key={category.key} className="flex items-center gap-2">
+                    <div
+                      className="h-4 w-4 rounded-full border border-white/20"
+                      style={{ backgroundColor: category.colors.border }}
+                      aria-hidden
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-white">{category.label}</p>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
+            </div>
 
-              <div className="pt-3 border-t border-white/10">
-                <p className="text-xs uppercase tracking-wider text-white/50 mb-2">Marker styles</p>
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-white">Outlined dots = Explore anywhere</p>
-                  <p className="text-xs font-medium text-white">Filled dots = Itinerary destinations</p>
-                </div>
+            <div className="border-t border-white/10 pt-3">
+              <p className="mb-2 text-xs uppercase tracking-wider text-white/50">Marker styles</p>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-white">Outlined dots = Explore anywhere</p>
+                <p className="text-xs font-medium text-white">Filled dots = Itinerary destinations</p>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
+
+export function MapRouteToggle({ map, className }: MapToggleProps) {
+  void map
+  const routeModeEnabled = useSupabaseTripStore((state) => state.routeModeEnabled)
+  const routeSelectionStart = useSupabaseTripStore((state) => state.routeSelectionStart)
+  const adHocRouteResult = useSupabaseTripStore((state) => state.adHocRouteResult)
+  const setRouteModeEnabled = useSupabaseTripStore((state) => state.setRouteModeEnabled)
+  const clearAdHocRoute = useSupabaseTripStore((state) => state.clearAdHocRoute)
+
+  const handleToggle = () => {
+    const next = !routeModeEnabled
+    setRouteModeEnabled(next)
+    if (!next) {
+      clearAdHocRoute()
+    }
+  }
+
+  const statusLabel = (() => {
+    if (!routeModeEnabled) return 'Tap to enable'
+    if (routeSelectionStart) return 'Select end point'
+    if (adHocRouteResult) return 'Route ready'
+    return 'Select start point'
+  })()
+
+  const activeClasses = routeModeEnabled
+    ? 'border-emerald-400/80 text-white shadow-lg shadow-emerald-500/20'
+    : 'border-white/12 text-white/80'
+
+  return (
+    <button
+      type="button"
+      onClick={handleToggle}
+      aria-pressed={routeModeEnabled}
+      className={`flex min-h-[3rem] items-center gap-3 rounded-lg border bg-slate-900/90 px-4 py-2 backdrop-blur-sm transition-all duration-200 ${activeClasses} ${className ?? ''}`}
+    >
+      <RouteIcon className="h-4 w-4" />
+      <div className="flex flex-col text-left">
+        <span className="text-sm font-semibold">Route</span>
+        <span className="text-xs opacity-80">{statusLabel}</span>
+      </div>
+    </button>
+  )
+}
+

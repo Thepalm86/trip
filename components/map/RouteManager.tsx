@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
 import type { Feature, FeatureCollection, LineString } from 'geojson'
 import type { Trip } from '@/types'
-import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
+import { useSupabaseTripStore, MapRouteSelectionPoint } from '@/lib/store/supabase-trip-store'
 import {
   buildIntraFinalKey,
   buildIntraSequenceKey,
@@ -35,7 +35,7 @@ interface RouteData {
     baseIndex?: number
     category?: string
   }>
-  segmentType?: 'base-to-destination' | 'destination-to-destination' | 'destination-to-base' | 'base-to-base' | 'inter-day'
+  segmentType?: 'base-to-destination' | 'destination-to-destination' | 'destination-to-base' | 'base-to-base' | 'inter-day' | 'ad-hoc'
   visibility?: 'overview' | 'selected-inbound' | 'selected-outbound' | 'selected-intra-day'
 }
 
@@ -59,11 +59,15 @@ export function RouteManager({
   showDayRouteOverlay,
 }: RouteManagerProps) {
   const routeCalculationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-const routeCache = useRef<Map<string, RouteData>>(new Map())
+  const routeCache = useRef<Map<string, RouteData>>(new Map())
   const currentFeatureIdsRef = useRef<string[]>([])
   const selectedRouteSegmentIdRef = useRef<string | null>(null)
 
   const selectedRouteSegmentId = useSupabaseTripStore(state => state.selectedRouteSegmentId)
+  const adHocRouteConfig = useSupabaseTripStore((state) => state.adHocRouteConfig)
+  const adHocRouteResult = useSupabaseTripStore((state) => state.adHocRouteResult)
+  const setAdHocRouteResult = useSupabaseTripStore((state) => state.setAdHocRouteResult)
+  const routeModeEnabled = useSupabaseTripStore((state) => state.routeModeEnabled)
 
   selectedRouteSegmentIdRef.current = selectedRouteSegmentId
 
@@ -96,6 +100,22 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
     baseIndex: role === 'base' ? payload.index : undefined,
     category: role === 'destination' ? payload.category : undefined
   }), [])
+
+  const selectionToWaypoint = useCallback((selection: MapRouteSelectionPoint) => {
+    const dayId = selection.dayId ?? 'ad-hoc'
+    const role: 'base' | 'destination' = selection.source === 'base' ? 'base' : 'destination'
+    const indexMeta = role === 'destination' ? selection.meta?.destIndex : selection.meta?.baseIndex
+    const safeIndex = typeof indexMeta === 'number' ? indexMeta : undefined
+    const categoryMeta = typeof selection.meta?.category === 'string' ? (selection.meta.category as string) : undefined
+
+    return toWaypoint(dayId, role, {
+      name: selection.label,
+      coordinates: selection.coordinates,
+      id: selection.id,
+      index: safeIndex,
+      category: categoryMeta,
+    })
+  }, [toWaypoint])
 
   const getDayStartAnchor = useCallback((day: Trip['days'][0]) => {
     // For inbound routes, we want to connect to the first destination of the day
@@ -267,6 +287,71 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
     return null
   }, [token])
 
+  useEffect(() => {
+    if (!map || !token) {
+      return
+    }
+
+    if (!routeModeEnabled) {
+      if (adHocRouteResult) {
+        setAdHocRouteResult(null)
+      }
+      return
+    }
+
+    if (!adHocRouteConfig) {
+      return
+    }
+
+    if (adHocRouteResult && adHocRouteResult.id === adHocRouteConfig.id) {
+      return
+    }
+
+    let cancelled = false
+
+    const run = async () => {
+      const origin = selectionToWaypoint(adHocRouteConfig.from)
+      const destination = selectionToWaypoint(adHocRouteConfig.to)
+
+      if (coordinatesMatch(origin.coordinates, destination.coordinates)) {
+        setAdHocRouteResult(null)
+        return
+      }
+
+      const routeData = await calculateSegmentRoute(origin, destination)
+
+      if (!routeData || cancelled) {
+        if (!cancelled) {
+          setAdHocRouteResult(null)
+        }
+        return
+      }
+
+      setAdHocRouteResult({
+        ...adHocRouteConfig,
+        durationSeconds: routeData.duration,
+        distanceMeters: routeData.distance,
+        coordinates: routeData.coordinates,
+      })
+    }
+
+    run()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    map,
+    token,
+    routeModeEnabled,
+    adHocRouteConfig,
+    adHocRouteResult,
+    selectionToWaypoint,
+    calculateSegmentRoute,
+    coordinatesMatch,
+    setAdHocRouteResult,
+  ])
+
   const getRoutesToShow = useCallback(() => {
     const interDayRoutes: Array<{
       key: string
@@ -392,6 +477,25 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
       })
 
       await Promise.all(routePromises)
+
+      if (adHocRouteResult && Array.isArray(adHocRouteResult.coordinates) && adHocRouteResult.coordinates.length > 1) {
+        const fromWaypoint = selectionToWaypoint(adHocRouteResult.from)
+        const toWaypointData = selectionToWaypoint(adHocRouteResult.to)
+
+        newRoutes.set(adHocRouteResult.id, {
+          coordinates: adHocRouteResult.coordinates,
+          duration: adHocRouteResult.durationSeconds,
+          distance: adHocRouteResult.distanceMeters,
+          routeType: 'segment',
+          fromDayId: fromWaypoint.dayId,
+          toDayId: toWaypointData.dayId,
+          fromLocation: fromWaypoint.name,
+          toLocation: toWaypointData.name,
+          waypoints: [fromWaypoint, toWaypointData],
+          segmentType: 'ad-hoc',
+          visibility: 'selected-intra-day',
+        })
+      }
 
       // Update map sources with all segments
       const allSegments: FeatureCollection<LineString>['features'] = Array.from(newRoutes.entries()).map(([key, route]) => {
@@ -574,7 +678,21 @@ const routeCache = useRef<Map<string, RouteData>>(new Map())
       } finally {
         onLoadingChange(false)
       }
-  }, [map, hasTrip, token, tripDays, selectedDayId, getRoutesToShow, calculateSegmentRoute, calculateBearing, onLoadingChange, selectedRouteSegmentId, showDayRouteOverlay])
+  }, [
+    map,
+    hasTrip,
+    token,
+    tripDays,
+    selectedDayId,
+    getRoutesToShow,
+    calculateSegmentRoute,
+    calculateBearing,
+    onLoadingChange,
+    selectedRouteSegmentId,
+    showDayRouteOverlay,
+    adHocRouteResult,
+    selectionToWaypoint,
+  ])
 
   // Debounced route calculation
   useEffect(() => {

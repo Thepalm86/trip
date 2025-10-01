@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import type { LineString as GeoJSONLineString } from 'geojson'
 import type { Trip } from '@/types'
+import { useSupabaseTripStore, MapRouteSelectionPoint } from '@/lib/store/supabase-trip-store'
 
 function createElement(
   tag: string,
@@ -21,39 +22,26 @@ function createElement(
 const isMapDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_MAP === 'true'
 
 function buildRouteSegmentPopupContent({
-  segmentTypeClass,
-  segmentTypeLabel,
-  fromLocation,
-  toLocation,
   durationLabel,
   distanceLabel,
 }: {
-  segmentTypeClass: string
-  segmentTypeLabel: string
-  fromLocation: string
-  toLocation: string
   durationLabel: string
   distanceLabel: string
 }) {
-  const container = createElement('div', 'route-popup-content')
-  const header = createElement('div', 'route-popup-header')
-  const icon = createElement('div', 'route-popup-icon')
-  if (segmentTypeClass) {
-    icon.classList.add(segmentTypeClass)
-  }
-  const title = createElement('div', 'route-popup-title', segmentTypeLabel)
+  const container = createElement('div', 'route-popup-content route-popup-compact')
+  const metrics = createElement('div', 'route-popup-metrics')
 
-  header.appendChild(icon)
-  header.appendChild(title)
-  container.appendChild(header)
+  const durationMetric = createElement('div', 'route-popup-metric')
+  durationMetric.appendChild(createElement('span', 'route-popup-metric-label', 'Time'))
+  durationMetric.appendChild(createElement('span', 'route-popup-metric-value route-popup-duration', durationLabel))
 
-  const routeLine = createElement('div', 'route-popup-route', `${fromLocation} → ${toLocation}`)
-  container.appendChild(routeLine)
+  const distanceMetric = createElement('div', 'route-popup-metric')
+  distanceMetric.appendChild(createElement('span', 'route-popup-metric-label', 'Distance'))
+  distanceMetric.appendChild(createElement('span', 'route-popup-metric-value route-popup-distance', distanceLabel))
 
-  const details = createElement('div', 'route-popup-details')
-  details.appendChild(createElement('div', 'route-popup-duration', `⏱️ ${durationLabel}`))
-  details.appendChild(createElement('div', 'route-popup-distance', `📏 ${distanceLabel}`))
-  container.appendChild(details)
+  metrics.appendChild(durationMetric)
+  metrics.appendChild(distanceMetric)
+  container.appendChild(metrics)
 
   return container
 }
@@ -88,6 +76,11 @@ export function MapEventHandler({
   setSelectedRouteSegmentId,
 }: MapEventHandlerProps) {
   const [, setActivePopups] = useState<mapboxgl.Popup[]>([])
+  const routeModeEnabled = useSupabaseTripStore((state) => state.routeModeEnabled)
+  const registerRouteSelection = useSupabaseTripStore((state) => state.registerRouteSelection)
+
+  const lastHoveredRouteIdRef = useRef<string | number | null>(null)
+  const lastHoveredDayRouteOverlayIdRef = useRef<string | number | null>(null)
 
   // Format duration from minutes to hours/minutes
   const formatDuration = (minutes: number) => {
@@ -107,6 +100,80 @@ export function MapEventHandler({
       return []
     })
   }, [])
+
+  const clearRouteSegmentHoverState = useCallback(() => {
+    if (!map) {
+      lastHoveredRouteIdRef.current = null
+      return
+    }
+
+    const routeId = lastHoveredRouteIdRef.current
+    if (routeId !== null && map.getSource('route-segments')) {
+      map.setFeatureState(
+        { source: 'route-segments', id: routeId },
+        { hover: false }
+      )
+    }
+
+    lastHoveredRouteIdRef.current = null
+  }, [map])
+
+  const clearDayRouteOverlayHoverState = useCallback(() => {
+    if (!map) {
+      lastHoveredDayRouteOverlayIdRef.current = null
+      return
+    }
+
+    const overlayId = lastHoveredDayRouteOverlayIdRef.current
+    if (overlayId !== null && map.getSource('day-route-overlay')) {
+      map.setFeatureState(
+        { source: 'day-route-overlay', id: overlayId },
+        { hover: false }
+      )
+    }
+
+    lastHoveredDayRouteOverlayIdRef.current = null
+  }, [map])
+
+  const clearRouteHoverState = useCallback(() => {
+    clearRouteSegmentHoverState()
+    clearDayRouteOverlayHoverState()
+  }, [clearRouteSegmentHoverState, clearDayRouteOverlayHoverState])
+
+  const showRouteSegmentPopup = useCallback((feature: mapboxgl.MapboxGeoJSONFeature, lngLat: mapboxgl.LngLatLike) => {
+    if (!map || !feature?.properties?.label) {
+      return
+    }
+
+    const durationValue = typeof feature.properties.duration === 'number'
+      ? feature.properties.duration
+      : 0
+    const distanceValue = typeof feature.properties.distance === 'number'
+      ? feature.properties.distance
+      : 0
+
+    const formattedDistance = `${Math.max(distanceValue, 0).toLocaleString(undefined, {
+      maximumFractionDigits: 0
+    })} km`
+
+    clearPopups()
+
+    const popup = new mapboxgl.Popup({
+      closeButton: true,
+      closeOnClick: false,
+      className: 'route-segment-popup'
+    })
+      .setLngLat(lngLat)
+      .setDOMContent(
+        buildRouteSegmentPopupContent({
+          durationLabel: formatDuration(durationValue),
+          distanceLabel: formattedDistance,
+        })
+      )
+      .addTo(map)
+
+    setActivePopups(prev => [...prev, popup])
+  }, [clearPopups, map])
 
   // Add enhanced click handlers with bidirectional interactions
   useEffect(() => {
@@ -188,6 +255,31 @@ export function MapEventHandler({
       const dayId = feature.properties.dayId as string
       const baseIndex = typeof feature.properties.baseIndex === 'number' ? feature.properties.baseIndex : 0
 
+      if (routeModeEnabled) {
+        const geometry = feature.geometry as { coordinates?: [number, number] }
+        const coordinates = Array.isArray(geometry?.coordinates)
+          ? (geometry.coordinates as [number, number])
+          : undefined
+        if (!coordinates) {
+          return
+        }
+
+        const selectionPoint: MapRouteSelectionPoint = {
+          id: feature.properties.cardId ?? `base-${dayId}-${baseIndex}`,
+          label: feature.properties.name ?? 'Base location',
+          coordinates,
+          source: 'base',
+          dayId,
+          meta: {
+            city: feature.properties.city,
+          },
+        }
+
+        registerRouteSelection(selectionPoint)
+        return
+      }
+
+
       setSelectedDay(dayId)
       setSelectedDestination(null)
       setSelectedBaseLocation({ dayId, index: baseIndex }, 'map')
@@ -197,20 +289,47 @@ export function MapEventHandler({
 
     const handleDestinationClick = (e: any) => {
       const feature = e.features[0]
-      if (feature) {
-        const dayIndex = feature.properties.dayIndex
-        const destIndex = feature.properties.destIndex
-        const dayId = feature.properties.dayId
-        const destinationId = feature.properties.destinationId
-        
-        // Bidirectional interaction: Select day and destination
-        setSelectedDay(dayId)
-        if (!hasTrip) return
-        setSelectedDestination(tripDays[dayIndex].destinations[destIndex], 'map')
-        setSelectedBaseLocation(null)
-        setSelectedCard(`dest-${destinationId}`)
-        clearPopups()
+      if (!feature) {
+        return
       }
+
+      const dayIndex = feature.properties.dayIndex
+      const destIndex = feature.properties.destIndex
+      const dayId = feature.properties.dayId
+      const destinationId = feature.properties.destinationId
+
+      if (routeModeEnabled) {
+        const geometry = feature.geometry as { coordinates?: [number, number] }
+        const coordinates = Array.isArray(geometry?.coordinates)
+          ? (geometry.coordinates as [number, number])
+          : undefined
+        if (!coordinates) {
+          return
+        }
+
+        const selectionPoint: MapRouteSelectionPoint = {
+          id: destinationId ?? feature.properties.id ?? `dest-${dayId}-${destIndex}`,
+          label: feature.properties.name ?? 'Destination',
+          coordinates,
+          source: 'destination',
+          dayId,
+          meta: {
+            dayIndex,
+            destIndex,
+          },
+        }
+
+        registerRouteSelection(selectionPoint)
+        return
+      }
+
+      // Bidirectional interaction: Select day and destination
+      setSelectedDay(dayId)
+      if (!hasTrip) return
+      setSelectedDestination(tripDays[dayIndex].destinations[destIndex], 'map')
+      setSelectedBaseLocation(null)
+      setSelectedCard(`dest-${destinationId}`)
+      clearPopups()
     }
 
 
@@ -319,48 +438,6 @@ export function MapEventHandler({
       }
     })
 
-    const showRouteSegmentPopup = (feature: mapboxgl.MapboxGeoJSONFeature, lngLat: mapboxgl.LngLatLike) => {
-      if (!feature.properties?.label) {
-        return
-      }
-
-      clearPopups()
-      const segmentTypeLabels: Record<string, string> = {
-        'base-to-destination': 'Base to Destination',
-        'destination-to-destination': 'Destination to Destination',
-        'destination-to-base': 'Destination to Base',
-        'base-to-base': 'Base to Base',
-      }
-
-      const segmentTypeValue = typeof feature.properties.segmentType === 'string'
-        ? feature.properties.segmentType
-        : undefined
-
-      const segmentTypeLabel = segmentTypeValue && segmentTypeLabels[segmentTypeValue]
-        ? segmentTypeLabels[segmentTypeValue]
-        : 'Route Segment'
-
-      const popup = new mapboxgl.Popup({
-        closeButton: true,
-        closeOnClick: false,
-        className: 'route-segment-popup'
-      })
-        .setLngLat(lngLat)
-        .setDOMContent(
-          buildRouteSegmentPopupContent({
-            segmentTypeClass: segmentTypeValue ?? 'segment',
-            segmentTypeLabel,
-            fromLocation: feature.properties.fromLocation,
-            toLocation: feature.properties.toLocation,
-            durationLabel: formatDuration(feature.properties.duration),
-            distanceLabel: `${feature.properties.distance} km`,
-          })
-        )
-        .addTo(map)
-
-      setActivePopups(prev => [...prev, popup])
-    }
-
     // Route segment click handlers for distance/time popup
     const handleRouteSegmentClick = (e: any) => {
       const feature = e.features[0]
@@ -385,7 +462,6 @@ export function MapEventHandler({
         focusRouteBounds(featureIdStr)
       }
 
-      showRouteSegmentPopup(feature, e.lngLat)
     }
 
     map.on('click', 'route-segments-layer', handleRouteSegmentClick)
@@ -412,15 +488,39 @@ export function MapEventHandler({
         focusRouteBounds(featureIdStr)
       }
 
-      showRouteSegmentPopup(feature, e.lngLat)
     }
 
-    const handleDayRouteOverlayMouseEnter = () => {
+    const handleDayRouteOverlayMouseEnter = (e: any) => {
       map.getCanvas().style.cursor = 'pointer'
+      const feature = e.features?.[0]
+      if (!feature) {
+        return
+      }
+
+      const featureId = feature.id ?? feature.properties?.id
+      if (featureId) {
+        map.setFeatureState(
+          { source: 'day-route-overlay', id: featureId },
+          { hover: true }
+        )
+        lastHoveredDayRouteOverlayIdRef.current = featureId
+      }
+
+      const geometry = feature.geometry as GeoJSONLineString | undefined
+      const coordinates = Array.isArray(geometry?.coordinates) ? geometry!.coordinates : []
+
+      if (coordinates.length === 0) {
+        return
+      }
+
+      const midpoint = coordinates[Math.floor(coordinates.length / 2)] as [number, number]
+      showRouteSegmentPopup(feature, midpoint)
     }
 
     const handleDayRouteOverlayMouseLeave = () => {
       map.getCanvas().style.cursor = ''
+      clearDayRouteOverlayHoverState()
+      clearPopups()
     }
 
     if (map.getLayer('day-route-overlay')) {
@@ -445,28 +545,61 @@ export function MapEventHandler({
         { source: 'route-segments', id: featureId },
         { hover: true }
       )
+
+      lastHoveredRouteIdRef.current = featureId
+
+      const geometry = feature.geometry as GeoJSONLineString | undefined
+      const coordinates = Array.isArray(geometry?.coordinates) ? geometry!.coordinates : []
+
+      if (coordinates.length === 0) {
+        return
+      }
+
+      const midpoint = coordinates[Math.floor(coordinates.length / 2)] as [number, number]
+      showRouteSegmentPopup(feature, midpoint)
     }
 
-    const handleRouteSegmentMouseLeave = (e: any) => {
+    const handleRouteSegmentMouseLeave = () => {
       map.getCanvas().style.cursor = ''
-      const feature = e.features && e.features[0]
-      if (!feature) {
-        return
-      }
-
-      const featureId = feature.id ?? feature.properties?.id
-      if (!featureId) {
-        return
-      }
-
-      map.setFeatureState(
-        { source: 'route-segments', id: featureId },
-        { hover: false }
-      )
+      clearRouteSegmentHoverState()
+      clearPopups()
     }
 
     map.on('mouseenter', 'route-segments-layer', handleRouteSegmentMouseEnter)
     map.on('mouseleave', 'route-segments-layer', handleRouteSegmentMouseLeave)
+
+    const handleMapMouseMove = (e: mapboxgl.MapMouseEvent & mapboxgl.EventData) => {
+      if (!map) {
+        return
+      }
+
+      if (lastHoveredRouteIdRef.current === null && lastHoveredDayRouteOverlayIdRef.current === null) {
+        return
+      }
+
+      const layersToCheck: string[] = []
+      if (map.getLayer('route-segments-layer')) {
+        layersToCheck.push('route-segments-layer')
+      }
+      if (map.getLayer('day-route-overlay')) {
+        layersToCheck.push('day-route-overlay')
+      }
+
+      if (layersToCheck.length === 0) {
+        return
+      }
+
+      const features = map.queryRenderedFeatures(e.point, {
+        layers: layersToCheck
+      }) as mapboxgl.MapboxGeoJSONFeature[]
+
+      if (features.length === 0) {
+        clearRouteHoverState()
+        clearPopups()
+      }
+    }
+
+    map.on('mousemove', handleMapMouseMove)
 
     // Close popups when clicking on empty areas (not on route segments)
     const handleGeneralClick = (e: mapboxgl.MapMouseEvent) => {
@@ -554,10 +687,30 @@ export function MapEventHandler({
         map.off('mouseenter', 'route-segments-layer', handleRouteSegmentMouseEnter)
         map.off('mouseleave', 'route-segments-layer', handleRouteSegmentMouseLeave)
       }
+      map.off('mousemove', handleMapMouseMove)
       map.off('click', handleGeneralClick)
       window.removeEventListener('timelineRouteSelect', handleTimelineRouteSelect)
     }
-  }, [map, hasTrip, tripDays, selectedDayId, selectedDestination, setSelectedDay, setSelectedDestination, setSelectedBaseLocation, setSelectedCard, selectedRouteSegmentId, setSelectedRouteSegmentId, clearPopups])
+  }, [
+    map,
+    hasTrip,
+    tripDays,
+    selectedDayId,
+    selectedDestination,
+    setSelectedDay,
+    setSelectedDestination,
+    setSelectedBaseLocation,
+    setSelectedCard,
+    selectedRouteSegmentId,
+    setSelectedRouteSegmentId,
+    clearPopups,
+    clearRouteHoverState,
+    clearRouteSegmentHoverState,
+    clearDayRouteOverlayHoverState,
+    routeModeEnabled,
+    registerRouteSelection,
+    showRouteSegmentPopup,
+  ])
 
   return null
 }

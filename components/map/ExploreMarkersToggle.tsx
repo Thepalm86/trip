@@ -8,6 +8,8 @@ import { getExploreCategoryMetadata, MarkerColors } from '@/lib/explore/categori
 
 interface ExploreMarkersToggleProps {
   map: any
+  className?: string
+  positioned?: boolean
 }
 
 type CategoryOption = {
@@ -18,7 +20,7 @@ type CategoryOption = {
   order: number
 }
 
-export function ExploreMarkersToggle({ map }: ExploreMarkersToggleProps) {
+export function ExploreMarkersToggle({ map, className, positioned = true }: ExploreMarkersToggleProps) {
   void map;
   // Map prop is currently not needed but kept for parity with other map controls
 
@@ -132,13 +134,17 @@ export function ExploreMarkersToggle({ map }: ExploreMarkersToggleProps) {
     setVisibleCategories([])
   }
 
+  const containerClassName = positioned
+    ? cn('absolute bottom-4 left-4 z-10 ml-36', className)
+    : cn('relative', className)
+
   return (
-    <div ref={containerRef} className="absolute bottom-4 left-4 z-10 ml-36">
-      <div className="bg-slate-900/90 backdrop-blur-sm border border-white/10 rounded-lg shadow-lg overflow-hidden min-w-[220px]">
+    <div ref={containerRef} className={containerClassName}>
+      <div className="relative">
         <button
           type="button"
           onClick={toggleDropdown}
-          className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/5 transition-all duration-200"
+          className="flex min-w-[220px] items-center gap-2 rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-left text-white shadow-lg transition-all duration-200 hover:bg-white/5"
           aria-haspopup="listbox"
           aria-expanded={isOpen}
         >
@@ -148,20 +154,20 @@ export function ExploreMarkersToggle({ map }: ExploreMarkersToggleProps) {
             <span className="text-xs text-white/60">{summaryLabel}</span>
           </div>
           {showMarkers && hasSelection ? (
-            <Eye className="h-4 w-4 text-white/60 ml-auto" />
+            <Eye className="ml-auto h-4 w-4 text-white/60" />
           ) : (
-            <EyeOff className="h-4 w-4 text-white/60 ml-auto" />
+            <EyeOff className="ml-auto h-4 w-4 text-white/60" />
           )}
           <ChevronDown
             className={cn(
               'h-4 w-4 text-white/60 transition-transform duration-200',
-              isOpen ? 'rotate-180' : 'rotate-0'
+              isOpen ? 'rotate-0' : 'rotate-180'
             )}
           />
         </button>
 
         {isOpen && (
-          <div className="border-t border-white/10 bg-slate-950/90">
+          <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 min-w-[220px] rounded-lg border border-white/10 bg-slate-950/95 shadow-xl backdrop-blur-sm">
             <ul className="max-h-56 overflow-y-auto py-1" role="listbox">
               {categoryOptions.map((option) => {
                 const isChecked = visibleCategories === null
@@ -173,7 +179,7 @@ export function ExploreMarkersToggle({ map }: ExploreMarkersToggleProps) {
                     <button
                       type="button"
                       onClick={() => handleCategoryToggle(option.key)}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition-colors"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white/80 transition-colors hover:bg-white/10"
                       role="option"
                       aria-selected={isChecked}
                     >
@@ -202,14 +208,14 @@ export function ExploreMarkersToggle({ map }: ExploreMarkersToggleProps) {
               <button
                 type="button"
                 onClick={handleSelectAll}
-                className="hover:text-white transition-colors"
+                className="transition-colors hover:text-white"
               >
                 Select all
               </button>
               <button
                 type="button"
                 onClick={handleHideAll}
-                className="hover:text-white transition-colors"
+                className="transition-colors hover:text-white"
               >
                 Hide all
               </button>

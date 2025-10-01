@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { MapIntegration } from './MapIntegration'
-import { MapControls } from './MapControls'
 import { ExploreSearchDock } from './ExploreSearchDock'
 
 export interface InteractiveMapRef {
@@ -128,10 +127,7 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
 
       {/* Map Integration */}
       {map.current && !isLoading && (
-        <>
-          <MapIntegration map={map.current} />
-          <MapControls map={map.current} />
-        </>
+        <MapIntegration map={map.current} />
       )}
 
       {/* Loading State */}

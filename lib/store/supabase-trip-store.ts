@@ -7,6 +7,29 @@ import { tripApi } from '@/lib/supabase/trip-api'
 
 type SelectionOrigin = 'map' | 'timeline'
 
+export type RouteSelectionSource = 'base' | 'destination' | 'explore'
+
+export interface MapRouteSelectionPoint {
+  id: string
+  label: string
+  coordinates: [number, number]
+  source: RouteSelectionSource
+  dayId?: string
+  meta?: Record<string, unknown>
+}
+
+interface AdHocRouteConfig {
+  id: string
+  from: MapRouteSelectionPoint
+  to: MapRouteSelectionPoint
+}
+
+interface AdHocRouteResult extends AdHocRouteConfig {
+  durationSeconds: number
+  distanceMeters: number
+  coordinates: [number, number][]
+}
+
 interface SupabaseTripStore {
   // State
   currentTrip: Trip | null
@@ -23,6 +46,10 @@ interface SupabaseTripStore {
   selectedCardId: string | null
   selectedRouteSegmentId: string | null
   showDayRouteOverlay: boolean
+  routeModeEnabled: boolean
+  routeSelectionStart: MapRouteSelectionPoint | null
+  adHocRouteConfig: AdHocRouteConfig | null
+  adHocRouteResult: AdHocRouteResult | null
   
   // Maybe locations state
   maybeLocations: Destination[]
@@ -62,6 +89,10 @@ interface SupabaseTripStore {
   setSelectedRouteSegmentId: (routeId: string | null) => void
   setShowDayRouteOverlay: (show: boolean) => void
   toggleDayRouteOverlay: () => void
+  setRouteModeEnabled: (enabled: boolean) => void
+  registerRouteSelection: (point: MapRouteSelectionPoint) => void
+  clearAdHocRoute: () => void
+  setAdHocRouteResult: (result: AdHocRouteResult | null) => void
   
   // Maybe locations actions
   addMaybeLocation: (destination: Destination) => void
@@ -90,6 +121,10 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   selectedCardId: null,
   selectedRouteSegmentId: null,
   showDayRouteOverlay: false,
+  routeModeEnabled: false,
+  routeSelectionStart: null,
+  adHocRouteConfig: null,
+  adHocRouteResult: null,
   
   // Maybe locations state
   maybeLocations: [],
@@ -112,14 +147,29 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       const currentSelectedDayId = get().selectedDayId
       const isValidSelectedDay = newCurrentTrip?.days.some(day => day.id === currentSelectedDayId)
       
-      set({ 
-        trips, 
-        currentTrip: newCurrentTrip,
-        selectedDayId: isValidSelectedDay ? currentSelectedDayId : (newCurrentTrip?.days[0]?.id || null),
-        selectedDestination: null,
-        selectedBaseLocation: null,
-        selectionOrigin: null,
-        isLoading: false 
+      set((state) => {
+        const currentTripId = state.currentTrip?.id ?? null
+        const nextTripId = newCurrentTrip?.id ?? null
+        const shouldResetRoute = currentTripId !== nextTripId
+
+        return {
+          trips,
+          currentTrip: newCurrentTrip,
+          selectedDayId: isValidSelectedDay ? currentSelectedDayId : (newCurrentTrip?.days[0]?.id || null),
+          selectedDestination: null,
+          selectedBaseLocation: null,
+          selectionOrigin: null,
+          isLoading: false,
+          ...(shouldResetRoute
+            ? {
+                routeModeEnabled: false,
+                routeSelectionStart: null,
+                adHocRouteConfig: null,
+                adHocRouteResult: null,
+                selectedRouteSegmentId: null,
+              }
+            : {}),
+        }
       })
     } catch (error) {
       console.error('SupabaseTripStore: Error loading trips:', error)
@@ -140,13 +190,28 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       const currentSelectedDayId = get().selectedDayId
       const isValidSelectedDay = trip?.days.some(day => day.id === currentSelectedDayId)
       
-      set({ 
-        currentTrip: trip,
-        selectedDayId: isValidSelectedDay ? currentSelectedDayId : (trip?.days[0]?.id ?? null),
-        selectedDestination: null,
-        selectedBaseLocation: null,
-        selectionOrigin: null,
-        isLoading: false 
+      set((state) => {
+        const currentTripId = state.currentTrip?.id ?? null
+        const nextTripId = trip?.id ?? null
+        const shouldResetRoute = currentTripId !== nextTripId
+
+        return {
+          currentTrip: trip,
+          selectedDayId: isValidSelectedDay ? currentSelectedDayId : (trip?.days[0]?.id ?? null),
+          selectedDestination: null,
+          selectedBaseLocation: null,
+          selectionOrigin: null,
+          isLoading: false,
+          ...(shouldResetRoute
+            ? {
+                routeModeEnabled: false,
+                routeSelectionStart: null,
+                adHocRouteConfig: null,
+                adHocRouteResult: null,
+                selectedRouteSegmentId: null,
+              }
+            : {}),
+        }
       })
     } catch (error) {
       set({ 
@@ -170,7 +235,12 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         currentTrip: newTrip ?? null,
         selectedDayId: newTrip?.days[0]?.id ?? null,
         selectionOrigin: null,
-        isLoading: false 
+        isLoading: false,
+        routeModeEnabled: false,
+        routeSelectionStart: null,
+        adHocRouteConfig: null,
+        adHocRouteResult: null,
+        selectedRouteSegmentId: null,
       })
       return tripId
     } catch (error) {
@@ -1030,6 +1100,96 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
 
   toggleDayRouteOverlay: () => {
     set((state) => ({ showDayRouteOverlay: !state.showDayRouteOverlay }))
+  },
+
+  setRouteModeEnabled: (enabled: boolean) => {
+    set((state) => {
+      if (state.routeModeEnabled === enabled) {
+        return {}
+      }
+
+      if (!enabled) {
+        return {
+          routeModeEnabled: false,
+          routeSelectionStart: null,
+          adHocRouteConfig: null,
+          adHocRouteResult: null,
+          selectedRouteSegmentId: null,
+        }
+      }
+
+      return {
+        routeModeEnabled: true,
+        routeSelectionStart: null,
+        adHocRouteConfig: null,
+        adHocRouteResult: null,
+        selectedRouteSegmentId: null,
+      }
+    })
+  },
+
+  registerRouteSelection: (point: MapRouteSelectionPoint) => {
+    set((state) => {
+      if (!state.routeModeEnabled) {
+        return {}
+      }
+
+      const currentStart = state.routeSelectionStart
+      const resetState = {
+        adHocRouteConfig: null,
+        adHocRouteResult: null,
+        selectedRouteSegmentId: null,
+      }
+
+      if (!currentStart) {
+        return {
+          ...resetState,
+          routeSelectionStart: point,
+        }
+      }
+
+      const isSameSelection =
+        currentStart.id === point.id &&
+        currentStart.source === point.source &&
+        currentStart.coordinates[0] === point.coordinates[0] &&
+        currentStart.coordinates[1] === point.coordinates[1]
+
+      if (isSameSelection) {
+        return {
+          ...resetState,
+          routeSelectionStart: null,
+        }
+      }
+
+      const routeId = `adhoc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+
+      return {
+        routeSelectionStart: null,
+        adHocRouteConfig: {
+          id: routeId,
+          from: currentStart,
+          to: point,
+        },
+        adHocRouteResult: null,
+        selectedRouteSegmentId: routeId,
+      }
+    })
+  },
+
+  clearAdHocRoute: () => {
+    set({
+      routeSelectionStart: null,
+      adHocRouteConfig: null,
+      adHocRouteResult: null,
+      selectedRouteSegmentId: null,
+    })
+  },
+
+  setAdHocRouteResult: (result: AdHocRouteResult | null) => {
+    set((state) => ({
+      adHocRouteResult: result,
+      selectedRouteSegmentId: result?.id ?? state.selectedRouteSegmentId,
+    }))
   },
 
   // Maybe locations actions

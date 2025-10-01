@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { useExploreStore } from '@/lib/store/explore-store'
 import { getExploreCategoryMetadata, MarkerColors } from '@/lib/explore/categories'
 import { fallbackCityFromFullName } from '@/lib/location/city'
+import { useSupabaseTripStore, MapRouteSelectionPoint } from '@/lib/store/supabase-trip-store'
 
 type MarkerElements = {
   markerElement: HTMLDivElement
@@ -31,6 +32,25 @@ function applyMarkerColors(
   elements.outerRing.style.border = `2px solid ${colors.ring}`
   elements.mainCircle.style.borderColor = colors.border
   elements.mainCircle.style.backgroundColor = 'transparent'
+}
+
+function applyHighlightState(
+  elements: MarkerElements,
+  colors: MarkerColors,
+  isHighlighted: boolean
+) {
+  if (isHighlighted) {
+    elements.outerRing.style.display = 'block'
+    elements.outerRing.style.backgroundColor = colors.ring
+    elements.mainCircle.style.transform = 'scale(1.05)'
+    elements.mainCircle.style.boxShadow = `0 0 0 3px ${colors.border}55`
+    elements.label.style.opacity = '1'
+  } else {
+    elements.outerRing.style.display = 'none'
+    elements.mainCircle.style.transform = 'scale(1)'
+    elements.mainCircle.style.boxShadow = ''
+    elements.label.style.opacity = '0.9'
+  }
 }
 
 function createMarkerElement(
@@ -100,6 +120,39 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
   const visibleCategories = useExploreStore((state) => state.visibleCategories)
   const setSelectedPlace = useExploreStore((state) => state.setSelectedPlace)
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map())
+  const routeModeEnabled = useSupabaseTripStore((state) => state.routeModeEnabled)
+  const registerRouteSelection = useSupabaseTripStore((state) => state.registerRouteSelection)
+  const routeSelectionStart = useSupabaseTripStore((state) => state.routeSelectionStart)
+  const adHocRouteConfig = useSupabaseTripStore((state) => state.adHocRouteConfig)
+  const adHocRouteResult = useSupabaseTripStore((state) => state.adHocRouteResult)
+
+  const highlightedPlaceIds = useMemo(() => {
+    if (!routeModeEnabled) {
+      return new Set<string>()
+    }
+
+    const ids = new Set<string>()
+    const addPoint = (point?: MapRouteSelectionPoint | null) => {
+      if (point && point.source === 'explore') {
+        ids.add(point.id)
+      }
+    }
+
+    if (adHocRouteResult) {
+      addPoint(adHocRouteResult.from)
+      addPoint(adHocRouteResult.to)
+      return ids
+    }
+
+    if (adHocRouteConfig) {
+      addPoint(adHocRouteConfig.from)
+      addPoint(adHocRouteConfig.to)
+      return ids
+    }
+
+    addPoint(routeSelectionStart)
+    return ids
+  }, [routeModeEnabled, routeSelectionStart, adHocRouteConfig, adHocRouteResult])
 
   const getCategoryKey = (category?: string) => getExploreCategoryMetadata(category).key
 
@@ -162,14 +215,54 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
 
           applyMarkerColors({ outerRing, mainCircle }, metadata.colors)
 
+          const isHighlighted = highlightedPlaceIds.has(place.id)
+          const baseScale = isHighlighted ? 'scale(1.05)' : 'scale(1)'
+
           markerElement.removeEventListener('click', existingEntry.handleClick)
-          const handleClick = () => setSelectedPlace(place)
+          markerElement.removeEventListener('mouseenter', existingEntry.handleMouseEnter)
+          markerElement.removeEventListener('mouseleave', existingEntry.handleMouseLeave)
+
+          const handleClick = () => {
+            if (routeModeEnabled) {
+              const selectionPoint: MapRouteSelectionPoint = {
+                id: place.id,
+                label: place.name,
+                coordinates: place.coordinates,
+                source: 'explore',
+                meta: {
+                  category: place.category,
+                  city: place.city,
+                },
+              }
+              registerRouteSelection(selectionPoint)
+              return
+            }
+            setSelectedPlace(place)
+          }
+
+          const handleMouseEnter = () => {
+            elements.mainCircle.style.transform = isHighlighted ? 'scale(1.12)' : 'scale(1.1)'
+            elements.label.style.opacity = '1'
+          }
+
+          const handleMouseLeave = () => {
+            elements.mainCircle.style.transform = baseScale
+            elements.label.style.opacity = isHighlighted ? '1' : '0.9'
+          }
+
+          markerElement.style.cursor = 'pointer'
           markerElement.addEventListener('click', handleClick)
+          markerElement.addEventListener('mouseenter', handleMouseEnter)
+          markerElement.addEventListener('mouseleave', handleMouseLeave)
+
+          applyHighlightState(elements, metadata.colors, isHighlighted)
 
           markers.set(place.id, {
             ...existingEntry,
             marker: existingMarker,
             handleClick,
+            handleMouseEnter,
+            handleMouseLeave,
             elements,
           })
           return
@@ -177,16 +270,35 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
 
         const elements = createMarkerElement(displayName, derivedCity || null, metadata.colors, metadata.key === 'city')
 
-        const handleClick = () => setSelectedPlace(place)
+        const isHighlighted = highlightedPlaceIds.has(place.id)
+        const baseScale = isHighlighted ? 'scale(1.05)' : 'scale(1)'
+
+        const handleClick = () => {
+          if (routeModeEnabled) {
+            const selectionPoint: MapRouteSelectionPoint = {
+              id: place.id,
+              label: place.name,
+              coordinates: place.coordinates,
+              source: 'explore',
+              meta: {
+                category: place.category,
+                city: place.city,
+              },
+            }
+            registerRouteSelection(selectionPoint)
+            return
+          }
+          setSelectedPlace(place)
+        }
 
         const handleMouseEnter = () => {
-          elements.mainCircle.style.transform = 'scale(1.1)'
+          elements.mainCircle.style.transform = isHighlighted ? 'scale(1.12)' : 'scale(1.1)'
           elements.label.style.opacity = '1'
         }
 
         const handleMouseLeave = () => {
-          elements.mainCircle.style.transform = 'scale(1)'
-          elements.label.style.opacity = '0.9'
+          elements.mainCircle.style.transform = baseScale
+          elements.label.style.opacity = isHighlighted ? '1' : '0.9'
         }
 
         const marker = new mapboxgl.Marker({
@@ -201,6 +313,8 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
         elements.markerElement.addEventListener('mouseenter', handleMouseEnter)
         elements.markerElement.addEventListener('mouseleave', handleMouseLeave)
 
+        applyHighlightState(elements, metadata.colors, isHighlighted)
+
         markers.set(place.id, {
           marker,
           handleClick,
@@ -210,7 +324,7 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
         })
       })
     }
-  }, [map, activePlaces, setSelectedPlace, showMarkers, visibleCategories])
+  }, [map, activePlaces, setSelectedPlace, showMarkers, visibleCategories, routeModeEnabled, registerRouteSelection, highlightedPlaceIds])
 
   useEffect(() => () => {
     const markers = markersRef.current
