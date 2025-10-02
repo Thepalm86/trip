@@ -43,15 +43,23 @@ function applyHighlightState(
   if (isHighlighted || isFavorite) {
     const borderColor = isFavorite ? '#fbbf24' : colors.border
     const ringColor = isFavorite ? '#fbbf2433' : colors.ring
+    const ringScale = isHighlighted ? 1.3 : 1.2
+    const circleScale = isHighlighted ? 1.15 : 1.12
     elements.outerRing.style.display = 'block'
     elements.outerRing.style.backgroundColor = ringColor
-    elements.mainCircle.style.transform = 'scale(1.05)'
-    elements.mainCircle.style.boxShadow = `0 0 0 3px ${borderColor}55`
+    elements.outerRing.style.boxShadow = `0 0 0 10px ${ringColor}`
+    elements.outerRing.style.transform = `scale(${ringScale})`
+    elements.mainCircle.style.transform = `scale(${circleScale})`
+    elements.mainCircle.style.boxShadow = `0 0 0 4px ${borderColor}66, 0 12px 30px ${borderColor}40`
+    elements.mainCircle.style.borderColor = borderColor
     elements.label.style.opacity = '1'
   } else {
     elements.outerRing.style.display = 'none'
+    elements.outerRing.style.boxShadow = ''
+    elements.outerRing.style.transform = 'scale(1)'
     elements.mainCircle.style.transform = 'scale(1)'
-    elements.mainCircle.style.boxShadow = ''
+    elements.mainCircle.style.boxShadow = '0 6px 14px rgba(15, 23, 42, 0.28)'
+    elements.mainCircle.style.borderColor = colors.border
     elements.label.style.opacity = '0.9'
   }
 }
@@ -122,6 +130,7 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
   const showMarkers = useExploreStore((state) => state.showMarkers)
   const visibleCategories = useExploreStore((state) => state.visibleCategories)
   const setSelectedPlace = useExploreStore((state) => state.setSelectedPlace)
+  const markersFilter = useExploreStore((state) => state.markersFilter)
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map())
   const routeModeEnabled = useSupabaseTripStore((state) => state.routeModeEnabled)
   const registerRouteSelection = useSupabaseTripStore((state) => state.registerRouteSelection)
@@ -164,11 +173,17 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
     return visibleCategories.includes(getCategoryKey(category))
   }
 
+  const filteredPlaces = useMemo(() => (
+    markersFilter === 'favorites'
+      ? activePlaces.filter((place) => place.isFavorite)
+      : activePlaces
+  ), [activePlaces, markersFilter])
+
   useEffect(() => {
     if (!map) return
 
     const markers = markersRef.current
-    const activeLookup = new Map(activePlaces.map((place) => [place.id, place]))
+    const activeLookup = new Map(filteredPlaces.map((place) => [place.id, place]))
 
     markers.forEach((entry, placeId) => {
       const place = activeLookup.get(placeId)
@@ -183,7 +198,7 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
     })
 
     if (showMarkers) {
-      activePlaces.forEach((place) => {
+      filteredPlaces.forEach((place) => {
         if (!isCategoryVisible(place.category)) {
           return
         }
@@ -220,7 +235,7 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
 
           const isHighlighted = highlightedPlaceIds.has(place.id)
           const isFavorite = Boolean(place.isFavorite)
-          const baseScale = isHighlighted || isFavorite ? 'scale(1.05)' : 'scale(1)'
+          const baseScale = isHighlighted ? 'scale(1.15)' : isFavorite ? 'scale(1.12)' : 'scale(1)'
 
           markerElement.removeEventListener('click', existingEntry.handleClick)
           markerElement.removeEventListener('mouseenter', existingEntry.handleMouseEnter)
@@ -245,7 +260,13 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
           }
 
           const handleMouseEnter = () => {
-            elements.mainCircle.style.transform = isHighlighted || isFavorite ? 'scale(1.12)' : 'scale(1.1)'
+            if (isHighlighted) {
+              elements.mainCircle.style.transform = 'scale(1.19)'
+            } else if (isFavorite) {
+              elements.mainCircle.style.transform = 'scale(1.16)'
+            } else {
+              elements.mainCircle.style.transform = 'scale(1.08)'
+            }
             elements.label.style.opacity = '1'
           }
 
@@ -276,7 +297,7 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
 
         const isHighlighted = highlightedPlaceIds.has(place.id)
         const isFavorite = Boolean(place.isFavorite)
-        const baseScale = isHighlighted || isFavorite ? 'scale(1.05)' : 'scale(1)'
+        const baseScale = isHighlighted ? 'scale(1.15)' : isFavorite ? 'scale(1.12)' : 'scale(1)'
 
         const handleClick = () => {
           if (routeModeEnabled) {
@@ -297,7 +318,13 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
         }
 
         const handleMouseEnter = () => {
-          elements.mainCircle.style.transform = isHighlighted || isFavorite ? 'scale(1.12)' : 'scale(1.1)'
+          if (isHighlighted) {
+            elements.mainCircle.style.transform = 'scale(1.19)'
+          } else if (isFavorite) {
+            elements.mainCircle.style.transform = 'scale(1.16)'
+          } else {
+            elements.mainCircle.style.transform = 'scale(1.08)'
+          }
           elements.label.style.opacity = '1'
         }
 
@@ -329,7 +356,7 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
         })
       })
     }
-  }, [map, activePlaces, setSelectedPlace, showMarkers, visibleCategories, routeModeEnabled, registerRouteSelection, highlightedPlaceIds])
+  }, [map, filteredPlaces, setSelectedPlace, showMarkers, visibleCategories, routeModeEnabled, registerRouteSelection, highlightedPlaceIds])
 
   useEffect(() => () => {
     const markers = markersRef.current

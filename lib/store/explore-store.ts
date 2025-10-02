@@ -22,6 +22,7 @@ interface ExploreStoreState {
   error: string | null
   isSyncing: boolean
   showMarkers: boolean
+  markersFilter: 'all' | 'favorites'
   visibleCategories: string[] | null
   lastAddedPlace: ExplorePlace | null
   routeSelection: RouteSelectionState
@@ -34,6 +35,7 @@ interface ExploreStoreState {
   removeActivePlace: (placeId: string) => Promise<void>
   updateActivePlace: (placeId: string, updates: Partial<Omit<ExplorePlace, 'notes'>> & { notes?: string | null }) => Promise<ExplorePlace | null>
   toggleFavorite: (placeId: string) => Promise<void>
+  setMarkersFilter: (filter: 'all' | 'favorites') => void
   syncWithSupabase: () => Promise<void>
   loadFromSupabase: () => Promise<void>
   toggleMarkers: () => void
@@ -69,6 +71,7 @@ export const useExploreStore = create<ExploreStoreState>()(
       error: null,
       isSyncing: false,
       showMarkers: true,
+      markersFilter: 'all',
       visibleCategories: null,
       lastAddedPlace: null,
       routeSelection: { start: null, end: null },
@@ -285,7 +288,7 @@ export const useExploreStore = create<ExploreStoreState>()(
         }
       },
       toggleFavorite: async (placeId) => {
-        const { activePlaces, selectedPlace, updateActivePlace } = get()
+        const { activePlaces, selectedPlace, updateActivePlace, markersFilter } = get()
         const existing = activePlaces.find((place) => place.id === placeId)
         if (!existing) {
           return
@@ -296,19 +299,35 @@ export const useExploreStore = create<ExploreStoreState>()(
           place.id === placeId ? updatedPlace : place
         )
 
-        set({
+        const nextState: Partial<ExploreStoreState> = {
           activePlaces: updatedActivePlaces,
           selectedPlace:
             selectedPlace?.id === placeId
               ? { ...selectedPlace, isFavorite: updatedPlace.isFavorite }
               : selectedPlace,
-        })
+        }
+
+        if (markersFilter === 'favorites' && !updatedPlace.isFavorite) {
+          nextState.selectedPlace = null
+        }
+
+        set(nextState)
 
         try {
           await updateActivePlace(placeId, { isFavorite: updatedPlace.isFavorite })
         } catch (error) {
           console.error('ExploreStore: Failed to persist favourite toggle', error)
         }
+      },
+      setMarkersFilter: (filter) => {
+        const { selectedPlace } = get()
+        const nextState: Partial<ExploreStoreState> = { markersFilter: filter }
+
+        if (filter === 'favorites' && selectedPlace && !selectedPlace.isFavorite) {
+          nextState.selectedPlace = null
+        }
+
+        set(nextState)
       },
       syncWithSupabase: async () => {
         const { activePlaces } = get()
@@ -424,6 +443,7 @@ export const useExploreStore = create<ExploreStoreState>()(
           error: null,
           isSyncing: false,
           showMarkers,
+          markersFilter: 'all',
           visibleCategories,
           lastAddedPlace: null,
           routeSelection: { start: null, end: null },
@@ -432,11 +452,12 @@ export const useExploreStore = create<ExploreStoreState>()(
     }),
     {
       name: 'explore-store',
-      version: 4,
+      version: 5,
       storage,
       partialize: (state) => ({
         recent: state.recent,
         showMarkers: state.showMarkers,
+        markersFilter: state.markersFilter,
         activePlaces: state.activePlaces,
         // Persist recent search history, marker visibility preference, and saved markers
       }),
@@ -454,6 +475,12 @@ export const useExploreStore = create<ExploreStoreState>()(
         if (version < 4 && persistedState) {
           const { visibleCategories: _discarded, ...rest } = persistedState as Record<string, unknown>
           return rest
+        }
+        if (version < 5 && persistedState) {
+          return {
+            ...(persistedState as Record<string, unknown>),
+            markersFilter: 'all',
+          }
         }
         return persistedState as any
       },
