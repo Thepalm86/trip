@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { MapPin, PlusCircle, Eye, Edit, Trash2, ExternalLink, Heart } from 'lucide-react'
+import { PlusCircle, Eye, Edit, Trash2, ExternalLink, Heart } from 'lucide-react'
 import { useExploreStore } from '@/lib/store/explore-store'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { AddExplorePlaceModal } from '../modals/AddExplorePlaceModal'
@@ -10,6 +10,7 @@ import { DestinationEditModal } from '../modals/DestinationEditModal'
 import { Destination } from '@/types'
 import { fallbackCityFromFullName } from '@/lib/location/city'
 import { getExploreCategoryMetadata } from '@/lib/explore/categories'
+import { CornerBadge } from '@/components/shared/CornerBadge'
 
 const applyAlpha = (hex: string, alpha: string) => {
   if (hex.startsWith('#') && hex.length === 7) {
@@ -156,6 +157,7 @@ export function ExplorePreviewDrawer() {
                 ) : null}
               </div>
             </div>
+            <CornerBadge label={categoryMetadata.label} accent={accentColor} className="top-0 right-0" />
             <div className="pointer-events-none absolute bottom-5 right-5 hidden flex-wrap items-center justify-end gap-2 group-hover:flex">
               <button
                 onClick={(e) => {
@@ -243,21 +245,12 @@ export function ExplorePreviewDrawer() {
             </div>
           </div>
 
-          <div className="border-t border-white/10">
-            <div className="flex items-center justify-end px-5 py-4 text-xs text-white/50">
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                {categoryMetadata.label}
-              </span>
+          {selectedPlace.notes && (
+            <div className="border-t border-white/10 px-5 py-4">
+              <div className="text-xs font-semibold uppercase tracking-widest text-white/50">Note</div>
+              <p className="mt-2 text-sm text-white/80 whitespace-pre-line">{selectedPlace.notes}</p>
             </div>
-
-            {selectedPlace.notes && (
-              <div className="border-t border-white/10 px-5 py-4">
-                <div className="text-xs font-semibold uppercase tracking-widest text-white/50">Note</div>
-                <p className="mt-2 text-sm text-white/80 whitespace-pre-line">{selectedPlace.notes}</p>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
