@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X, MapPin, Edit3, Save, Plus, ExternalLink, Link as LinkIcon, Edit } from 'lucide-react'
 import { DayLocation, LocationLink } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'

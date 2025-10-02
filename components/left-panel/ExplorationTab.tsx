@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, MapPin, Calendar, Trash2, Eye, Edit, ExternalLink } from 'lucide-react'
+import { Plus, MapPin, Trash2, Eye, Edit, ExternalLink } from 'lucide-react'
 import { Destination, TimelineDay } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { AddDestinationModal } from './AddDestinationModal'
@@ -9,9 +9,7 @@ import { DestinationOverviewModal } from '../modals/DestinationOverviewModal'
 import { DestinationEditModal } from '../modals/DestinationEditModal'
 import {
   DndContext,
-  DragCancelEvent,
   DragEndEvent,
-  DragOverEvent,
   DragStartEvent,
   DragOverlay,
   KeyboardSensor,
@@ -23,7 +21,6 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
 
-const DAY_CONTAINER_PREFIX = 'day-'
 const TIMELINE_DAY_PREFIX = 'timeline-day-'
 
 type MaybeLocationDragData = {
@@ -139,7 +136,7 @@ function MaybeLocationCard({ destination, index }: { destination: Destination; i
     setEditingDestination(null)
   }
 
-  const handleOpenOverview = (dest: Destination) => {
+  const handleOpenOverview = () => {
     setShowOverviewModal(true)
   }
 
@@ -177,7 +174,7 @@ function MaybeLocationCard({ destination, index }: { destination: Destination; i
           <button
             onClick={(e) => {
               e.stopPropagation()
-              handleOpenOverview(destination)
+              handleOpenOverview()
             }}
             className="p-2 rounded-lg transition-all duration-200 bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/50 hover:border-cyan-300"
             title="View Details"

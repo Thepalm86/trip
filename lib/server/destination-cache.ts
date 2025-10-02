@@ -1,51 +1,5 @@
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 
-// Types for existing Supabase tables
-interface DestinationModalContent {
-  id: string
-  destination_name: string
-  destination_coordinates: { x: number; y: number } | null
-  destination_category: string | null
-  summary: string | null
-  why_visit: string[] | null
-  key_facts: Record<string, any> | null
-  content_version: number | null
-  ai_model: string | null
-  tokens_used: number | null
-  quality_score: number | null
-  created_at: string | null
-  updated_at: string | null
-  expires_at: string | null
-  general_information: string | null
-  activities_attractions: Record<string, any>[] | null
-  selected_tips: Record<string, any>[] | null
-  similar_places: Record<string, any>[] | null
-  metadata: Record<string, any> | null
-}
-
-interface DestinationImage {
-  id: string
-  destination_name: string
-  destination_coordinates: { x: number; y: number } | null
-  image_url: string
-  thumbnail_url: string
-  alt_text: string | null
-  photographer: string | null
-  source: string
-  width: number | null
-  height: number | null
-  color: string | null
-  likes: number | null
-  query_used: string | null
-  created_at: string | null
-  updated_at: string | null
-  display_order: number | null
-  downloads: number | null
-  tags: string[] | null
-  expires_at: string | null
-  cached_at: string | null
-}
-
 /**
  * Cache and retrieve destination overviews using existing Supabase tables
  */

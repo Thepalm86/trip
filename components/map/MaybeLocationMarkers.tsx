@@ -26,7 +26,7 @@ export function MaybeLocationMarkers({ map, showMaybeLocations }: MaybeLocationM
     markersRef.current = []
 
     // Add markers for maybe locations
-    maybeLocations.forEach((destination, index) => {
+    maybeLocations.forEach((destination) => {
       const markerElement = document.createElement('div')
       markerElement.className = 'maybe-marker'
       markerElement.innerHTML = `

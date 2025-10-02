@@ -90,7 +90,7 @@ export function MarkerManager({
       }
 
       const baseLocationFeatures = daysToShow
-        .map((day, index) => {
+        .map((day) => {
           const firstBaseLocation = day.baseLocations?.[0]
           if (!firstBaseLocation) {
             return null

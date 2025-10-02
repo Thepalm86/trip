@@ -117,7 +117,6 @@ export function MapIntegration({ map }: MapIntegrationProps) {
         hasTrip={hasTrip}
         tripDays={tripDays}
         selectedDayId={selectedDayId}
-        selectedDestination={selectedDestination}
       />
       <ExplorePreviewMarker map={map} />
       <ExploreMapFocus map={map} />

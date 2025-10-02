@@ -55,7 +55,8 @@ export default function AuthPage() {
           router.push('/')
         }
       }
-    } catch (err) {
+    } catch (error) {
+      console.error('AuthPage: Failed to authenticate with email/password', error)
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
@@ -80,7 +81,8 @@ export default function AuthPage() {
         setOauthLoading(null)
       }
       // Successful sign-in triggers an external redirect handled by Supabase.
-    } catch (err) {
+    } catch (error) {
+      console.error('AuthPage: OAuth sign-in failed to start', error)
       setError('Unable to start social sign-in right now. Please try again.')
       setOauthLoading(null)
     }
