@@ -28,8 +28,12 @@ export function ExplorePreviewDrawer() {
   const [showEditModal, setShowEditModal] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
+  const isModalBlocking = showAddModal || showEditModal || showOverviewModal
+
   useEffect(() => {
-    if (!selectedPlace) return
+    if (!selectedPlace || isModalBlocking) {
+      return
+    }
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!containerRef.current) return
@@ -40,7 +44,7 @@ export function ExplorePreviewDrawer() {
 
     document.addEventListener('pointerdown', handlePointerDown)
     return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [selectedPlace, setSelectedPlace])
+  }, [selectedPlace, setSelectedPlace, isModalBlocking])
 
   useEffect(() => {
     if (!selectedPlace) {
@@ -111,14 +115,21 @@ export function ExplorePreviewDrawer() {
   const maybeLocations = useSupabaseTripStore((state) => state.maybeLocations)
   const setMaybeFavorite = useSupabaseTripStore((state) => state.setMaybeFavorite)
 
-  const containerStyle = useMemo(
-    () => ({
+  const containerStyle = useMemo(() => {
+    const base = {
       background: `linear-gradient(135deg, ${applyAlpha(accentColor, '24')} 0%, rgba(15, 23, 42, 0.78) 100%)`,
       borderColor: applyAlpha(accentColor, '88'),
       boxShadow: `0 24px 60px ${applyAlpha(accentColor, '24')}`,
-    }),
-    [accentColor],
-  )
+    }
+
+    if (isFavorite) {
+      base.borderColor = applyAlpha('#facc15', 'cc')
+      base.boxShadow = `0 36px 90px rgba(250, 204, 21, 0.38), 0 24px 60px ${applyAlpha(accentColor, '24')}`
+      base.background = `linear-gradient(135deg, rgba(250, 204, 21, 0.16) 0%, rgba(15, 23, 42, 0.85) 100%)`
+    }
+
+    return base
+  }, [accentColor, isFavorite])
 
   if (!selectedPlace) {
     return null
@@ -132,12 +143,13 @@ export function ExplorePreviewDrawer() {
     return fallbackCity !== 'Unknown' ? fallbackCity : null
   })()
   const isCityCategory = categoryMetadata.key === 'city'
-  const favoriteBadge = isFavorite
-
   return (
     <>
       <div ref={containerRef} className="pointer-events-auto absolute bottom-6 left-1/2 z-20 w-full max-w-lg -translate-x-1/2">
-        <div className="group rounded-3xl border bg-slate-900/80 backdrop-blur-2xl" style={containerStyle}>
+        <div
+          className="group rounded-3xl border bg-slate-900/80 backdrop-blur-2xl"
+          style={containerStyle}
+        >
           <div className="relative flex items-start justify-between gap-4 p-5">
             <div className="flex-1 min-w-0 pr-28">
               <div className="text-xs font-semibold uppercase tracking-widest text-white/50">Preview</div>
@@ -150,11 +162,6 @@ export function ExplorePreviewDrawer() {
                     {displayCity ?? selectedPlace.fullName}
                   </p>
                 )}
-                {favoriteBadge ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
-                    <Heart className="h-3 w-3 fill-current" /> Favourite
-                  </span>
-                ) : null}
               </div>
             </div>
             <CornerBadge label={categoryMetadata.label} accent={accentColor} className="top-0 right-0" />

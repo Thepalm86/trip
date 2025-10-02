@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Loader2 } from 'lucide-react'
 import { Destination } from '@/types'
 import { supabase } from '@/lib/supabase/client'
@@ -44,6 +45,19 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const container = document.createElement('div')
+    container.setAttribute('data-destination-overview-modal-root', 'true')
+    document.body.appendChild(container)
+    setPortalContainer(container)
+
+    return () => {
+      document.body.removeChild(container)
+      setPortalContainer(null)
+    }
+  }, [])
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -210,7 +224,7 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
 
   const displaySections = enrichedSections
 
-  return (
+  const modalContent = (
     <div
       onClick={onClose}
       style={{
@@ -568,4 +582,10 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
       )}
     </div>
   )
+
+  if (!portalContainer) {
+    return null
+  }
+
+  return createPortal(modalContent, portalContainer)
 }

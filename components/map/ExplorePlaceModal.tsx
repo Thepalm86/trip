@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, MapPin, Hotel, Landmark, Plus, Trash2, ExternalLink } from 'lucide-react'
 import type { ExplorePlace, LocationLink } from '@/types'
 import {
@@ -78,6 +79,19 @@ interface ExplorePlaceModalProps {
 
 export function ExplorePlaceModal({ place, onCancel, onConfirm }: ExplorePlaceModalProps) {
   const normalizedCategory = normalizeExploreCategoryKey(place.category)
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const container = document.createElement('div')
+    container.setAttribute('data-explore-place-modal-root', 'true')
+    document.body.appendChild(container)
+    setPortalContainer(container)
+
+    return () => {
+      document.body.removeChild(container)
+      setPortalContainer(null)
+    }
+  }, [])
   const defaultMode: Mode = normalizedCategory === 'accommodation' || normalizedCategory === 'hotel'
     ? 'accommodation'
     : 'destination'
@@ -249,38 +263,53 @@ export function ExplorePlaceModal({ place, onCancel, onConfirm }: ExplorePlaceMo
     }
 
     return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-white/80">Links</label>
+      <div className="mt-6 space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h4 className="text-sm font-semibold text-white/70">Links</h4>
           <button
             type="button"
             onClick={handleAdd}
-            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+            className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold text-white/80 transition whitespace-nowrap ${
               isDestination
-                ? 'border-blue-400/40 bg-blue-500/15 text-blue-100 hover:border-blue-400/60 hover:bg-blue-500/25'
-                : 'border-emerald-400/40 bg-emerald-500/15 text-emerald-100 hover:border-emerald-400/60 hover:bg-emerald-500/25'
+                ? 'border-blue-400/50 bg-blue-500/20 hover:border-blue-300/60 hover:bg-blue-500/30'
+                : 'border-emerald-400/50 bg-emerald-500/20 hover:border-emerald-300/60 hover:bg-emerald-500/30'
             }`}
           >
-            <Plus className="h-3.5 w-3.5" /> Add link
+            <Plus className="h-3.5 w-3.5" /> {drafts.length > 0 ? 'Add another link' : 'Add link'}
           </button>
         </div>
-        {drafts.length === 0 ? (
-          <p className="text-sm text-white/50">
-            Save quick access to {isDestination ? 'guides, tickets, or map pins' : 'booking confirmations and property pages'}.
-          </p>
-        ) : (
+
+        {drafts.length === 0 ? null : (
           <div className="space-y-3">
-            {drafts.map((link) => (
-              <div key={link.id} className="rounded-lg border border-white/10 bg-white/5 p-3">
-                <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
+            {drafts.map((link, index) => (
+              <div
+                key={link.id}
+                className="rounded-2xl border border-white/12 bg-gradient-to-br from-white/5 via-white/3 to-white/5 p-4 shadow-inner shadow-black/20"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-white/50">Link {index + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeLink(link.id)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-[11px] font-medium text-white/60 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Remove
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-[160px_1fr]">
                   <div>
-                    <label className="block text-xs font-medium uppercase tracking-wide text-white/50">
+                    <label className="block text-[11px] font-semibold text-white/60">
                       Type
                     </label>
                     <select
                       value={link.type}
                       onChange={(event) => updateLink(link.id, 'type', event.target.value)}
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white focus:border-blue-400/50 focus:outline-none"
+                      className={`mt-2 w-full rounded-xl border px-3 py-2 text-sm text-white transition focus:outline-none ${
+                        isDestination
+                          ? 'border-blue-400/30 bg-blue-500/10 focus:border-blue-300/60 focus:bg-blue-500/15'
+                          : 'border-emerald-400/30 bg-emerald-500/10 focus:border-emerald-300/60 focus:bg-emerald-500/15'
+                      }`}
                     >
                       {options.map((option) => (
                         <option key={option.value} value={option.value} className="bg-slate-900">
@@ -289,9 +318,10 @@ export function ExplorePlaceModal({ place, onCancel, onConfirm }: ExplorePlaceMo
                       ))}
                     </select>
                   </div>
+
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="block text-xs font-medium uppercase tracking-wide text-white/50">
+                      <label className="block text-[11px] font-semibold text-white/60">
                         Label
                       </label>
                       <input
@@ -299,39 +329,32 @@ export function ExplorePlaceModal({ place, onCancel, onConfirm }: ExplorePlaceMo
                         value={link.label}
                         onChange={(event) => updateLink(link.id, 'label', event.target.value)}
                         placeholder={isDestination ? 'e.g. Official site' : 'e.g. Booking reference'}
-                        className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-blue-400/50 focus:outline-none"
+                        className="mt-2 w-full rounded-xl border border-white/12 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/40 focus:outline-none"
                       />
                     </div>
+
                     <div>
-                      <label className="block text-xs font-medium uppercase tracking-wide text-white/50">
+                      <label className="block text-[11px] font-semibold text-white/60">
                         URL
                       </label>
-                      <div className="relative mt-1">
+                      <div className="relative mt-2">
                         <ExternalLink className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
                         <input
                           type="url"
                           value={link.url}
                           onChange={(event) => updateLink(link.id, 'url', event.target.value)}
                           placeholder="https://"
-                          className="w-full rounded-lg border border-white/10 bg-white/10 px-10 py-2 text-sm text-white placeholder:text-white/40 focus:border-blue-400/50 focus:outline-none"
+                          className="w-full rounded-xl border border-white/12 bg-white/10 px-10 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/40 focus:outline-none"
                         />
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => removeLink(link.id)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Remove
-                  </button>
-                </div>
               </div>
             ))}
           </div>
         )}
+
       </div>
     )
   }
@@ -341,7 +364,7 @@ export function ExplorePlaceModal({ place, onCancel, onConfirm }: ExplorePlaceMo
       return (
         <div className="flex h-full flex-col justify-center gap-6">
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-widest text-white/60">Choose type</h4>
+            <h4 className="text-sm font-semibold text-white/70">Choose type</h4>
           </div>
 
           <div className="grid gap-4">
@@ -390,7 +413,7 @@ export function ExplorePlaceModal({ place, onCancel, onConfirm }: ExplorePlaceMo
         return (
           <div className="flex h-full flex-col">
             <div>
-              <h4 className="text-sm font-semibold uppercase tracking-widest text-white/60">Choose category</h4>
+              <h4 className="text-sm font-semibold text-white/70">Choose category</h4>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {destinationCategoryOptions.map((option) => {
                   const isSelected = destinationCategory === option.value
@@ -439,7 +462,7 @@ export function ExplorePlaceModal({ place, onCancel, onConfirm }: ExplorePlaceMo
         return (
           <div className="flex h-full flex-col">
             <div>
-              <h4 className="text-sm font-semibold uppercase tracking-widest text-white/60">Choose stay type</h4>
+              <h4 className="text-sm font-semibold text-white/70">Choose stay type</h4>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {ACCOMMODATION_CATEGORY_OPTIONS.map((option) => {
                   const isSelected = accommodationCategory === option.value
@@ -469,7 +492,7 @@ export function ExplorePlaceModal({ place, onCancel, onConfirm }: ExplorePlaceMo
         return (
           <div className="flex h-full flex-col justify-between">
             <div>
-              <h4 className="text-sm font-semibold uppercase tracking-widest text-white/60">Stay details</h4>
+              <h4 className="text-sm font-semibold text-white/70">Stay details</h4>
               <textarea
                 value={accommodationNotes}
                 onChange={(event) => setAccommodationNotes(event.target.value)}
@@ -486,7 +509,7 @@ export function ExplorePlaceModal({ place, onCancel, onConfirm }: ExplorePlaceMo
     return null
   }
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur">
       <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl">
         <div className="flex items-start justify-between">
@@ -557,6 +580,12 @@ export function ExplorePlaceModal({ place, onCancel, onConfirm }: ExplorePlaceMo
       </div>
     </div>
   )
+
+  if (!portalContainer) {
+    return null
+  }
+
+  return createPortal(modalContent, portalContainer)
 }
 
 function StepIndicator({
