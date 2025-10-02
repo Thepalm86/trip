@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Search, Loader2, MapPin, Sparkles, X } from 'lucide-react'
 import { useExploreStore } from '@/lib/store/explore-store'
 import type { ExplorePlace } from '@/types'
-import { getExploreCategoryMetadata } from '@/lib/explore/categories'
+import { ExplorePlaceModal } from './ExplorePlaceModal'
 
 const MIN_QUERY_LENGTH = 2
 
@@ -28,7 +28,6 @@ export function ExploreSearchDock({ defaultExpanded = false }: ExploreSearchDock
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [showResults, setShowResults] = useState(false)
   const [pendingPlace, setPendingPlace] = useState<ExplorePlace | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 
   useEffect(() => {
     setLocalQuery(query)
@@ -49,33 +48,21 @@ export function ExploreSearchDock({ defaultExpanded = false }: ExploreSearchDock
     return () => clearTimeout(handler)
   }, [localQuery, searchPlaces, setQuery])
 
-  const openCategoryPicker = (place: ExplorePlace) => {
-    setPendingPlace(place)
-    setSelectedCategory(null)
-  }
-
   const handleSelect = (place: ExplorePlace) => {
-    openCategoryPicker(place)
+    setPendingPlace(place)
   }
 
-  const handleConfirmCategory = async () => {
-    if (!pendingPlace || !selectedCategory) return
-    const category = selectedCategory
-    const normalizedPlace: ExplorePlace = {
-      ...pendingPlace,
-      category,
-    }
-    addRecent(normalizedPlace)
-    await addActivePlace(normalizedPlace)
+  const handleConfirmPlace = async (preparedPlace: ExplorePlace) => {
+    addRecent(preparedPlace)
+    await addActivePlace(preparedPlace)
     setSelectedPlace(null)
     setLocalQuery('')
     setShowResults(false)
     setIsExpanded(false)
     setPendingPlace(null)
-    setSelectedCategory(null)
   }
 
-  const handleCancelCategory = () => {
+  const handleCancelModal = () => {
     setPendingPlace(null)
   }
 
@@ -156,12 +143,10 @@ export function ExploreSearchDock({ defaultExpanded = false }: ExploreSearchDock
       </div>
 
       {pendingPlace && (
-        <CategorySelectionDialog
+        <ExplorePlaceModal
           place={pendingPlace}
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-          onCancel={handleCancelCategory}
-          onConfirm={handleConfirmCategory}
+          onCancel={handleCancelModal}
+          onConfirm={handleConfirmPlace}
         />
       )}
     </div>
@@ -219,68 +204,6 @@ function ResultList({ title, items, onSelect, isSearching }: ResultListProps) {
           </div>
         </button>
       ))}
-    </div>
-  )
-}
-
-const CATEGORY_OPTIONS = ['city', 'attraction', 'restaurant', 'accommodation', 'activity', 'other'] as const
-
-interface CategorySelectionDialogProps {
-  place: ExplorePlace
-  selectedCategory: string | null
-  onSelectCategory: (category: string) => void
-  onCancel: () => void
-  onConfirm: () => void
-}
-
-function CategorySelectionDialog({ place, selectedCategory, onSelectCategory, onCancel, onConfirm }: CategorySelectionDialogProps) {
-  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null)
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur">
-      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-white">Choose category</h3>
-        <p className="mt-1 text-sm text-white/60">{place.name}</p>
-        <div className="mt-4 grid gap-2">
-          {CATEGORY_OPTIONS.map((value) => {
-            const metadata = getExploreCategoryMetadata(value)
-            const isSelected = selectedCategory === value
-            const isHovered = hoveredCategory === value
-            const isActive = isSelected || isHovered
-            const backgroundColor = isActive ? metadata.colors.ring : 'rgba(255, 255, 255, 0.05)'
-            const borderColor = isActive ? metadata.colors.border : 'rgba(255, 255, 255, 0.1)'
-            const textColor = isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.7)'
-            return (
-              <button
-                key={value}
-                onClick={() => onSelectCategory(value)}
-                onMouseEnter={() => setHoveredCategory(value)}
-                onMouseLeave={() => setHoveredCategory(null)}
-                className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm transition focus-visible:outline-none"
-                style={{ backgroundColor, borderColor, color: textColor }}
-              >
-                <span className="font-medium">{metadata.label}</span>
-                {isSelected && <span className="text-xs" style={{ color: metadata.colors.border }}>Selected</span>}
-              </button>
-            )
-          })}
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 hover:text-white"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={!selectedCategory}
-            className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
-          >
-            Add Marker
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

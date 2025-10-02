@@ -36,7 +36,17 @@ export interface Trip {
 
 export interface LocationLink {
   id: string
-  type: 'airbnb' | 'booking' | 'hotels' | 'google_maps' | 'tripadvisor' | 'website' | 'other'
+  type:
+    | 'airbnb'
+    | 'booking'
+    | 'hotels'
+    | 'google_maps'
+    | 'tripadvisor'
+    | 'website'
+    | 'guide'
+    | 'blog'
+    | 'tickets'
+    | 'other'
   label: string
   url: string
 }
@@ -46,6 +56,7 @@ export interface DayLocation {
   coordinates: [number, number]
   context?: string
   city?: string
+  category?: string
   notes?: string
   links?: LocationLink[]
 }
@@ -65,7 +76,8 @@ export interface ExplorePlace {
   context?: string
   city?: string
   notes?: string
-  source: 'mapbox' | 'cache'
+  links?: LocationLink[]
+  source: 'mapbox' | 'cache' | 'google'
   relevance?: number
   metadata?: Record<string, unknown>
 }

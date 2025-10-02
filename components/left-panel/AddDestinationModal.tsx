@@ -50,12 +50,12 @@ const STEP_DEFINITIONS: StepDefinition[] = [
 ]
 
 const LINK_TYPE_OPTIONS: { value: LocationLink['type']; label: string }[] = [
-  { value: 'website', label: 'Website' },
+  { value: 'website', label: 'Official website' },
   { value: 'google_maps', label: 'Google Maps' },
   { value: 'tripadvisor', label: 'TripAdvisor' },
-  { value: 'airbnb', label: 'Airbnb' },
-  { value: 'booking', label: 'Booking.com' },
-  { value: 'hotels', label: 'Hotels.com' },
+  { value: 'guide', label: 'Travel guide' },
+  { value: 'blog', label: 'Blog / inspiration' },
+  { value: 'tickets', label: 'Tickets & booking' },
   { value: 'other', label: 'Other' },
 ]
 
@@ -411,9 +411,6 @@ export function AddDestinationModal({
         <div className="space-y-5">
           <div>
             <h4 className="text-sm font-semibold uppercase tracking-widest text-white/60">Choose category</h4>
-            <p className="mt-1 text-xs text-white/50">
-              We use categories to color-code the itinerary and personalize suggestions.
-            </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {categoryOptions.map((option) => {
                 const isSelected = selectedCategory === option.value
@@ -492,7 +489,7 @@ export function AddDestinationModal({
             </div>
             {linkDrafts.length === 0 ? (
               <p className="text-sm text-white/50">
-                Attach booking confirmations, official websites, or Google Maps links to access them quickly later.
+                Attach official websites, maps, guides, or blogs you want easy access to during the trip.
               </p>
             ) : (
               <div className="space-y-3">

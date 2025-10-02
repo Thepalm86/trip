@@ -146,6 +146,7 @@ export const useExploreStore = create<ExploreStoreState>()(
           const mergedPlace: ExplorePlace = {
             ...savedPlace,
             notes: placeWithSourceId.notes ?? savedPlace.notes,
+            links: placeWithSourceId.links ?? savedPlace.links,
             metadata: {
               ...(savedPlace.metadata ?? {}),
               ...(placeWithSourceId.metadata ?? {}),
@@ -225,6 +226,10 @@ export const useExploreStore = create<ExploreStoreState>()(
         const sanitizedUpdates: Partial<ExplorePlace> = {
           ...updates,
           notes: updates.notes ?? undefined,
+        }
+
+        if ('links' in updates) {
+          sanitizedUpdates.links = updates.links ?? undefined
         }
 
         const updatedPlace: ExplorePlace = {

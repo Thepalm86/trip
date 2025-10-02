@@ -36,7 +36,19 @@ interface StepDefinition {
 
 const STEP_DEFINITIONS: StepDefinition[] = [
   { id: 1, label: 'Location' },
-  { id: 2, label: 'Details' },
+  { id: 2, label: 'Category' },
+  { id: 3, label: 'Details' },
+]
+
+const ACCOMMODATION_CATEGORY_OPTIONS = [
+  { value: 'hotel', label: 'Hotel' },
+  { value: 'apartment', label: 'Apartment' },
+  { value: 'airbnb', label: 'Airbnb' },
+  { value: 'hostel', label: 'Hostel' },
+  { value: 'villa', label: 'Villa' },
+  { value: 'resort', label: 'Resort' },
+  { value: 'guesthouse', label: 'Guesthouse' },
+  { value: 'other', label: 'Other' },
 ]
 
 const LINK_TYPE_OPTIONS: { value: LocationLink['type']; label: string }[] = [
@@ -113,29 +125,20 @@ function StepIndicator({ steps, currentStep }: { steps: StepDefinition[]; curren
   )
 }
 
-function SelectedLocationPreview({ location, onChange }: { location: LocationResult; onChange?: () => void }) {
-  return (
-    <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500/20 to-sky-500/20">
-        <MapPin className="h-5 w-5 text-emerald-300" />
-      </div>
-      <div className="flex-1 space-y-1">
-        <p className="text-base font-semibold text-white">{location.name}</p>
-        {(location.fullName || location.context) && (
-          <p className="text-xs text-white/60">{location.fullName ?? location.context}</p>
-        )}
-        {onChange && (
-          <button
-            type="button"
-            onClick={onChange}
-            className="text-xs font-medium text-emerald-200 transition-colors hover:text-emerald-100"
-          >
-            Change selection
-          </button>
-        )}
-      </div>
-    </div>
-  )
+const inferAccommodationCategory = (category?: string): string => {
+  if (!category) {
+    return 'hotel'
+  }
+
+  const normalized = category.toLowerCase()
+  if (normalized.includes('apartment')) return 'apartment'
+  if (normalized.includes('airbnb')) return 'airbnb'
+  if (normalized.includes('hostel')) return 'hostel'
+  if (normalized.includes('villa')) return 'villa'
+  if (normalized.includes('resort')) return 'resort'
+  if (normalized.includes('guest')) return 'guesthouse'
+  if (normalized.includes('bnb')) return 'airbnb'
+  return 'hotel'
 }
 
 export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) {
@@ -148,6 +151,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
   const [results, setResults] = useState<LocationResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedLocation, setSelectedLocation] = useState<LocationResult | null>(null)
+  const [accommodationCategory, setAccommodationCategory] = useState<string>('hotel')
   const [notes, setNotes] = useState('')
   const [linkDrafts, setLinkDrafts] = useState<LinkDraft[]>([])
   const [isSaving, setIsSaving] = useState(false)
@@ -220,14 +224,18 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
     if (step === 1) {
       return Boolean(selectedLocation)
     }
+    if (step === 2) {
+      return Boolean(accommodationCategory)
+    }
     return true
-  }, [selectedLocation, step])
+  }, [accommodationCategory, selectedLocation, step])
 
   const primaryLabel = step === totalSteps ? (isSaving ? 'Saving…' : 'Save accommodation') : 'Next'
   const isPrimaryDisabled = !canProceed || (step === totalSteps && isSaving)
 
   const handleSelectLocation = (location: LocationResult) => {
     setSelectedLocation(location)
+    setAccommodationCategory(inferAccommodationCategory(location.category))
     setNotes('')
     setLinkDrafts([])
     setStep(2)
@@ -284,6 +292,7 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
         coordinates: selectedLocation.coordinates,
         context: selectedLocation.fullName ?? selectedLocation.context,
         city: city === 'Unknown' ? undefined : city,
+        category: accommodationCategory,
         notes: trimmedNotes ? trimmedNotes : undefined,
         links: preparedLinks.length ? preparedLinks : undefined,
       }
@@ -399,8 +408,36 @@ export function BaseLocationPicker({ dayId, onClose }: BaseLocationPickerProps) 
     if (step === 2 && selectedLocation) {
       return (
         <div className="space-y-5">
-          <SelectedLocationPreview location={selectedLocation} onChange={() => setStep(1)} />
+          <div>
+            <h4 className="text-sm font-semibold uppercase tracking-widest text-white/60">Choose stay type</h4>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {ACCOMMODATION_CATEGORY_OPTIONS.map((option) => {
+                const isSelected = accommodationCategory === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setAccommodationCategory(option.value)}
+                    className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition ${
+                      isSelected
+                        ? 'border-emerald-400 bg-emerald-500/25 text-white shadow-lg shadow-emerald-500/10'
+                        : 'border-white/10 bg-white/5 text-white/70 hover:border-emerald-400/40 hover:bg-emerald-500/15 hover:text-white'
+                    }`}
+                  >
+                    <span>{option.label}</span>
+                    {isSelected && <span className="text-xs font-medium text-emerald-200">Selected</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )
+    }
 
+    if (step === 3 && selectedLocation) {
+      return (
+        <div className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-white/80">Notes</label>
             <textarea

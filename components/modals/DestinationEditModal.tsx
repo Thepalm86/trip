@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { X, MapPin, Edit3, Trash2, Save, Plus, ExternalLink, Link as LinkIcon } from 'lucide-react'
-import { Destination } from '@/types'
+import { Destination, LocationLink } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { useExploreStore } from '@/lib/store/explore-store'
 
@@ -12,15 +12,23 @@ interface DestinationEditModalProps {
   onClose: () => void
 }
 
-const linkTypeOptions = [
-  { value: 'website', label: 'Website', icon: '🌐' },
+type LinkTypeOption = { value: LocationLink['type']; label: string; icon: string }
+
+const BASE_LINK_TYPE_OPTIONS = [
+  { value: 'website', label: 'Official website', icon: '🌐' },
   { value: 'google_maps', label: 'Google Maps', icon: '🗺️' },
   { value: 'tripadvisor', label: 'TripAdvisor', icon: '⭐' },
-  { value: 'airbnb', label: 'Airbnb', icon: '🏠' },
-  { value: 'booking', label: 'Booking.com', icon: '🏨' },
-  { value: 'hotels', label: 'Hotels.com', icon: '🏨' },
+  { value: 'guide', label: 'Travel guide', icon: '📘' },
+  { value: 'blog', label: 'Blog / inspiration', icon: '✍️' },
+  { value: 'tickets', label: 'Tickets & booking', icon: '🎟️' },
   { value: 'other', label: 'Other', icon: '🔗' }
-]
+ ] as const satisfies LinkTypeOption[]
+
+const LEGACY_LINK_TYPE_OPTIONS = [
+  { value: 'airbnb', label: 'Airbnb (stay)', icon: '🏠' },
+  { value: 'booking', label: 'Booking.com (stay)', icon: '🏨' },
+  { value: 'hotels', label: 'Hotels.com (stay)', icon: '🏨' },
+] as const satisfies LinkTypeOption[]
 
 const categoryOptions = [
   { value: 'city', label: 'City' },
@@ -38,7 +46,15 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
   const removeExplorePlace = useExploreStore((state) => state.removeActivePlace)
   const [isLoading, setIsLoading] = useState(false)
   const [showAddLink, setShowAddLink] = useState(false)
-  const [newLink, setNewLink] = useState({ type: 'website', label: '', url: '' })
+  type NewLinkForm = { type: LocationLink['type']; label: string; url: string }
+
+  const [newLink, setNewLink] = useState<NewLinkForm>({ type: 'website', label: '', url: '' })
+
+  const linkTypeOptions = useMemo(() => {
+    const existingTypes = new Set(destination.links?.map((link) => link.type) ?? [])
+    const legacyOptions = LEGACY_LINK_TYPE_OPTIONS.filter((option) => existingTypes.has(option.value))
+    return [...BASE_LINK_TYPE_OPTIONS, ...legacyOptions]
+  }, [destination.links])
   
   // Initialize category states
   const predefinedCategories = ['city', 'attraction', 'restaurant', 'hotel', 'accommodation', 'activity']
@@ -103,7 +119,7 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
     if (newLink.label.trim() && newLink.url.trim()) {
       const link = {
         id: Date.now().toString(),
-        type: newLink.type as any,
+        type: newLink.type,
         label: newLink.label.trim(),
         url: newLink.url.trim()
       }
@@ -340,7 +356,9 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
                 <div className="space-y-2">
                   <select
                     value={newLink.type}
-                    onChange={(e) => setNewLink(prev => ({ ...prev, type: e.target.value }))}
+                    onChange={(e) =>
+                      setNewLink(prev => ({ ...prev, type: e.target.value as LocationLink['type'] }))
+                    }
                     className="w-full px-3 py-2 bg-slate-800 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-green-400/50 focus:ring-1 focus:ring-green-400/20 transition-all duration-200"
                   >
                     {linkTypeOptions.map(option => (

@@ -1,18 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { Calendar, Edit3, Info } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { DestinationOverviewModal } from '@/components/modals/DestinationOverviewModal'
 import { BaseLocationEditModal } from '@/components/modals/BaseLocationEditModal'
-import { getExploreCategoryMetadata } from '@/lib/explore/categories'
-
-const applyAlpha = (hex: string, alpha: string) => {
-  if (hex.startsWith('#') && hex.length === 7) {
-    return `${hex}${alpha}`
-  }
-  return hex
-}
 
 export function ItineraryPreviewDrawer() {
   const {
@@ -21,13 +12,8 @@ export function ItineraryPreviewDrawer() {
     setSelectedDestination,
     selectedBaseLocation,
     setSelectedBaseLocation,
-    setSelectedDay,
-    setSelectedCard,
     selectionOrigin,
   } = useSupabaseTripStore()
-
-  const [isOverviewOpen, setIsOverviewOpen] = useState(false)
-  const [isBaseEditOpen, setIsBaseEditOpen] = useState(false)
 
   const destinationContext = useMemo(() => {
     if (!currentTrip || !selectedDestination) {
@@ -75,6 +61,8 @@ export function ItineraryPreviewDrawer() {
       baseIndex: selectedBaseLocation.index,
     }
   }, [currentTrip, selectedBaseLocation])
+  const showDestinationModal = selectionOrigin !== 'map' && Boolean(destinationContext)
+  const showBaseModal = selectionOrigin !== 'map' && Boolean(baseContext)
 
   useEffect(() => {
     if (selectedDestination && !destinationContext) {
@@ -88,136 +76,25 @@ export function ItineraryPreviewDrawer() {
     }
   }, [selectedBaseLocation, baseContext, setSelectedBaseLocation])
 
-  const handleFocusTimeline = () => {
-    if (destinationContext) {
-      setSelectedDay(destinationContext.day.id)
-      setSelectedCard(`dest-${destinationContext.destination.id}`)
-    } else if (baseContext) {
-      setSelectedDay(baseContext.day.id)
-      setSelectedCard(`base-${baseContext.day.id}-${baseContext.baseIndex}`)
-    }
-  }
-
-  const activeDestination = Boolean(destinationContext)
-  const activeBase = Boolean(baseContext)
-  const allowDrawer = selectionOrigin === 'map'
-
-  const accentColor = useMemo(() => {
-    if (activeDestination && destinationContext) {
-      return getExploreCategoryMetadata(destinationContext.destination.category).colors.border
-    }
-
-    if (activeBase) {
-      return getExploreCategoryMetadata('accommodation').colors.border
-    }
-
-    return '#38bdf8'
-  }, [activeDestination, activeBase, destinationContext])
-
-  const quickActionStyle = useMemo(
-    () => ({
-      background: `linear-gradient(135deg, ${applyAlpha(accentColor, '22')} 0%, rgba(15, 23, 42, 0.85) 100%)`,
-      borderColor: applyAlpha(accentColor, '88'),
-      color: '#e2e8f0',
-    }),
-    [accentColor],
-  )
-
-  const containerStyle = useMemo(
-    () => ({
-      background: `linear-gradient(135deg, ${applyAlpha(accentColor, '24')} 0%, rgba(15, 23, 42, 0.78) 100%)`,
-      borderColor: applyAlpha(accentColor, '88'),
-      boxShadow: `0 24px 60px ${applyAlpha(accentColor, '24')}`,
-    }),
-    [accentColor],
-  )
-
-  if (!allowDrawer || (!activeDestination && !activeBase)) {
-    return null
-  }
-
-  const title = activeDestination
-    ? destinationContext!.destination.name
-    : baseContext!.baseLocation.name
-
-  const subtitle = activeDestination
-    ? destinationContext!.destination.city || destinationContext!.day.destinations[0]?.city || 'Unknown location'
-    : baseContext!.baseLocation.city || 'Unknown location'
-
-  const dayLabel = activeDestination
-    ? `Day ${destinationContext!.dayIndex + 1} • Activity ${destinationContext!.activityLetter}`
-    : `Day ${baseContext!.dayIndex + 1} • Accommodation`
-
   return (
     <>
-      <div className="pointer-events-auto absolute bottom-6 left-1/2 z-20 w-full max-w-lg -translate-x-1/2">
-        <div className="group rounded-3xl border bg-slate-900/80 backdrop-blur-2xl" style={containerStyle}>
-          <div className="relative flex items-start justify-between gap-5 p-5">
-            <div className="flex-1 min-w-0 space-y-3 pr-28">
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">Preview</div>
-              <div className="space-y-2">
-                <h2 className="text-2xl font-light text-white leading-tight">{title}</h2>
-                <p className="text-sm text-white/70 leading-relaxed line-clamp-2">{subtitle}</p>
-              </div>
-              {activeDestination && (
-                <div className="flex items-center gap-2 text-xs text-white/50 pt-1">
-                  <Calendar className="h-3.5 w-3.5" />
-                  {dayLabel}
-                </div>
-              )}
-            </div>
-            <div className="pointer-events-none absolute bottom-5 right-5 hidden flex-wrap items-center justify-end gap-2 group-hover:flex">
-              {activeDestination && (
-                <button
-                  onClick={() => setIsOverviewOpen(true)}
-                  className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
-                  style={quickActionStyle}
-                  title="View details"
-                >
-                  <Info className="h-4 w-4" />
-                </button>
-              )}
-              {activeBase && (
-                <button
-                  onClick={() => setIsBaseEditOpen(true)}
-                  className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
-                  style={quickActionStyle}
-                  title="Edit accommodation"
-                >
-                  <Edit3 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-white/10 px-5 py-4 text-xs text-white/60">
-            <span className="inline-flex items-center gap-2">
-              <Calendar className="h-3.5 w-3.5" />
-              {dayLabel}
-            </span>
-            <button
-              onClick={handleFocusTimeline}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 transition-all duration-200 hover:bg-white/10 hover:text-white"
-            >
-              Focus in itinerary
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {activeDestination && isOverviewOpen && (
+      {showDestinationModal && destinationContext && (
         <DestinationOverviewModal
-          destination={destinationContext!.destination}
-          onClose={() => setIsOverviewOpen(false)}
+          destination={destinationContext.destination}
+          onClose={() => {
+            setSelectedDestination(null)
+          }}
         />
       )}
 
-      {activeBase && isBaseEditOpen && (
+      {showBaseModal && baseContext && (
         <BaseLocationEditModal
-          dayId={baseContext!.day.id}
-          locationIndex={baseContext!.baseIndex}
-          location={baseContext!.baseLocation}
-          onClose={() => setIsBaseEditOpen(false)}
+          dayId={baseContext.day.id}
+          locationIndex={baseContext.baseIndex}
+          location={baseContext.baseLocation}
+          onClose={() => {
+            setSelectedBaseLocation(null)
+          }}
         />
       )}
     </>
