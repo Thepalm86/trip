@@ -165,6 +165,7 @@ function dbDayToTimelineDay(day: DatabaseDay, destinations: DatabaseDestination[
     date: new Date(day.date),
     destinations: dayDestinations,
     baseLocations: baseLocations,
+    notes: day.notes ?? undefined,
   }
 }
 
@@ -334,7 +335,7 @@ export const tripApi = {
           : null,
         base_location_context: primaryBaseLocation?.context ?? null,
         base_locations_json: day.baseLocations && day.baseLocations.length > 0 ? day.baseLocations : null,
-        notes: undefined
+        notes: day.notes ?? null
       }
     })
 
@@ -363,7 +364,8 @@ export const tripApi = {
             opening_hours: dest.openingHours,
             cost: dest.cost,
             order_index: destIndex,
-            notes: undefined
+            notes: dest.notes ?? null,
+            links_json: dest.links ? JSON.stringify(dest.links) : null
           })
         })
       }
@@ -554,7 +556,9 @@ export const tripApi = {
 
   // Set day location (for backward compatibility - sets first base location)
   async setDayLocation(dayId: string, location: DayLocation | null): Promise<void> {
-    const updateData: any = {}
+    const updateData: any = {
+      base_locations_json: location ? [location] : null,
+    }
     
     if (location) {
       updateData.base_location_name = location.name
@@ -633,6 +637,15 @@ export const tripApi = {
     const { error } = await supabase
       .from('trip_days')
       .update(update)
+      .eq('id', dayId)
+
+    if (error) throw error
+  },
+
+  async setDayNotes(dayId: string, notes: string | null): Promise<void> {
+    const { error } = await supabase
+      .from('trip_days')
+      .update({ notes })
       .eq('id', dayId)
 
     if (error) throw error
@@ -815,6 +828,8 @@ export const tripApi = {
         base_location_name: day.base_location_name,
         base_location_coordinates: day.base_location_coordinates,
         base_location_context: day.base_location_context,
+        base_locations_json: Array.isArray(day.base_locations_json) ? day.base_locations_json : null,
+        notes: day.notes ?? null,
       })
       .select('*')
       .single()
@@ -835,6 +850,7 @@ export const tripApi = {
         cost: destination.cost,
         order_index: destination.order_index,
         notes: destination.notes,
+        links_json: destination.links_json,
       }))
 
       const { error: duplicateError } = await supabase

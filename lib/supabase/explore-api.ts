@@ -12,6 +12,10 @@ export interface ExplorePlaceRecord {
   latitude: number
   category?: string
   context?: string
+  notes?: string | null
+  links_json?: unknown
+  metadata?: unknown
+  is_favorite?: boolean | null
   created_at: string
   updated_at: string
 }
@@ -26,6 +30,10 @@ export class ExploreApiService {
     const id = this.normalizeRecordId(
       (place.metadata?.sourceId as string | undefined) ?? place.id
     )
+    const hasNotes = place.notes ? place.notes.trim().length > 0 : false
+    const links = Array.isArray(place.links) ? place.links : []
+    const metadata = place.metadata && Object.keys(place.metadata).length > 0 ? place.metadata : null
+
     return {
       id,
       user_id: userId,
@@ -35,6 +43,10 @@ export class ExploreApiService {
       latitude: place.coordinates[1],
       category: place.category,
       context: place.context,
+      notes: hasNotes ? place.notes : null,
+      links_json: links,
+      metadata,
+      is_favorite: place.isFavorite ?? false,
     }
   }
 
@@ -49,6 +61,10 @@ export class ExploreApiService {
       coordinates: [record.longitude, record.latitude] as [number, number],
       category: record.category,
       context: record.context,
+      notes: (record.notes ?? undefined) as string | undefined,
+      links: Array.isArray(record.links_json) ? record.links_json as ExplorePlace['links'] : undefined,
+      metadata: (record.metadata && typeof record.metadata === 'object' ? record.metadata : undefined) as ExplorePlace['metadata'],
+      isFavorite: record.is_favorite ?? false,
       source: 'cache',
     }
   }
@@ -65,7 +81,7 @@ export class ExploreApiService {
 
       const { data, error } = await this.supabase
         .from('explore_places')
-        .select('*')
+        .select('id,user_id,name,full_name,longitude,latitude,category,context,notes,links_json,metadata,is_favorite,created_at,updated_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
@@ -95,7 +111,7 @@ export class ExploreApiService {
       const { data, error } = await this.supabase
         .from('explore_places')
         .upsert(record, { onConflict: 'id' })
-        .select()
+        .select('id,user_id,name,full_name,longitude,latitude,category,context,notes,links_json,metadata,is_favorite,created_at,updated_at')
         .single()
 
       if (error) {
@@ -106,9 +122,9 @@ export class ExploreApiService {
             error,
           })
 
-          const { data: existing, error: fetchError } = await this.supabase
+      const { data: existing, error: fetchError } = await this.supabase
             .from('explore_places')
-            .select('*')
+            .select('id,user_id,name,full_name,longitude,latitude,category,context,notes,links_json,metadata,is_favorite,created_at,updated_at')
             .eq('id', record.id)
             .eq('user_id', user.id)
             .single()
@@ -178,7 +194,7 @@ export class ExploreApiService {
         .update(record)
         .eq('id', place.id)
         .eq('user_id', user.id)
-        .select()
+        .select('id,user_id,name,full_name,longitude,latitude,category,context,notes,links_json,metadata,is_favorite,created_at,updated_at')
         .single()
 
       if (error) {

@@ -37,13 +37,16 @@ function applyMarkerColors(
 function applyHighlightState(
   elements: MarkerElements,
   colors: MarkerColors,
-  isHighlighted: boolean
+  isHighlighted: boolean,
+  isFavorite: boolean
 ) {
-  if (isHighlighted) {
+  if (isHighlighted || isFavorite) {
+    const borderColor = isFavorite ? '#fbbf24' : colors.border
+    const ringColor = isFavorite ? '#fbbf2433' : colors.ring
     elements.outerRing.style.display = 'block'
-    elements.outerRing.style.backgroundColor = colors.ring
+    elements.outerRing.style.backgroundColor = ringColor
     elements.mainCircle.style.transform = 'scale(1.05)'
-    elements.mainCircle.style.boxShadow = `0 0 0 3px ${colors.border}55`
+    elements.mainCircle.style.boxShadow = `0 0 0 3px ${borderColor}55`
     elements.label.style.opacity = '1'
   } else {
     elements.outerRing.style.display = 'none'
@@ -216,7 +219,8 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
           applyMarkerColors({ outerRing, mainCircle }, metadata.colors)
 
           const isHighlighted = highlightedPlaceIds.has(place.id)
-          const baseScale = isHighlighted ? 'scale(1.05)' : 'scale(1)'
+          const isFavorite = Boolean(place.isFavorite)
+          const baseScale = isHighlighted || isFavorite ? 'scale(1.05)' : 'scale(1)'
 
           markerElement.removeEventListener('click', existingEntry.handleClick)
           markerElement.removeEventListener('mouseenter', existingEntry.handleMouseEnter)
@@ -241,13 +245,13 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
           }
 
           const handleMouseEnter = () => {
-            elements.mainCircle.style.transform = isHighlighted ? 'scale(1.12)' : 'scale(1.1)'
+            elements.mainCircle.style.transform = isHighlighted || isFavorite ? 'scale(1.12)' : 'scale(1.1)'
             elements.label.style.opacity = '1'
           }
 
           const handleMouseLeave = () => {
             elements.mainCircle.style.transform = baseScale
-            elements.label.style.opacity = isHighlighted ? '1' : '0.9'
+            elements.label.style.opacity = (isHighlighted || isFavorite) ? '1' : '0.9'
           }
 
           markerElement.style.cursor = 'pointer'
@@ -255,7 +259,7 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
           markerElement.addEventListener('mouseenter', handleMouseEnter)
           markerElement.addEventListener('mouseleave', handleMouseLeave)
 
-          applyHighlightState(elements, metadata.colors, isHighlighted)
+          applyHighlightState(elements, metadata.colors, isHighlighted, isFavorite)
 
           markers.set(place.id, {
             ...existingEntry,
@@ -271,7 +275,8 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
         const elements = createMarkerElement(displayName, derivedCity || null, metadata.colors, metadata.key === 'city')
 
         const isHighlighted = highlightedPlaceIds.has(place.id)
-        const baseScale = isHighlighted ? 'scale(1.05)' : 'scale(1)'
+        const isFavorite = Boolean(place.isFavorite)
+        const baseScale = isHighlighted || isFavorite ? 'scale(1.05)' : 'scale(1)'
 
         const handleClick = () => {
           if (routeModeEnabled) {
@@ -292,13 +297,13 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
         }
 
         const handleMouseEnter = () => {
-          elements.mainCircle.style.transform = isHighlighted ? 'scale(1.12)' : 'scale(1.1)'
+          elements.mainCircle.style.transform = isHighlighted || isFavorite ? 'scale(1.12)' : 'scale(1.1)'
           elements.label.style.opacity = '1'
         }
 
         const handleMouseLeave = () => {
           elements.mainCircle.style.transform = baseScale
-          elements.label.style.opacity = isHighlighted ? '1' : '0.9'
+          elements.label.style.opacity = (isHighlighted || isFavorite) ? '1' : '0.9'
         }
 
         const marker = new mapboxgl.Marker({
@@ -313,7 +318,7 @@ export function ExplorePreviewMarker({ map }: { map: mapboxgl.Map | null }) {
         elements.markerElement.addEventListener('mouseenter', handleMouseEnter)
         elements.markerElement.addEventListener('mouseleave', handleMouseLeave)
 
-        applyHighlightState(elements, metadata.colors, isHighlighted)
+        applyHighlightState(elements, metadata.colors, isHighlighted, isFavorite)
 
         markers.set(place.id, {
           marker,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { X, MapPin, Edit3, Trash2, Save, Plus, ExternalLink, Link as LinkIcon } from 'lucide-react'
+import { X, MapPin, Edit3, Trash2, Save, Plus, ExternalLink, Link as LinkIcon, Heart } from 'lucide-react'
 import { Destination, LocationLink } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { useExploreStore } from '@/lib/store/explore-store'
@@ -81,6 +81,8 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
         await updateExplorePlace(explorePlaceId, {
           notes: trimmedNotes ? trimmedNotes : null,
           category: editedDestination.category,
+          links: editedDestination.links ?? [],
+          isFavorite: editedDestination.isFavorite ?? false,
         })
       } else {
         await updateDestination(dayId, editedDestination.id, editedDestination)
@@ -168,6 +170,10 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
     setEditedDestination(prev => ({ ...prev, category: value }))
   }
 
+  const handleToggleFavorite = () => {
+    setEditedDestination(prev => ({ ...prev, isFavorite: !prev.isFavorite }))
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
@@ -204,6 +210,18 @@ export function DestinationEditModal({ dayId, destination, onClose }: Destinatio
                   <div className="text-sm text-white/70 mt-1">{destination.city}</div>
                 )}
               </div>
+              <button
+                onClick={handleToggleFavorite}
+                className={`p-2 rounded-lg border transition-all duration-200 ${
+                  editedDestination.isFavorite
+                    ? 'bg-amber-500/20 border-amber-300/60 text-amber-100'
+                    : 'border-white/20 text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+                type="button"
+                title={editedDestination.isFavorite ? 'Remove favourite' : 'Mark as favourite'}
+              >
+                <Heart className={`h-4 w-4 ${editedDestination.isFavorite ? 'fill-current' : ''}`} />
+              </button>
             </div>
           </div>
 

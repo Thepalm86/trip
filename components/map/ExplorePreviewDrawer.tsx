@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { MapPin, PlusCircle, Eye, Edit, Trash2 } from 'lucide-react'
+import { MapPin, PlusCircle, Eye, Edit, Trash2, ExternalLink, Heart } from 'lucide-react'
 import { useExploreStore } from '@/lib/store/explore-store'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { AddExplorePlaceModal } from '../modals/AddExplorePlaceModal'
 import { DestinationOverviewModal } from '../modals/DestinationOverviewModal'
 import { DestinationEditModal } from '../modals/DestinationEditModal'
@@ -43,6 +44,8 @@ export function ExplorePreviewDrawer() {
   useEffect(() => {
     if (!selectedPlace) {
       setShowAddModal(false)
+      setShowEditModal(false)
+      setShowOverviewModal(false)
     }
   }, [selectedPlace])
 
@@ -63,7 +66,8 @@ export function ExplorePreviewDrawer() {
     notes: place.notes,
     estimatedDuration: undefined,
     cost: undefined,
-    links: []
+    links: Array.isArray(place.links) && place.links.length > 0 ? place.links : undefined,
+    isFavorite: place.isFavorite ?? false,
   })
 
   // Handle view details
@@ -100,6 +104,12 @@ export function ExplorePreviewDrawer() {
     [accentColor],
   )
 
+  const primaryLink = useMemo(() => selectedPlace?.links?.find(link => link.url), [selectedPlace?.links])
+  const toggleFavorite = useExploreStore((state) => state.toggleFavorite)
+  const isFavorite = selectedPlace?.isFavorite ?? false
+  const maybeLocations = useSupabaseTripStore((state) => state.maybeLocations)
+  const setMaybeFavorite = useSupabaseTripStore((state) => state.setMaybeFavorite)
+
   const containerStyle = useMemo(
     () => ({
       background: `linear-gradient(135deg, ${applyAlpha(accentColor, '24')} 0%, rgba(15, 23, 42, 0.78) 100%)`,
@@ -121,6 +131,7 @@ export function ExplorePreviewDrawer() {
     return fallbackCity !== 'Unknown' ? fallbackCity : null
   })()
   const isCityCategory = categoryMetadata.key === 'city'
+  const favoriteBadge = isFavorite
 
   return (
     <>
@@ -138,6 +149,11 @@ export function ExplorePreviewDrawer() {
                     {displayCity ?? selectedPlace.fullName}
                   </p>
                 )}
+                {favoriteBadge ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
+                    <Heart className="h-3 w-3 fill-current" /> Favourite
+                  </span>
+                ) : null}
               </div>
             </div>
             <div className="pointer-events-none absolute bottom-5 right-5 hidden flex-wrap items-center justify-end gap-2 group-hover:flex">
@@ -165,6 +181,41 @@ export function ExplorePreviewDrawer() {
               >
                 <Eye className="h-4 w-4" />
               </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (selectedPlace) {
+                    const nextFavorite = !isFavorite
+                    toggleFavorite(selectedPlace.id)
+                    const maybeMatch = maybeLocations.find((destination) => destination.id === `explore-${selectedPlace.id}`)
+                    if (maybeMatch) {
+                      setMaybeFavorite(maybeMatch.id, nextFavorite)
+                    }
+                  }
+                }}
+                className={`pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105 ${
+                  isFavorite ? 'bg-amber-500/25 border-amber-300/70 text-amber-100' : ''
+                }`}
+                style={isFavorite ? undefined : quickActionStyle}
+                title={isFavorite ? 'Remove from favourites' : 'Mark as favourite'}
+                aria-label="Toggle favourite"
+              >
+                <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+              </button>
+              {primaryLink?.url ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.open(primaryLink.url, '_blank', 'noopener,noreferrer')
+                  }}
+                  className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
+                  style={quickActionStyle}
+                  title={primaryLink.label ? `Open ${primaryLink.label}` : 'Open link'}
+                  aria-label="Open primary link"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </button>
+              ) : null}
               <button
                 onClick={(e) => {
                   e.stopPropagation()

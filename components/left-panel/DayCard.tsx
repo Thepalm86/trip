@@ -68,6 +68,19 @@ interface DraggableDestinationProps {
   accentColor: string
 }
 
+interface DraggableBaseLocationProps {
+  dayId: string
+  location: DayLocation
+  index: number
+  isSelected: boolean
+  showPrimaryBadge: boolean
+  onSelect: (location: DayLocation, index: number) => void
+  onEdit: (location: DayLocation, index: number) => void
+  onRemove: (index: number) => void
+  onDuplicate: (location: DayLocation, index: number) => void
+  onOpenOverview: (location: DayLocation) => void
+}
+
 const coordinatesAreEqual = (
   a?: [number, number],
   b?: [number, number]
@@ -76,6 +89,203 @@ const coordinatesAreEqual = (
     return false
   }
   return a[0] === b[0] && a[1] === b[1]
+}
+
+function DraggableBaseLocation({
+  dayId,
+  location,
+  index,
+  isSelected,
+  showPrimaryBadge,
+  onSelect,
+  onEdit,
+  onRemove,
+  onDuplicate,
+  onOpenOverview,
+}: DraggableBaseLocationProps) {
+  const accentColor = '#34d399'
+  const [isHovered, setIsHovered] = useState(false)
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
+    id: `base-${dayId}-${index}`,
+    data: {
+      type: 'base-location',
+      dayId,
+      locationIndex: index,
+    },
+  })
+
+  const shadowDragging = `0 20px 40px ${applyAlpha(accentColor, '40')}`
+  const shadowOver = `0 0 0 2px ${applyAlpha(accentColor, '40')}`
+  const shadowSelected = `0 18px 36px ${applyAlpha(accentColor, '26')}`
+
+  const baseBackground = `linear-gradient(135deg, ${applyAlpha(accentColor, '14')} 0%, rgba(15, 23, 42, 0.55) 100%)`
+  const hoverBackground = `linear-gradient(135deg, ${applyAlpha(accentColor, '28')} 0%, rgba(15, 23, 42, 0.75) 100%)`
+
+  const computedBoxShadow = isDragging
+    ? shadowDragging
+    : isOver
+    ? shadowOver
+    : isSelected
+    ? shadowSelected
+    : isHovered
+    ? `0 18px 32px ${applyAlpha(accentColor, '26')}`
+    : 'none'
+
+  const computedBorderColor = isSelected
+    ? accentColor
+    : isHovered
+    ? applyAlpha(accentColor, '88')
+    : applyAlpha(accentColor, isHovered ? '77' : '55')
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
+    boxShadow: computedBoxShadow,
+    borderColor: computedBorderColor,
+    background: isHovered ? hoverBackground : baseBackground,
+  }
+
+  const primaryLink = location.links?.find(link => link.url)
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`group relative overflow-hidden rounded-2xl border transition-all duration-500 cursor-pointer overflow-visible ${
+        isSelected
+          ? 'border-white/50'
+          : isOver
+          ? 'border-white/30'
+          : isDragging
+          ? 'border-white/20'
+          : 'border-white/10'
+      }`}
+      onClick={(event) => {
+        event.stopPropagation()
+        onSelect(location, index)
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div className="pointer-events-none absolute inset-0 opacity-40" style={{ background: `linear-gradient(140deg, ${applyAlpha(accentColor, '12')} 0%, transparent 70%)` }} />
+
+      <div className="relative px-5 py-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-green-500/30 to-emerald-500/20 flex items-center justify-center shadow-lg border border-green-400/30">
+                <Map className="h-5 w-5 text-green-400" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
+                <div className="w-2 h-2 bg-white rounded-full" />
+              </div>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white mb-1">{location.name}</h3>
+              {location.city ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-green-400 font-medium">{location.city}</span>
+                  {location.category ? (
+                    <span className="text-xs text-white/50 uppercase tracking-wide">
+                      {location.category}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {location.context ? (
+          <p className="text-sm text-white/70 leading-relaxed mb-3">
+            {location.context}
+          </p>
+        ) : null}
+
+        {location.notes ? (
+          <div className="bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-sm">
+            <p className="text-sm text-white/80 italic leading-relaxed">"{location.notes}"</p>
+          </div>
+        ) : null}
+      </div>
+
+      {showPrimaryBadge ? <CornerBadge label="Accommodation" accent={BASE_ROUTE_COLOR} /> : null}
+
+      <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
+        {primaryLink?.url ? (
+          <button
+            onClick={(event) => {
+              event.stopPropagation()
+              window.open(primaryLink.url, '_blank', 'noopener,noreferrer')
+            }}
+            className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-300 transition-all duration-200 backdrop-blur-sm"
+            title={primaryLink.label ? `Open ${primaryLink.label}` : 'Open link'}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </button>
+        ) : null}
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            onOpenOverview(location)
+          }}
+          className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-400 transition-all duration-200 backdrop-blur-sm"
+          title="View overview"
+        >
+          <Info className="h-4 w-4" />
+        </button>
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            onDuplicate(location, index)
+          }}
+          className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-400 transition-all duration-200 backdrop-blur-sm"
+          title="Duplicate to another day"
+        >
+          <CopyPlus className="h-4 w-4" />
+        </button>
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            onEdit(location, index)
+          }}
+          className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 backdrop-blur-sm"
+          title="Edit accommodation"
+        >
+          <Edit3 className="h-4 w-4" />
+        </button>
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            onRemove(index)
+          }}
+          className="p-2 rounded-xl bg-white/10 hover:bg-red-500/20 text-white/70 hover:text-red-400 transition-all duration-200 backdrop-blur-sm"
+          title="Remove accommodation"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+        <div
+          {...attributes}
+          {...listeners}
+          onClick={(event) => event.stopPropagation()}
+          className="p-2 rounded-xl bg-white/10 text-white/60 border border-white/10 cursor-grab active:cursor-grabbing hover:bg-white/20 hover:text-white transition-all duration-200 backdrop-blur-sm"
+          title="Drag to reorder"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const applyAlpha = (hex: string, alpha: string) => {
@@ -636,8 +846,6 @@ export function DayCard({
   const isTargetDay = activeTargetDayId === day.id
   const isSourceDay = draggingFromDayId === day.id
   const allTripDays = currentTrip?.days ?? []
-  const defaultBaseLocation = day.baseLocations[0]
-  const defaultBasePrimaryLink = defaultBaseLocation?.links?.find(link => link.url)
 
   useEffect(() => {
     if (duplicateConfig) {
@@ -720,6 +928,12 @@ export function DayCard({
 
   const handleDuplicateBaseLocationRequest = (location: DayLocation, index: number) => {
     setDuplicateConfig({ location, index })
+  }
+
+  const handleRemoveBaseLocationClick = (index: number) => {
+    if (confirm('Are you sure you want to remove this accommodation?')) {
+      removeBaseLocation(day.id, index)
+    }
   }
 
   const handleToggleDuplicateAccommodationDay = (targetDayId: string) => {
@@ -813,6 +1027,18 @@ export function DayCard({
   const handleOpenOverview = (destination: Destination) => {
     setOverviewDestination(destination)
     setShowOverviewModal(true)
+  }
+
+  const handleOpenBaseLocationOverview = (location: DayLocation) => {
+    const tempDestination: Destination = {
+      id: `temp-base-${location.name}`,
+      name: location.name,
+      description: location.context,
+      coordinates: location.coordinates,
+      city: location.city,
+      category: location.category ?? 'accommodation',
+    }
+    handleOpenOverview(tempDestination)
   }
 
   const handleCloseOverviewModal = () => {
@@ -1062,146 +1288,29 @@ export function DayCard({
           </div>
 
         {day.baseLocations.length > 0 ? (
-          <div className="space-y-2">
-            {/* Default Base Location */}
-            <div className="relative group">
-              <div 
-                className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500/15 via-green-500/10 to-emerald-500/5 border transition-all duration-500 cursor-pointer hover:shadow-xl hover:shadow-green-500/10 ${
-                  selectedCardId === `base-${day.id}-0` 
-                    ? 'border-green-400 border-2 shadow-xl shadow-green-500/20' 
-                    : 'border-green-400/20 hover:border-green-400/40'
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleBaseLocationClick(day.baseLocations[0], 0)
-                }}
-              >
-                {/* Background Pattern */}
-                <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-50"></div>
-                
-                {/* Content */}
-                <div className="relative px-5 py-4">
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-green-500/30 to-emerald-500/20 flex items-center justify-center shadow-lg border border-green-400/30">
-                          <Map className="h-5 w-5 text-green-400" />
-                        </div>
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
-                          <div className="w-2 h-2 bg-white rounded-full"></div>
-                        </div>
-              </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white mb-1">{day.baseLocations[0].name}</h3>
-                          {day.baseLocations[0].city && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-green-400 font-medium">
-                                {day.baseLocations[0].city}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                    </div>
-                    
-                  </div>
-                  
-                  {/* Notes */}
-                  {day.baseLocations[0].notes && (
-                    <div className="mb-3">
-                      <div className="bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-sm">
-                        <p className="text-sm text-white/80 italic leading-relaxed">
-                          "{day.baseLocations[0].notes}"
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                <CornerBadge label="Accommodation" accent={BASE_ROUTE_COLOR} />
-
-                {/* Action Buttons */}
-                <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
-                  {defaultBasePrimaryLink && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (!defaultBasePrimaryLink.url) {
-                          return
-                        }
-                        window.open(defaultBasePrimaryLink.url, '_blank', 'noopener,noreferrer')
-                      }}
-                      className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-300 transition-all duration-200 backdrop-blur-sm"
-                      title={defaultBasePrimaryLink.label ? `Open ${defaultBasePrimaryLink.label}` : 'Open link'}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      // Create a temporary destination for overview
-                      const tempDestination: Destination = {
-                        id: `temp-base-${day.baseLocations[0].name}`,
-                        name: day.baseLocations[0].name,
-                        description: day.baseLocations[0].context,
-                        coordinates: day.baseLocations[0].coordinates,
-                        city: day.baseLocations[0].city,
-                        category: 'city'
-                      }
-                      handleOpenOverview(tempDestination)
-                    }}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-400 transition-all duration-200 backdrop-blur-sm"
-                    title="View overview"
-                  >
-                    <Info className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDuplicateBaseLocationRequest(day.baseLocations[0], 0)
-                    }}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-blue-500/20 text-white/70 hover:text-blue-400 transition-all duration-200 backdrop-blur-sm"
-                    title="Duplicate to another day"
-                  >
-                    <CopyPlus className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleEditBaseLocation(day.baseLocations[0], 0)
-                    }}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 backdrop-blur-sm"
-                    title="Edit accommodation"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (confirm('Are you sure you want to remove this accommodation?')) {
-                        removeBaseLocation(day.id, 0)
-                      }
-                    }}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-red-500/20 text-white/70 hover:text-red-400 transition-all duration-200 backdrop-blur-sm"
-                    title="Remove accommodation"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                  <div
-                    className="p-2 rounded-xl bg-white/10 text-white/60 border border-white/10 cursor-grab active:cursor-grabbing hover:bg-white/20 hover:text-white transition-all duration-200 backdrop-blur-sm"
-                    title="Drag to reorder"
-                    onClick={(e) => e.stopPropagation()}
-                    role="presentation"
-                  >
-                    <GripVertical className="h-4 w-4" />
-                  </div>
-                </div>
-              </div>
+          <SortableContext
+            id={`day-${day.id}-base`}
+            items={day.baseLocations.map((_, baseIndex) => `base-${day.id}-${baseIndex}`)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-2">
+              {day.baseLocations.map((location, index) => (
+                <DraggableBaseLocation
+                  key={`base-${day.id}-${index}`}
+                  dayId={day.id}
+                  location={location}
+                  index={index}
+                  isSelected={selectedCardId === `base-${day.id}-${index}`}
+                  showPrimaryBadge={index === 0}
+                  onSelect={handleBaseLocationClick}
+                  onEdit={handleEditBaseLocation}
+                  onRemove={handleRemoveBaseLocationClick}
+                  onDuplicate={handleDuplicateBaseLocationRequest}
+                  onOpenOverview={handleOpenBaseLocationOverview}
+                />
+              ))}
             </div>
-
-            {/* Additional Base Locations */}
-          </div>
+          </SortableContext>
         ) : (
           <div className="flex justify-center py-6">
             <button

@@ -58,6 +58,7 @@ export function AddExplorePlaceModal({ place, onClose, onComplete }: AddExploreP
           city,
           category: (place.category as any) ?? 'activity',
           notes: notes || undefined,
+          isFavorite: place.isFavorite ?? false,
         },
         selectedDayId,
       )

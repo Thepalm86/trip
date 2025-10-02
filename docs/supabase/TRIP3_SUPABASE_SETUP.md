@@ -262,6 +262,13 @@ create policy "update own explore places" on public.explore_places
 
 create policy "delete own explore places" on public.explore_places
   for delete using (user_id = auth.uid());
+
+-- Ensure explore cards persist full state
+alter table public.explore_places
+  add column if not exists notes text,
+  add column if not exists links_json jsonb default '[]'::jsonb,
+  add column if not exists metadata jsonb,
+  add column if not exists is_favorite boolean default false;
 ```
 
 ```sql
@@ -492,5 +499,4 @@ If you want the same content richness as the old project:
 - `export_history`: server-only
 
 This mirrors the way our code queries data in `lib/supabase/trip-api.ts`, `lib/supabase/explore-api.ts`, and server utilities in `lib/server/destination-cache.ts`.
-
 

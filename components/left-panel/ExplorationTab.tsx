@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, MapPin, Trash2, Eye, Edit, ExternalLink } from 'lucide-react'
+import { Plus, MapPin, Trash2, Eye, Edit, ExternalLink, Heart } from 'lucide-react'
 import { Destination, TimelineDay } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { AddDestinationModal } from './AddDestinationModal'
@@ -107,13 +107,14 @@ function DroppableDay({ day, index, isOver }: { day: TimelineDay; index: number;
 }
 
 function MaybeLocationCard({ destination, index }: { destination: Destination; index: number }) {
-  const { removeMaybeLocation, setSelectedDestination, selectedCardId, setSelectedCard } = useSupabaseTripStore()
+  const { removeMaybeLocation, setSelectedDestination, selectedCardId, setSelectedCard, setMaybeFavorite } = useSupabaseTripStore()
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingDestination, setEditingDestination] = useState<Destination | null>(null)
   const primaryLink = destination.links?.find(link => link.url)
 
   const isSelected = selectedCardId === destination.id
+  const isFavorite = Boolean(destination.isFavorite)
 
   const handleDestinationClick = () => {
     const cardId = `maybe-${destination.id}`
@@ -147,15 +148,35 @@ function MaybeLocationCard({ destination, index }: { destination: Destination; i
   return (
     <>
       <div
-        className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-500/10 via-blue-500/5 to-indigo-500/5 border transition-all duration-500 cursor-pointer hover:shadow-xl hover:shadow-cyan-500/10 ${
-          isSelected 
-            ? 'border-cyan-400 border-2 shadow-xl shadow-cyan-500/20' 
+        className={`group relative overflow-hidden rounded-2xl border transition-all duration-500 cursor-pointer hover:shadow-xl hover:shadow-cyan-500/10 ${
+          isFavorite
+            ? 'border-amber-300/70 shadow-amber-500/30 bg-gradient-to-br from-amber-500/10 via-blue-500/5 to-indigo-500/5'
+            : 'bg-gradient-to-br from-cyan-500/10 via-blue-500/5 to-indigo-500/5'
+        } ${
+          isSelected
+            ? 'border-cyan-400 border-2 shadow-xl shadow-cyan-500/20'
+            : isFavorite
+            ? 'border-amber-300/70'
             : 'border-cyan-400/20 hover:border-cyan-400/40'
         }`}
         onClick={handleDestinationClick}
       >
         {/* Action Buttons */}
         <div className="absolute bottom-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setMaybeFavorite(destination.id, !isFavorite)
+            }}
+            className={`p-2 rounded-lg transition-all duration-200 border ${
+              isFavorite
+                ? 'bg-amber-500/25 border-amber-300/70 text-amber-100'
+                : 'bg-cyan-500/20 hover:bg-cyan-500/40 border-cyan-400/50 hover:border-cyan-300'
+            }`}
+            title={isFavorite ? 'Remove favourite' : 'Mark as favourite'}
+          >
+            <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : 'text-cyan-200'}`} />
+          </button>
           {primaryLink && (
             <button
               onClick={(e) => {
@@ -228,6 +249,11 @@ function MaybeLocationCard({ destination, index }: { destination: Destination; i
                   <span>{destination.city || 'Location'}</span>
                   <span className="h-1 w-1 rounded-full bg-white/20"></span>
                   <span className="text-xs text-white/60">Maybe</span>
+                  {isFavorite ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-amber-200">
+                      <Heart className="h-3 w-3 fill-current" /> Favourite
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>

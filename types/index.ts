@@ -14,6 +14,7 @@ export interface Destination {
   cost?: number
   notes?: string
   links?: LocationLink[]
+  isFavorite?: boolean
 }
 
 export interface TimelineDay {
@@ -21,6 +22,7 @@ export interface TimelineDay {
   date: Date
   destinations: Destination[]
   baseLocations: DayLocation[]
+  notes?: string
 }
 
 export interface Trip {
@@ -59,6 +61,7 @@ export interface DayLocation {
   category?: string
   notes?: string
   links?: LocationLink[]
+  isFavorite?: boolean
 }
 
 export interface MapViewport {
@@ -75,11 +78,12 @@ export interface ExplorePlace {
   category?: string
   context?: string
   city?: string
-  notes?: string
+  notes?: string | null
   links?: LocationLink[]
   source: 'mapbox' | 'cache' | 'google'
   relevance?: number
   metadata?: Record<string, unknown>
+  isFavorite?: boolean
 }
 
 // Map marker types

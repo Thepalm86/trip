@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Calendar, Plus } from 'lucide-react'
-import { Destination, TimelineDay } from '@/types'
+import { Calendar, Plus, Map, Heart } from 'lucide-react'
+import { Destination, TimelineDay, DayLocation } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { DayCard } from './DayCard'
 import { AddDestinationModal } from './AddDestinationModal'
@@ -33,6 +33,12 @@ type DestinationDragData = {
   dayId: string
 }
 
+type BaseLocationDragData = {
+  type: 'base-location'
+  dayId: string
+  locationIndex: number
+}
+
 type TimelineDayDropData = {
   type: 'timeline-day'
   dayId: string
@@ -49,6 +55,30 @@ function DragPreviewCard({ destination }: { destination: Destination }) {
           <p className="text-sm font-semibold text-white truncate">{destination.name}</p>
           {destination.city ? (
             <p className="text-xs text-blue-200/80 truncate">{destination.city}</p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BaseLocationPreviewCard({ location }: { location: DayLocation }) {
+  const isFavorite = Boolean(location.isFavorite)
+  return (
+    <div className="w-72 rounded-2xl bg-slate-900/95 border border-emerald-400/50 shadow-2xl shadow-emerald-500/40 p-4">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-emerald-500/30 border border-emerald-300/40 flex items-center justify-center text-emerald-200 font-semibold">
+          <Map className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white truncate">{location.name}</p>
+          {location.city ? (
+            <p className="text-xs text-emerald-200/80 truncate">{location.city}</p>
+          ) : null}
+          {isFavorite ? (
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.24em] text-amber-200">
+              <Heart className="h-3 w-3 fill-current" /> Favourite
+            </span>
           ) : null}
         </div>
       </div>
@@ -131,7 +161,8 @@ export function ItineraryTab() {
     selectedDayId, 
     setSelectedDay,
     moveDestination,
-    reorderDestinations
+    reorderDestinations,
+    reorderBaseLocations,
   } = useSupabaseTripStore()
   
   // Drag and drop sensors
@@ -152,26 +183,47 @@ export function ItineraryTab() {
   const [targetDayId, setTargetDayId] = useState<string | null>(null)
   const [activeDrag, setActiveDrag] = useState<DestinationDragData | null>(null)
   const [activeDestination, setActiveDestination] = useState<Destination | null>(null)
+  const [activeBaseLocation, setActiveBaseLocation] = useState<{ location: DayLocation; dayId: string } | null>(null)
   const [activeTargetDayId, setActiveTargetDayId] = useState<string | null>(null)
 
   const handleDragStart = (event: DragStartEvent) => {
-    const activeData = event.active.data.current as DestinationDragData | undefined
-    if (!activeData || activeData.type !== 'destination') {
+    const activeData = event.active.data.current as DestinationDragData | BaseLocationDragData | undefined
+    if (!activeData) {
       return
     }
 
-    setActiveDrag(activeData)
+    if (activeData.type === 'destination') {
+      setActiveDrag(activeData)
 
-    const destination = currentTrip?.days
-      .flatMap(day => day.destinations)
-      .find(dest => dest.id === activeData.destinationId)
+      const destination = currentTrip?.days
+        .flatMap(day => day.destinations)
+        .find(dest => dest.id === activeData.destinationId)
 
-    if (destination) {
-      setActiveDestination(destination)
+      if (destination) {
+        setActiveDestination(destination)
+      }
+      setActiveBaseLocation(null)
+    } else if (activeData.type === 'base-location') {
+      setActiveDrag(null)
+      setActiveDestination(null)
+
+      const location = currentTrip?.days
+        .find(day => day.id === activeData.dayId)
+        ?.baseLocations?.[activeData.locationIndex]
+
+      if (location) {
+        setActiveBaseLocation({ location, dayId: activeData.dayId })
+      }
     }
   }
 
   const handleDragOver = (event: DragOverEvent) => {
+    const activeData = event.active.data.current as DestinationDragData | BaseLocationDragData | undefined
+    if (activeData?.type !== 'destination') {
+      setActiveTargetDayId(null)
+      return
+    }
+
     const { over } = event
     if (!over) {
       setActiveTargetDayId(null)
@@ -197,82 +249,108 @@ export function ItineraryTab() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
 
-    if (!over) return
+    if (!over) {
+      setActiveBaseLocation(null)
+      return
+    }
 
-    const activeData = active.data.current as DestinationDragData | undefined
-    if (!activeData || activeData.type !== 'destination') return
+    const activeData = active.data.current as DestinationDragData | BaseLocationDragData | undefined
+    if (!activeData) {
+      return
+    }
 
     if (String(over.id) === String(active.id)) {
+      setActiveTargetDayId(null)
+      setActiveDestination(null)
+      setActiveDrag(null)
+      setActiveBaseLocation(null)
       return
     }
 
-    const sourceDayId = activeData.dayId
-    const destinationId = activeData.destinationId
-    const activeIndex = active.data.current?.sortable?.index
+    if (activeData.type === 'destination') {
+      const sourceDayId = activeData.dayId
+      const destinationId = activeData.destinationId
+      const activeIndex = active.data.current?.sortable?.index
 
-    const overId = String(over.id)
-    const overData = over.data.current as DestinationDragData | TimelineDayDropData | undefined
+      const overId = String(over.id)
+      const overData = over.data.current as DestinationDragData | TimelineDayDropData | undefined
 
-    if (overData?.type === 'destination') {
-      const targetDayId = overData.dayId
-      const targetIndex = over.data.current?.sortable?.index
-
-      if (targetDayId === sourceDayId) {
-        if (
-          typeof activeIndex === 'number' &&
-          typeof targetIndex === 'number' &&
-          activeIndex !== targetIndex
-        ) {
-          await reorderDestinations(sourceDayId, activeIndex, targetIndex)
-        }
-      } else {
-        const insertIndex = typeof targetIndex === 'number' ? targetIndex : 0
-        await moveDestination(destinationId, sourceDayId, targetDayId, insertIndex)
-      }
-      return
-    }
-
-    if (overData?.type === 'timeline-day' || overId.startsWith(TIMELINE_DAY_PREFIX)) {
-      const targetDayId = overData?.dayId ?? overId.replace(TIMELINE_DAY_PREFIX, '')
-      if (targetDayId && targetDayId !== sourceDayId) {
-        const targetDay = currentTrip?.days.find(day => day.id === targetDayId)
-        const insertIndex = targetDay ? targetDay.destinations.length : 0
-        await moveDestination(destinationId, sourceDayId, targetDayId, insertIndex)
-      }
-      return
-    }
-
-    if (overId.startsWith(DAY_CONTAINER_PREFIX)) {
-      const targetDayId = overId.replace(DAY_CONTAINER_PREFIX, '')
-
-      if (!targetDayId) return
-
-      if (targetDayId === sourceDayId) {
+      if (overData?.type === 'destination') {
+        const targetDayId = overData.dayId
         const targetIndex = over.data.current?.sortable?.index
-        if (
-          typeof activeIndex === 'number' &&
-          typeof targetIndex === 'number' &&
-          activeIndex !== targetIndex
-        ) {
-          await reorderDestinations(sourceDayId, activeIndex, targetIndex)
+
+        if (targetDayId === sourceDayId) {
+          if (
+            typeof activeIndex === 'number' &&
+            typeof targetIndex === 'number' &&
+            activeIndex !== targetIndex
+          ) {
+            await reorderDestinations(sourceDayId, activeIndex, targetIndex)
+          }
+        } else {
+          const insertIndex = typeof targetIndex === 'number' ? targetIndex : 0
+          await moveDestination(destinationId, sourceDayId, targetDayId, insertIndex)
         }
-      } else {
-        const targetDay = currentTrip?.days.find(day => day.id === targetDayId)
-        const insertIndex =
-          over.data.current?.sortable?.index ?? targetDay?.destinations.length ?? 0
-        await moveDestination(destinationId, sourceDayId, targetDayId, insertIndex)
+      } else if (overData?.type === 'timeline-day' || overId.startsWith(TIMELINE_DAY_PREFIX)) {
+        const targetDayId = overData?.dayId ?? overId.replace(TIMELINE_DAY_PREFIX, '')
+        if (targetDayId && targetDayId !== sourceDayId) {
+          const targetDay = currentTrip?.days.find(day => day.id === targetDayId)
+          const insertIndex = targetDay ? targetDay.destinations.length : 0
+          await moveDestination(destinationId, sourceDayId, targetDayId, insertIndex)
+        }
+      } else if (overId.startsWith(DAY_CONTAINER_PREFIX)) {
+        const targetDayId = overId.replace(DAY_CONTAINER_PREFIX, '')
+
+        if (!targetDayId) {
+          setActiveTargetDayId(null)
+          setActiveDestination(null)
+          setActiveDrag(null)
+          return
+        }
+
+        if (targetDayId === sourceDayId) {
+          const targetIndex = over.data.current?.sortable?.index
+          if (
+            typeof activeIndex === 'number' &&
+            typeof targetIndex === 'number' &&
+            activeIndex !== targetIndex
+          ) {
+            await reorderDestinations(sourceDayId, activeIndex, targetIndex)
+          }
+        } else {
+          const targetDay = currentTrip?.days.find(day => day.id === targetDayId)
+          const insertIndex =
+            over.data.current?.sortable?.index ?? targetDay?.destinations.length ?? 0
+          await moveDestination(destinationId, sourceDayId, targetDayId, insertIndex)
+        }
+      }
+    } else if (activeData.type === 'base-location') {
+      const overData = over.data.current as BaseLocationDragData | undefined
+      if (overData?.type === 'base-location' && overData.dayId === activeData.dayId) {
+        const fromIndex = active.data.current?.sortable?.index ?? activeData.locationIndex
+        const toIndex = over.data.current?.sortable?.index ?? overData.locationIndex
+
+        if (
+          typeof fromIndex === 'number' &&
+          typeof toIndex === 'number' &&
+          fromIndex !== toIndex
+        ) {
+          await reorderBaseLocations(activeData.dayId, fromIndex, toIndex)
+        }
       }
     }
 
     setActiveTargetDayId(null)
     setActiveDestination(null)
     setActiveDrag(null)
+    setActiveBaseLocation(null)
   }
 
   const handleDragCancel = (_event: DragCancelEvent) => {
     setActiveTargetDayId(null)
     setActiveDestination(null)
     setActiveDrag(null)
+    setActiveBaseLocation(null)
   }
 
   if (!currentTrip) {
@@ -427,6 +505,7 @@ export function ItineraryTab() {
 
       <DragOverlay dropAnimation={null}>
         {activeDestination ? <DragPreviewCard destination={activeDestination} /> : null}
+        {activeBaseLocation ? <BaseLocationPreviewCard location={activeBaseLocation.location} /> : null}
       </DragOverlay>
     </DndContext>
   )

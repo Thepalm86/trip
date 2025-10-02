@@ -29,6 +29,8 @@ export function MaybeLocationMarkers({ map, showMaybeLocations }: MaybeLocationM
     maybeLocations.forEach((destination) => {
       const markerElement = document.createElement('div')
       markerElement.className = 'maybe-marker'
+      const isFavorite = Boolean(destination.isFavorite)
+      const baseScale = isFavorite ? 'scale(1.05)' : 'scale(1)'
       markerElement.innerHTML = `
         <div class="relative">
           <!-- Outer ring -->
@@ -81,10 +83,10 @@ export function MaybeLocationMarkers({ map, showMaybeLocations }: MaybeLocationM
         const mainCircle = markerElement.querySelector('.relative.w-8') as HTMLElement | null
         const label = markerElement.querySelector('.absolute.top-full') as HTMLElement | null
         if (mainCircle) {
-          mainCircle.style.transform = 'scale(1)'
+          mainCircle.style.transform = baseScale
         }
         if (label) {
-          label.style.opacity = '0.8'
+          label.style.opacity = isFavorite ? '1' : '0.8'
         }
       }
 
@@ -95,7 +97,7 @@ export function MaybeLocationMarkers({ map, showMaybeLocations }: MaybeLocationM
       // Set initial label opacity and transition
       const label = markerElement.querySelector('.absolute.top-full') as HTMLElement | null
       if (label) {
-        label.style.opacity = '0.8'
+        label.style.opacity = isFavorite ? '1' : '0.8'
         label.style.transition = 'opacity 0.2s ease'
       }
       
@@ -103,6 +105,18 @@ export function MaybeLocationMarkers({ map, showMaybeLocations }: MaybeLocationM
       const mainCircle = markerElement.querySelector('.relative.w-8') as HTMLElement | null
       if (mainCircle) {
         mainCircle.style.transition = 'transform 0.2s ease'
+        if (isFavorite) {
+          mainCircle.style.backgroundColor = '#fbbf24'
+          mainCircle.style.borderColor = '#fde68a'
+          mainCircle.style.boxShadow = '0 0 0 3px rgba(251, 191, 36, 0.35)'
+          mainCircle.style.transform = baseScale
+        }
+      }
+
+      const outerRing = markerElement.querySelector('.absolute.inset-0') as HTMLElement | null
+      if (isFavorite && outerRing) {
+        outerRing.style.backgroundColor = 'rgba(251, 191, 36, 0.35)'
+        outerRing.style.opacity = '1'
       }
 
       markersRef.current.push(marker)

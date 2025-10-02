@@ -10,9 +10,10 @@ interface DayNotesModalProps {
 }
 
 export function DayNotesModal({ dayId, onClose }: DayNotesModalProps) {
-  const { currentTrip } = useSupabaseTripStore()
+  const currentTrip = useSupabaseTripStore(state => state.currentTrip)
+  const updateDayNotes = useSupabaseTripStore(state => state.updateDayNotes)
+  const isSaving = useSupabaseTripStore(state => state.isLoading)
   const [notes, setNotes] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
 
   const day = currentTrip?.days.find(d => d.id === dayId)
   const dayIndex = currentTrip?.days.findIndex(d => d.id === dayId) ?? -1
@@ -21,18 +22,17 @@ export function DayNotesModal({ dayId, onClose }: DayNotesModalProps) {
     return null
   }
 
-  // Load existing notes (in a real app, this would come from the store or API)
   useEffect(() => {
-    // Mock loading existing notes
-    setNotes('')
-  }, [dayId])
+    setNotes(day?.notes ?? '')
+  }, [day?.notes, dayId])
 
   const handleSave = async () => {
-    setIsLoading(true)
-    // In a real app, this would save to the store or API
-    await new Promise(resolve => setTimeout(resolve, 500))
-    setIsLoading(false)
-    onClose()
+    try {
+      await updateDayNotes(dayId, notes)
+      onClose()
+    } catch (error) {
+      console.error('DayNotesModal: failed to save notes', error)
+    }
   }
 
   return (
@@ -129,10 +129,10 @@ export function DayNotesModal({ dayId, onClose }: DayNotesModalProps) {
           </button>
           <button
             onClick={handleSave}
-            disabled={isLoading}
+            disabled={isSaving}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500 text-white font-medium transition-all duration-200 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? (
+            {isSaving ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
             ) : (
               <Save className="h-4 w-4" />

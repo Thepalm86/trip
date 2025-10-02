@@ -72,6 +72,10 @@ export interface Database {
           latitude: number
           category: string | null
           context: string | null
+          notes: string | null
+          links_json: any
+          metadata: any
+          is_favorite: boolean | null
           created_at: string
           updated_at: string
         }
@@ -84,6 +88,10 @@ export interface Database {
           latitude: number
           category?: string | null
           context?: string | null
+          notes?: string | null
+          links_json?: any
+          metadata?: any
+          is_favorite?: boolean | null
           created_at?: string
           updated_at?: string
         }
@@ -96,6 +104,10 @@ export interface Database {
           latitude?: number
           category?: string | null
           context?: string | null
+          notes?: string | null
+          links_json?: any
+          metadata?: any
+          is_favorite?: boolean | null
           created_at?: string
           updated_at?: string
         }

@@ -5,7 +5,7 @@ import { Destination, Trip, DayLocation } from '@/types'
 import { addDays } from '@/lib/utils'
 import { tripApi } from '@/lib/supabase/trip-api'
 
-type SelectionOrigin = 'map' | 'timeline'
+type SelectionOrigin = 'map' | 'timeline' | 'preview'
 
 export type RouteSelectionSource = 'base' | 'destination' | 'explore'
 
@@ -67,6 +67,7 @@ interface SupabaseTripStore {
   addNewDay: () => Promise<void>
   duplicateDay: (dayId: string) => Promise<void>
   removeDay: (dayId: string) => Promise<void>
+  updateDayNotes: (dayId: string, notes: string) => Promise<void>
   
   setSelectedDestination: (destination: Destination | null, origin?: SelectionOrigin) => void
   setSelectedDay: (dayId: string) => void
@@ -98,6 +99,7 @@ interface SupabaseTripStore {
   addMaybeLocation: (destination: Destination) => void
   removeMaybeLocation: (destinationId: string) => void
   moveMaybeToDay: (destinationId: string, dayId: string) => Promise<void>
+  setMaybeFavorite: (destinationId: string, isFavorite: boolean) => void
   
   
   // Utility
@@ -546,6 +548,44 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to remove day',
         isLoading: false 
       })
+    }
+  },
+
+  updateDayNotes: async (dayId: string, notes: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      const trimmed = notes.trim()
+      const notesToPersist = trimmed.length > 0 ? notes : null
+
+      await tripApi.setDayNotes(dayId, notesToPersist)
+
+      const { currentTrip, trips } = get()
+      if (currentTrip) {
+        const updatedTrip = {
+          ...currentTrip,
+          days: currentTrip.days.map(day =>
+            day.id === dayId
+              ? { ...day, notes: notesToPersist ?? '' }
+              : day
+          ),
+        }
+
+        set({
+          currentTrip: updatedTrip,
+          trips: trips.map(trip => (trip.id === updatedTrip.id ? updatedTrip : trip)),
+          isLoading: false,
+          lastUpdate: Date.now(),
+        })
+      } else {
+        set({ isLoading: false })
+      }
+    } catch (error) {
+      console.error('SupabaseTripStore: Failed to update day notes', error)
+      set({
+        error: error instanceof Error ? error.message : 'Failed to update day notes',
+        isLoading: false,
+      })
+      throw error
     }
   },
 
@@ -1204,6 +1244,15 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   removeMaybeLocation: (destinationId: string) => {
     const { maybeLocations } = get()
     set({ maybeLocations: maybeLocations.filter(loc => loc.id !== destinationId) })
+  },
+  setMaybeFavorite: (destinationId: string, isFavorite: boolean) => {
+    set((state) => ({
+      maybeLocations: state.maybeLocations.map((location) =>
+        location.id === destinationId
+          ? { ...location, isFavorite }
+          : location
+      ),
+    }))
   },
 
   moveMaybeToDay: async (destinationId: string, dayId: string) => {

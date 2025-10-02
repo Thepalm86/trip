@@ -33,6 +33,7 @@ interface ExploreStoreState {
   addActivePlace: (place: ExplorePlace) => Promise<void>
   removeActivePlace: (placeId: string) => Promise<void>
   updateActivePlace: (placeId: string, updates: Partial<Omit<ExplorePlace, 'notes'>> & { notes?: string | null }) => Promise<ExplorePlace | null>
+  toggleFavorite: (placeId: string) => Promise<void>
   syncWithSupabase: () => Promise<void>
   loadFromSupabase: () => Promise<void>
   toggleMarkers: () => void
@@ -124,6 +125,7 @@ export const useExploreStore = create<ExploreStoreState>()(
             ...(place.metadata ?? {}),
             sourceId: (place.metadata?.sourceId as string | undefined) ?? place.id,
           },
+          isFavorite: place.isFavorite ?? false,
         }
 
         const exists = activePlaces.some((item) => {
@@ -143,16 +145,17 @@ export const useExploreStore = create<ExploreStoreState>()(
           const savedPlace = await exploreApiService.addExplorePlace(placeWithSourceId)
 
           // Merge notes (Supabase record does not persist notes yet)
-          const mergedPlace: ExplorePlace = {
-            ...savedPlace,
-            notes: placeWithSourceId.notes ?? savedPlace.notes,
-            links: placeWithSourceId.links ?? savedPlace.links,
-            metadata: {
-              ...(savedPlace.metadata ?? {}),
-              ...(placeWithSourceId.metadata ?? {}),
-            },
-            city: placeWithSourceId.city ?? savedPlace.city,
-          }
+        const mergedPlace: ExplorePlace = {
+          ...savedPlace,
+          notes: savedPlace.notes ?? placeWithSourceId.notes ?? null,
+          links: savedPlace.links ?? placeWithSourceId.links ?? undefined,
+          metadata: {
+            ...(savedPlace.metadata ?? {}),
+            ...(placeWithSourceId.metadata ?? {}),
+          },
+          city: placeWithSourceId.city ?? savedPlace.city,
+          isFavorite: savedPlace.isFavorite ?? placeWithSourceId.isFavorite ?? false,
+        }
 
           const nextVisibleCategories = Array.isArray(visibleCategories) && !visibleCategories.includes(categoryKey)
             ? [...visibleCategories, categoryKey]
@@ -185,9 +188,10 @@ export const useExploreStore = create<ExploreStoreState>()(
             : visibleCategories
 
           // Still add to local state even if Supabase fails
+          const nextPlace = { ...placeWithSourceId }
           set({
-            activePlaces: [...activePlaces, placeWithSourceId],
-            lastAddedPlace: placeWithSourceId,
+            activePlaces: [...activePlaces, nextPlace],
+            lastAddedPlace: nextPlace,
             visibleCategories: nextVisibleCategories ?? null,
           })
         }
@@ -225,7 +229,6 @@ export const useExploreStore = create<ExploreStoreState>()(
 
         const sanitizedUpdates: Partial<ExplorePlace> = {
           ...updates,
-          notes: updates.notes ?? undefined,
         }
 
         if ('links' in updates) {
@@ -253,12 +256,59 @@ export const useExploreStore = create<ExploreStoreState>()(
         })
 
         try {
-          await exploreApiService.updateExplorePlace(updatedPlace)
+          const persisted = await exploreApiService.updateExplorePlace({
+            ...updatedPlace,
+            metadata: mergedMetadata,
+            notes: updatedPlace.notes ?? null,
+          })
+
+          const finalPlace: ExplorePlace = {
+            ...persisted,
+            metadata: mergedMetadata,
+            notes: persisted.notes ?? updatedPlace.notes ?? null,
+            links: persisted.links ?? updatedPlace.links,
+            isFavorite: persisted.isFavorite ?? updatedPlace.isFavorite ?? false,
+          }
+
+          set((state) => ({
+            activePlaces: state.activePlaces.map((place) =>
+              place.id === placeId ? finalPlace : place
+            ),
+            selectedPlace:
+              state.selectedPlace?.id === placeId ? finalPlace : state.selectedPlace,
+          }))
+
+          return finalPlace
         } catch (error) {
           console.error('ExploreStore: Error updating active place in Supabase', error)
+          return updatedPlace
+        }
+      },
+      toggleFavorite: async (placeId) => {
+        const { activePlaces, selectedPlace, updateActivePlace } = get()
+        const existing = activePlaces.find((place) => place.id === placeId)
+        if (!existing) {
+          return
         }
 
-        return updatedPlace
+        const updatedPlace = { ...existing, isFavorite: !existing.isFavorite }
+        const updatedActivePlaces = activePlaces.map((place) =>
+          place.id === placeId ? updatedPlace : place
+        )
+
+        set({
+          activePlaces: updatedActivePlaces,
+          selectedPlace:
+            selectedPlace?.id === placeId
+              ? { ...selectedPlace, isFavorite: updatedPlace.isFavorite }
+              : selectedPlace,
+        })
+
+        try {
+          await updateActivePlace(placeId, { isFavorite: updatedPlace.isFavorite })
+        } catch (error) {
+          console.error('ExploreStore: Failed to persist favourite toggle', error)
+        }
       },
       syncWithSupabase: async () => {
         const { activePlaces } = get()
@@ -281,7 +331,7 @@ export const useExploreStore = create<ExploreStoreState>()(
           const enriched = await Promise.all(
             places.map(async (place) => {
               if (place.city && place.city.length > 0) {
-                return place
+                return { ...place, isFavorite: place.isFavorite ?? false }
               }
 
               const placeIdHint = (place.metadata?.placeId as string | undefined)
@@ -295,6 +345,7 @@ export const useExploreStore = create<ExploreStoreState>()(
               return {
                 ...place,
                 city: normalizedCity,
+                isFavorite: place.isFavorite ?? false,
               }
             })
           )

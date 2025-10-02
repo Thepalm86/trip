@@ -61,8 +61,8 @@ export function ItineraryPreviewDrawer() {
       baseIndex: selectedBaseLocation.index,
     }
   }, [currentTrip, selectedBaseLocation])
-  const showDestinationModal = selectionOrigin !== 'map' && Boolean(destinationContext)
-  const showBaseModal = selectionOrigin !== 'map' && Boolean(baseContext)
+  const showDestinationModal = selectionOrigin === 'preview' && Boolean(destinationContext)
+  const showBaseModal = selectionOrigin === 'preview' && Boolean(baseContext)
 
   useEffect(() => {
     if (selectedDestination && !destinationContext) {
