@@ -81,7 +81,7 @@ export function ExploreSearchDock({ defaultExpanded = false }: ExploreSearchDock
         </span>
         <div className="flex flex-col">
           <span className="font-semibold text-white">Explore anywhere</span>
-          <span className="text-xs uppercase tracking-wide text-white/50">Search cities, POIs, base hubs</span>
+          <span className="text-xs text-white/60">Search cities, POIs, base hubs</span>
         </div>
       </button>
     )

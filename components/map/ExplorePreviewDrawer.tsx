@@ -5,6 +5,7 @@ import { PlusCircle, Eye, Edit, Trash2, ExternalLink, Heart } from 'lucide-react
 import { useExploreStore } from '@/lib/store/explore-store'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { AddExplorePlaceModal } from '../modals/AddExplorePlaceModal'
+import { AddExploreAccommodationModal } from '../modals/AddExploreAccommodationModal'
 import { DestinationOverviewModal } from '../modals/DestinationOverviewModal'
 import { DestinationEditModal } from '../modals/DestinationEditModal'
 import { Destination } from '@/types'
@@ -23,12 +24,17 @@ export function ExplorePreviewDrawer() {
   const selectedPlace = useExploreStore((state) => state.selectedPlace)
   const setSelectedPlace = useExploreStore((state) => state.setSelectedPlace)
   const removeActivePlace = useExploreStore((state) => state.removeActivePlace)
-  const [showAddModal, setShowAddModal] = useState(false)
+  const [showAddActivityModal, setShowAddActivityModal] = useState(false)
+  const [showAddAccommodationModal, setShowAddAccommodationModal] = useState(false)
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
-  const isModalBlocking = showAddModal || showEditModal || showOverviewModal
+  const isModalBlocking =
+    showAddActivityModal ||
+    showAddAccommodationModal ||
+    showEditModal ||
+    showOverviewModal
 
   useEffect(() => {
     if (!selectedPlace || isModalBlocking) {
@@ -48,7 +54,8 @@ export function ExplorePreviewDrawer() {
 
   useEffect(() => {
     if (!selectedPlace) {
-      setShowAddModal(false)
+      setShowAddActivityModal(false)
+      setShowAddAccommodationModal(false)
       setShowEditModal(false)
       setShowOverviewModal(false)
     }
@@ -99,6 +106,8 @@ export function ExplorePreviewDrawer() {
   )
 
   const accentColor = categoryMetadata.colors.border
+  const normalizedCategory = categoryMetadata.key
+  const isAccommodationCategory = normalizedCategory === 'accommodation' || normalizedCategory === 'hotel'
 
   const quickActionStyle = useMemo(
     () => ({
@@ -169,12 +178,16 @@ export function ExplorePreviewDrawer() {
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  setShowAddModal(true)
+                  if (isAccommodationCategory) {
+                    setShowAddAccommodationModal(true)
+                  } else {
+                    setShowAddActivityModal(true)
+                  }
                 }}
                 className="pointer-events-auto p-2 rounded-lg border transition-all duration-200 hover:scale-105"
                 style={quickActionStyle}
-                title="Add as activity"
-                aria-label="Add as activity"
+                title={isAccommodationCategory ? 'Add as accommodation' : 'Add as activity'}
+                aria-label={isAccommodationCategory ? 'Add as accommodation' : 'Add as activity'}
               >
                 <PlusCircle className="h-4 w-4" />
               </button>
@@ -261,12 +274,23 @@ export function ExplorePreviewDrawer() {
         </div>
       </div>
 
-      {showAddModal && (
+      {showAddActivityModal && (
         <AddExplorePlaceModal
           place={selectedPlace}
-          onClose={() => setShowAddModal(false)}
+          onClose={() => setShowAddActivityModal(false)}
           onComplete={() => {
-            setShowAddModal(false)
+            setShowAddActivityModal(false)
+            setSelectedPlace(null)
+          }}
+        />
+      )}
+
+      {showAddAccommodationModal && (
+        <AddExploreAccommodationModal
+          place={selectedPlace}
+          onClose={() => setShowAddAccommodationModal(false)}
+          onComplete={() => {
+            setShowAddAccommodationModal(false)
             setSelectedPlace(null)
           }}
         />

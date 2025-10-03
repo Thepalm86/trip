@@ -206,12 +206,6 @@ function DraggableBaseLocation({
           </div>
         </div>
 
-        {location.context ? (
-          <p className="text-sm text-white/70 leading-relaxed mb-3">
-            {location.context}
-          </p>
-        ) : null}
-
         {location.notes ? (
           <div className="bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-sm">
             <p className="text-sm text-white/80 italic leading-relaxed">"{location.notes}"</p>

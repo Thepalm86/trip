@@ -1,31 +1,28 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { X, MapPin, Loader2 } from 'lucide-react'
-import { ExplorePlace } from '@/types'
+import { X, Hotel, Loader2, MapPin } from 'lucide-react'
+import type { DayLocation, ExplorePlace } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { useExploreStore } from '@/lib/store/explore-store'
 import { resolveCityFromPlace } from '@/lib/location/city'
 
-interface AddExplorePlaceModalProps {
+interface AddExploreAccommodationModalProps {
   place: ExplorePlace
   onClose: () => void
   onComplete: () => void
 }
 
-export function AddExplorePlaceModal({ place, onClose, onComplete }: AddExplorePlaceModalProps) {
-  const {
-    currentTrip,
-    addDestinationToDay,
-  } = useSupabaseTripStore()
+export function AddExploreAccommodationModal({ place, onClose, onComplete }: AddExploreAccommodationModalProps) {
+  const { currentTrip, addBaseLocation } = useSupabaseTripStore()
   const removeActivePlace = useExploreStore((state) => state.removeActivePlace)
 
   const [selectedDayIds, setSelectedDayIds] = useState<string[]>(() => {
     const firstDayId = currentTrip?.days?.[0]?.id
     return firstDayId ? [firstDayId] : []
   })
-  const [isSaving, setIsSaving] = useState(false)
   const [notes, setNotes] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     const days = currentTrip?.days ?? []
@@ -55,40 +52,40 @@ export function AddExplorePlaceModal({ place, onClose, onComplete }: AddExploreP
   }
 
   const handleConfirm = async () => {
-    if (!currentTrip || selectedDayIds.length === 0) return
+    if (!currentTrip || selectedDayIds.length === 0) {
+      return
+    }
+
     setIsSaving(true)
 
     try {
       const placeId = place.metadata?.place_id as string | undefined
       const city = await resolveCityFromPlace(placeId, place.fullName)
-
       const resolvedCity = city === 'Unknown' ? undefined : city
+
       const trimmedNotes = notes.trim()
-      const generateId = () =>
-        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? `explore-${crypto.randomUUID()}`
-          : `explore-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+
+      const template: DayLocation = {
+        name: place.name,
+        coordinates: place.coordinates,
+        context: place.fullName ?? place.context,
+        city: resolvedCity,
+        category: (place.category as string) ?? 'accommodation',
+        notes: trimmedNotes ? trimmedNotes : undefined,
+        links: Array.isArray(place.links) && place.links.length
+          ? place.links.map((link) => ({ ...link }))
+          : undefined,
+      }
 
       for (const dayId of selectedDayIds) {
-        await addDestinationToDay(
-          {
-            id: generateId(),
-            name: place.name,
-            description: place.fullName,
-            coordinates: place.coordinates,
-            city: resolvedCity,
-            category: (place.category as any) ?? 'activity',
-            notes: trimmedNotes ? trimmedNotes : undefined,
-            isFavorite: place.isFavorite ?? false,
-          },
-          dayId,
-        )
+        const dayLocation: DayLocation = { ...template }
+        await addBaseLocation(dayId, dayLocation)
       }
 
       onComplete()
       removeActivePlace(place.id)
     } catch (error) {
-      console.error('AddExplorePlaceModal: Failed to add place', error)
+      console.error('AddExploreAccommodationModal: failed to add base location', error)
     } finally {
       setIsSaving(false)
     }
@@ -99,8 +96,10 @@ export function AddExplorePlaceModal({ place, onClose, onComplete }: AddExploreP
       <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950/90 p-6 text-white shadow-2xl">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-white/50">Activity</div>
-            <h3 className="mt-2 text-2xl font-light">Add as Activity</h3>
+            <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-200/80">
+              <Hotel className="h-3.5 w-3.5" /> Stay
+            </div>
+            <h3 className="mt-2 text-2xl font-light text-white">Add as accommodation</h3>
             <p className="mt-1 text-sm text-white/60">{place.fullName}</p>
           </div>
           <button
@@ -130,8 +129,8 @@ export function AddExplorePlaceModal({ place, onClose, onComplete }: AddExploreP
                     }}
                     className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
                       isSelected
-                        ? 'border-blue-500/60 bg-blue-500/15 text-white'
-                        : 'border-white/10 bg-white/5 text-white/70 hover:border-blue-500/30 hover:bg-blue-500/10 hover:text-white'
+                        ? 'border-emerald-400/70 bg-emerald-500/20 text-white'
+                        : 'border-white/10 bg-white/5 text-white/70 hover:border-emerald-400/40 hover:bg-emerald-500/15 hover:text-white'
                     }`}
                   >
                     <div>
@@ -143,7 +142,7 @@ export function AddExplorePlaceModal({ place, onClose, onComplete }: AddExploreP
                     <div className="flex flex-col items-end text-xs text-white/60">
                       <span>{formatDate(day.date)}</span>
                       {isSelected && (
-                        <span className="mt-0.5 rounded-full bg-blue-500/30 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-100">
+                        <span className="mt-0.5 rounded-full bg-emerald-500/25 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-100">
                           Selected
                         </span>
                       )}
@@ -155,15 +154,13 @@ export function AddExplorePlaceModal({ place, onClose, onComplete }: AddExploreP
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-white/40">
-              Notes & details (optional)
-            </label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Stay notes (optional)</label>
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={3}
-              placeholder="Add reminders, booking links, timing..."
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/40 focus:border-blue-400/40 focus:outline-none"
+              placeholder="Check-in details, host instructions, confirmation numbers..."
+              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/40 focus:border-emerald-400/50 focus:outline-none"
             />
           </div>
         </div>
@@ -186,7 +183,7 @@ export function AddExplorePlaceModal({ place, onClose, onComplete }: AddExploreP
             <button
               onClick={handleConfirm}
               disabled={isSaving || selectedDayIds.length === 0}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-blue-500/40"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-emerald-500/40"
             >
               {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
               {selectedDayIds.length > 1 ? `Add to ${selectedDayIds.length} days` : 'Confirm'}
