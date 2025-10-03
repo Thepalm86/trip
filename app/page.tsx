@@ -6,12 +6,14 @@ import { LeftPanel } from '@/components/left-panel/LeftPanel'
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { TripLoader } from '@/components/trip/TripLoader'
 import { ResearchCommandPalette } from '@/components/research/ResearchCommandPalette'
+import { CopilotPanel, CopilotToggleButton } from '@/components/copilot/CopilotPanel'
 
 export default function HomePage() {
   const mapRef = useRef<InteractiveMapRef>(null)
   const [map, setMap] = useState<any>(null)
   const [leftPanelWidth, setLeftPanelWidth] = useState(60) // Percentage
   const [isResizing, setIsResizing] = useState(false)
+  const [copilotOpen, setCopilotOpen] = useState(false)
   const animationFrameRef = useRef<number | null>(null)
 
   // Get map instance after component mounts
@@ -41,9 +43,10 @@ export default function HomePage() {
       
       const windowWidth = window.innerWidth
       const newLeftWidth = (e.clientX / windowWidth) * 100
-      
-      // Constrain between 30% and 80%
-      const constrainedWidth = Math.min(Math.max(newLeftWidth, 30), 80)
+
+      const MIN_LEFT_WIDTH = 28
+      const MAX_LEFT_WIDTH = 75
+      const constrainedWidth = Math.min(Math.max(newLeftWidth, MIN_LEFT_WIDTH), MAX_LEFT_WIDTH)
       setLeftPanelWidth(constrainedWidth)
     }
 
@@ -112,6 +115,19 @@ export default function HomePage() {
     }
   }, [map, leftPanelWidth, isResizing])
 
+  // Auto-manage copilot visibility based on viewport size
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth
+      if (width < 1280) {
+        setCopilotOpen(false)
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   return (
     <AuthGuard>
       <TripLoader />
@@ -119,40 +135,52 @@ export default function HomePage() {
 
         {/* Main Layout Container */}
         <div className="flex h-full max-h-full overflow-hidden">
-        {/* Left Panel - Itinerary Planner */}
-        <div 
-          className="flex flex-col timeline-container"
-          style={{ width: `${leftPanelWidth}%` }}
-        >
-          <div className="flex-1 overflow-hidden min-h-0">
-            <LeftPanel />
+          {/* Left Panel - Itinerary Planner */}
+          <div 
+            className="flex flex-col timeline-container"
+            style={{ width: `${leftPanelWidth}%` }}
+          >
+            <div className="flex-1 overflow-hidden min-h-0">
+              <LeftPanel />
+            </div>
           </div>
-        </div>
 
-        {/* Resize Handle */}
-        <div
-          className={`w-2 bg-white/5 hover:bg-white/15 transition-colors duration-200 cursor-col-resize flex items-center justify-center group ${
-            isResizing ? 'bg-white/25' : ''
-          }`}
-          onMouseDown={handleMouseDown}
-        >
-          <div className="flex flex-col gap-1">
-            <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-            <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-            <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+          {/* Resize Handle */}
+          <div
+            className={`w-2 bg-white/5 hover:bg-white/15 transition-colors duration-200 cursor-col-resize flex items-center justify-center group ${
+              isResizing ? 'bg-white/25' : ''
+            }`}
+            onMouseDown={handleMouseDown}
+          >
+            <div className="flex flex-col gap-1">
+              <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+              <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+              <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+            </div>
           </div>
-        </div>
 
-        {/* Right Panel - Interactive Map */}
-        <div 
-          className={`border-l border-white/10 map-panel ${isResizing ? 'resizing' : ''}`}
-          style={{ width: `${100 - leftPanelWidth}%` }}
-        >
-          <div className="map-container">
-            <InteractiveMap ref={mapRef} />
+          {/* Map + Copilot */}
+          <div
+            className={`relative flex-1 border-l border-white/10 map-panel ${isResizing ? 'resizing' : ''}`}
+            style={{ width: `${100 - leftPanelWidth}%` }}
+          >
+            <div className="map-container">
+              <InteractiveMap ref={mapRef} />
+            </div>
+
+            <div className="absolute right-6 top-6 z-50 flex flex-col items-end gap-4">
+              <div>
+                <CopilotToggleButton onClick={() => setCopilotOpen((prev) => !prev)} />
+              </div>
+
+              {copilotOpen && (
+                <div className="mt-3">
+                  <CopilotPanel onClose={() => setCopilotOpen(false)} />
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
       <ResearchCommandPalette />
     </div>
     </AuthGuard>

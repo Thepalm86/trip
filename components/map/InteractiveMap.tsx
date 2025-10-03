@@ -43,7 +43,7 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
     map.current.touchZoomRotate?.disableRotation()
 
     // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
+    map.current.addControl(new mapboxgl.NavigationControl(), 'bottom-right')
 
     // Ensure rotation remains locked after load (Mapbox re-enables it otherwise)
     map.current.on('load', () => {

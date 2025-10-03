@@ -25,6 +25,7 @@ interface TripStore {
   moveDestination: (destinationId: string, fromDayId: string, toDayId: string, newIndex: number) => void
   reorderDestinations: (dayId: string, startIndex: number, endIndex: number) => void
   updateTripDates: (startDate: Date, endDate: Date) => void
+  updateDayNotes: (dayId: string, notes: string) => void
 }
 
 const createInitialTrip = (): Trip => ({
@@ -314,5 +315,18 @@ export const useTripStore = create<TripStore>((set) => ({
         selectedDayId: nextSelectedDayId
       }
     })
+  },
+
+  updateDayNotes: (dayId: string, notes: string) => {
+    set((state) => ({
+      currentTrip: {
+        ...state.currentTrip,
+        days: state.currentTrip.days.map(day =>
+          day.id === dayId
+            ? { ...day, notes }
+            : day
+        )
+      }
+    }))
   },
 }))
