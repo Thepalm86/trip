@@ -655,6 +655,20 @@
   overflow: hidden;
 }
 
+@media (max-width: 1024px) {
+  .map-viewport-container,
+  .timeline-container,
+  .map-panel {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .map-container {
+    min-height: 18rem;
+  }
+}
+
 /* Fix for Mapbox GL container */
 .mapboxgl-canvas-container {
   height: 100% !important;

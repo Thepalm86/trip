@@ -12,6 +12,7 @@ export default function HomePage() {
   const [map, setMap] = useState<any>(null)
   const [leftPanelWidth, setLeftPanelWidth] = useState(60) // Percentage
   const [isResizing, setIsResizing] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const animationFrameRef = useRef<number | null>(null)
 
   // Get map instance after component mounts
@@ -31,11 +32,34 @@ export default function HomePage() {
 
   // Handle resize functionality
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (isMobile) return
     setIsResizing(true)
     e.preventDefault()
   }
 
+  // Track viewport size to toggle mobile layout
   useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const updateViewport = () => {
+      const mobile = window.innerWidth < 1024
+      setIsMobile(mobile)
+    }
+
+    updateViewport()
+    window.addEventListener('resize', updateViewport)
+
+    return () => window.removeEventListener('resize', updateViewport)
+  }, [])
+
+  useEffect(() => {
+    if (isMobile) {
+      setIsResizing(false)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      return
+    }
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return
       
@@ -64,7 +88,7 @@ export default function HomePage() {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isResizing])
+  }, [isResizing, isMobile])
 
   // Trigger map resize when panel width changes (optimized to prevent blurring)
   useEffect(() => {
@@ -110,19 +134,19 @@ export default function HomePage() {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [map, leftPanelWidth, isResizing])
+  }, [map, leftPanelWidth, isResizing, isMobile])
 
   return (
     <AuthGuard>
       <TripLoader />
-      <div className="h-screen bg-gradient-dark map-viewport-container page-container overflow-hidden">
+      <div className="min-h-screen bg-gradient-dark map-viewport-container page-container">
 
         {/* Main Layout Container */}
-        <div className="flex h-full max-h-full overflow-hidden">
+        <div className="flex h-full flex-1 flex-col lg:max-h-full lg:flex-row">
         {/* Left Panel - Itinerary Planner */}
         <div 
           className="flex flex-col timeline-container"
-          style={{ width: `${leftPanelWidth}%` }}
+          style={!isMobile ? { width: `${leftPanelWidth}%` } : undefined}
         >
           <div className="flex-1 overflow-hidden min-h-0">
             <LeftPanel />
@@ -130,25 +154,30 @@ export default function HomePage() {
         </div>
 
         {/* Resize Handle */}
-        <div
-          className={`w-2 bg-white/5 hover:bg-white/15 transition-colors duration-200 cursor-col-resize flex items-center justify-center group ${
-            isResizing ? 'bg-white/25' : ''
-          }`}
-          onMouseDown={handleMouseDown}
-        >
-          <div className="flex flex-col gap-1">
-            <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-            <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-            <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+        {!isMobile && (
+          <div
+            className={`w-2 bg-white/5 hover:bg-white/15 transition-colors duration-200 cursor-col-resize flex items-center justify-center group ${
+              isResizing ? 'bg-white/25' : ''
+            }`}
+            onMouseDown={handleMouseDown}
+          >
+            <div className="flex flex-col gap-1">
+              <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+              <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+              <div className="w-0.5 h-2 bg-white/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Right Panel - Interactive Map */}
         <div 
           className={`border-l border-white/10 map-panel ${isResizing ? 'resizing' : ''}`}
-          style={{ width: `${100 - leftPanelWidth}%` }}
+          style={!isMobile ? { width: `${100 - leftPanelWidth}%` } : undefined}
         >
-          <div className="map-container">
+          <div
+            className="map-container"
+            style={isMobile ? { minHeight: '24rem' } : undefined}
+          >
             <InteractiveMap ref={mapRef} />
           </div>
         </div>
