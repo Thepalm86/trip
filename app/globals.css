@@ -21,11 +21,43 @@
   }
 }
 
+@keyframes assistant-progress {
+  0% {
+    transform: translateX(-120%);
+  }
+  50% {
+    transform: translateX(-10%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
 /* Inter and Playfair Display fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {
+    --font-body: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-display: 'Playfair Display', 'Times New Roman', serif;
+    --assistant-gradient: linear-gradient(135deg, #031926 0%, #0f2745 100%);
+    --assistant-panel: rgba(10, 16, 28, 0.8);
+    --assistant-panel-alt: rgba(19, 33, 54, 0.85);
+    --assistant-border: rgba(255, 255, 255, 0.16);
+    --assistant-border-subtle: rgba(125, 146, 182, 0.25);
+    --assistant-shadow: 0 22px 64px rgba(3, 25, 38, 0.55);
+    --assistant-chip-bg: rgba(79, 140, 255, 0.14);
+    --assistant-chip-border: rgba(79, 140, 255, 0.45);
+    --assistant-chip-text: #cfe0ff;
+    --assistant-accent: #31d3a4;
+    --assistant-accent-secondary: #4f8cff;
+    --assistant-highlight: #f2be5c;
+    --assistant-error: rgba(238, 79, 111, 0.14);
+    --assistant-error-border: rgba(238, 79, 111, 0.45);
+    --assistant-glass-blur: 18px;
+    --assistant-radius-lg: 1.75rem;
+    --assistant-radius-md: 1rem;
+
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -49,6 +81,21 @@
   }
 
   .dark {
+    --assistant-gradient: linear-gradient(135deg, #031926 0%, #0f2745 100%);
+    --assistant-panel: rgba(8, 18, 33, 0.82);
+    --assistant-panel-alt: rgba(19, 33, 54, 0.9);
+    --assistant-border: rgba(255, 255, 255, 0.18);
+    --assistant-border-subtle: rgba(90, 110, 146, 0.35);
+    --assistant-shadow: 0 28px 64px rgba(3, 20, 40, 0.55);
+    --assistant-chip-bg: rgba(79, 140, 255, 0.18);
+    --assistant-chip-border: rgba(79, 140, 255, 0.5);
+    --assistant-chip-text: #ddebff;
+    --assistant-accent: #31d3a4;
+    --assistant-accent-secondary: #4f8cff;
+    --assistant-highlight: #f2be5c;
+    --assistant-error: rgba(238, 79, 111, 0.12);
+    --assistant-error-border: rgba(238, 79, 111, 0.6);
+
     /* Navy blue gradient backgrounds */
     --background: 217 33% 17%; /* #1a1f2e base */
     --foreground: 0 0% 95%; /* Light gray text */
@@ -197,6 +244,88 @@
   .text-4xl {
     font-size: 2.25rem;
     line-height: 1.25;
+  }
+}
+
+@layer components {
+  .assistant-panel {
+    background: linear-gradient(160deg, var(--assistant-panel) 0%, var(--assistant-panel-alt) 100%);
+    border: 1px solid var(--assistant-border);
+    border-radius: var(--assistant-radius-lg);
+    box-shadow: var(--assistant-shadow);
+    backdrop-filter: blur(var(--assistant-glass-blur));
+  }
+
+  .assistant-section {
+    border-radius: var(--assistant-radius-md);
+    border: 1px solid var(--assistant-border-subtle);
+    background: rgba(14, 26, 44, 0.55);
+    backdrop-filter: blur(calc(var(--assistant-glass-blur) * 0.75));
+  }
+
+  .assistant-chip {
+    border-radius: 9999px;
+    border: 1px solid var(--assistant-chip-border);
+    background: var(--assistant-chip-bg);
+    color: var(--assistant-chip-text);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+
+  .assistant-chip:hover {
+    transform: translateY(-2px);
+    border-color: var(--assistant-accent-secondary);
+    box-shadow: 0 10px 24px rgba(79, 140, 255, 0.25);
+  }
+
+  .assistant-message-user {
+    background: linear-gradient(145deg, rgba(49, 211, 164, 0.18) 0%, rgba(49, 211, 164, 0.08) 100%);
+    border: 1px solid rgba(49, 211, 164, 0.45);
+    color: #d3f7eb;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .assistant-message-assistant {
+    background: linear-gradient(160deg, rgba(10, 16, 28, 0.88) 0%, rgba(18, 31, 49, 0.78) 100%);
+    border: 1px solid var(--assistant-border-subtle);
+    color: #dbe5f5;
+  }
+
+  .assistant-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(90, 110, 146, 0.6) rgba(12, 22, 38, 0.2);
+  }
+
+  .assistant-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .assistant-scroll::-webkit-scrollbar-track {
+    background: rgba(10, 16, 28, 0.4);
+  }
+
+  .assistant-scroll::-webkit-scrollbar-thumb {
+    background: rgba(90, 110, 146, 0.6);
+    border-radius: 9999px;
+  }
+
+  .assistant-glass-input {
+    background: rgba(10, 20, 36, 0.9);
+    border: 1px solid rgba(90, 110, 146, 0.5);
+    border-radius: 1rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .assistant-glass-input:focus {
+    border-color: rgba(79, 140, 255, 0.75);
+    box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.2);
+  }
+
+  .assistant-progress {
+    position: absolute;
+    inset-y: 0;
+    left: -60%;
+    width: 160%;
+    animation: assistant-progress 1.6s ease-in-out infinite;
   }
 }
 

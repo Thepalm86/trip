@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Share2, Edit3, HelpCircle, Sparkles, Search, Calendar, Globe, ChevronDown, Loader2 } from 'lucide-react'
+import { Share2, Edit3, HelpCircle, Sparkles, Search, Calendar, Globe, ChevronDown, Loader2, Stars } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
@@ -150,6 +150,13 @@ export function LeftPanel() {
     }
   }
 
+  const summonJourneyCurator = () => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.dispatchEvent(new CustomEvent('assistant-dock:open', { detail: { state: 'expanded' } }))
+  }
+
   if (!currentTrip) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" data-tour="left-panel">
@@ -170,8 +177,8 @@ export function LeftPanel() {
           {/* Trip Hero Section */}
           <div className="mb-2">
             {/* Trip Title - Hero with Profile and Actions */}
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex-1">
+            <div className="mb-3 flex flex-wrap items-center gap-4">
+              <div className="flex-1 min-w-[220px]">
                 {isEditingTripName ? (
                   <div className="relative">
                     <input
@@ -198,9 +205,26 @@ export function LeftPanel() {
                   </button>
                 )}
               </div>
+
+              <button
+                type="button"
+                onClick={summonJourneyCurator}
+                className="group inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-left text-white/90 shadow-lg shadow-emerald-600/10 backdrop-blur transition hover:-translate-y-0.5 hover:border-emerald-300/60 hover:bg-emerald-400/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
+                aria-label="Open Journey Curator assistant"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 via-emerald-500 to-sky-500 text-slate-900 shadow-md transition group-hover:shadow-emerald-500/40">
+                  <Stars className="h-4 w-4" />
+                </span>
+                <span className="flex flex-col leading-tight">
+                  <span className="text-[11px] uppercase tracking-[0.32em] text-emerald-200/80 transition group-hover:text-emerald-100">
+                    AI
+                  </span>
+                  <span className="text-sm font-semibold">Journey Curator</span>
+                </span>
+              </button>
               
               {/* Actions and User Profile */}
-              <div className="ml-6 flex items-center gap-3" data-tour="header-actions">
+              <div className="ml-auto flex items-center gap-3" data-tour="header-actions">
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2">
                   <button 

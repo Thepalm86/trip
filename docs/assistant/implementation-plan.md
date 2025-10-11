@@ -80,3 +80,16 @@
 - Documentation (`architecture.md`, `tech-stack.md`, prompt guidelines, context schema).
 - Automated tests: unit (context builders), integration (assistant route), smoke (end-to-end chat via Playwright).
 - Rollout plan: staging checklist, beta timeline, support playbook.
+
+## Assistant UI Redesign — Style & Experience Blueprint
+- **North Star**: Premium travel concierge aesthetic with deep midnight palette, glassmorphic layering, and polished motion to signal trust and sophistication.
+- **Palette**: Primary gradient `#031926 → #0F2745`; secondary accents `#31D3A4`, `#4F8CFF`, `#F2BE5C`; neutrals anchored by `#0A101C` background, `#1B2538` surface, `#E7EEF8` text. Use 8%–18% white overlays for glass panels and 1 px misty borders (`rgba(255,255,255,0.16)`).
+- **Typography**: Pair `Inter` (UI body, 14–16 px) with luxury serif accent (`Playfair Display` or `Cormorant`) for headers (24 px, semi-bold). Enforce optical hierarchy: headers → section titles → helper text at 12 px with 68% opacity.
+- **Iconography**: Thin-stroke line icons with subtle inner glow. Assistant avatar evolves into circular badge with animated compass glyph to reinforce exploration theme.
+- **Dock Structure**: Right-aligned concierge dock (min 420 px) with three states (collapsed pill, compact overlay, expanded push). Maintain sticky trip-summary rail at top (trip name, countdown, weather chip) for orientation.
+- **Surface Styling**: Cards and chat bubbles use layered glass (backdrop-blur 18 px, surface opacity 0.75) and soft shadow (`0 18px 48px rgba(3,20,40,0.45)`). User bubbles right-aligned with gradient border; assistant replies left-aligned with icon header, optional section toggles.
+- **Interactive Elements**: Primary buttons adopt gradient fill + subtle glow; secondary chips use outlined pills with hover lift (translateY(-2 px) + shadow). Composer bar floats with inset shadow; quick prompts row uses horizontally scrollable chips.
+- **Motion & Feedback**: 180–220 ms ease-out transitions when the dock expands/collapses. Assistant “thinking” indicator = top-edge progress shimmer + pulsing badge. Map pin highlights animate in sync with response payloads (coordinated via shared easing curves).
+- **Context Panels**: Tabbed subpanes (“Chat”, “Insights”, “Shortcuts”) with sliding indicator. Responses can spawn inline action cards (e.g., “Add to Day 2”) that cascade from bottom with staggered delays for readability.
+- **Accessibility**: Maintain 4.5:1 contrast minimum; provide keyboard focus outlines (2 px accent glow). Voice input button includes aria-live feedback. All state changes announced via polite screen reader alerts.
+- **Implementation Starter Tasks**: Define design tokens in `globals.css` (CSS variables for palette, radii, shadows). Refactor `AssistantDock.tsx` layout to support multi-state width + sticky header. Introduce reusable `GlassPanel`, `ActionChip`, `ResponseCard` components in `components/assistant/`. Update illustration, icon assets, and motion primitives in a shared `ui-tokens.ts`.
