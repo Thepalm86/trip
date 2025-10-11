@@ -2,9 +2,15 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@/lib/auth/auth-context'
-import { User, Settings, LogOut, ChevronDown, MapPin } from 'lucide-react'
+import { User, Settings, LogOut, ChevronDown, MapPin, Share2, HelpCircle, Sparkles } from 'lucide-react'
 
-export function UserProfile() {
+interface UserProfileProps {
+  onShare?: () => void
+  onShowGuide?: () => void
+  onOpenResearch?: () => void
+}
+
+export function UserProfile({ onShare, onShowGuide, onOpenResearch }: UserProfileProps) {
   const { user, signOut } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -34,21 +40,11 @@ export function UserProfile() {
       {/* Profile Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-200 group"
+        className="group flex h-12 items-center gap-3 rounded-full border border-white/10 bg-white/[0.06] px-3 text-left text-white/90 shadow-sm backdrop-blur transition hover:border-white/20 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
       >
         {/* Avatar */}
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-sm font-semibold text-white">
           {initials}
-        </div>
-        
-        {/* User Info */}
-        <div className="flex-1 text-left min-w-0">
-          <div className="text-sm font-medium text-white truncate">
-            {displayName}
-          </div>
-          <div className="text-xs text-white/60 truncate">
-            {user.email}
-          </div>
         </div>
         
         {/* Chevron */}
@@ -63,7 +59,7 @@ export function UserProfile() {
       {isOpen && (
         <div className="absolute top-full right-0 mt-2 w-64 bg-slate-800/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
           {/* Header */}
-          <div className="p-4 border-b border-white/10">
+          <div className="flex flex-col gap-4 border-b border-white/10 p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
                 {initials}
@@ -76,6 +72,43 @@ export function UserProfile() {
                   {user.email}
                 </div>
               </div>
+            </div>
+            <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false)
+                  onShare?.()
+                }}
+                className="flex w-full items-center gap-3 rounded-xl bg-white/5 px-3 py-2 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+              >
+                <Share2 className="h-4 w-4 text-white/60" />
+                <span>Share trip</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false)
+                  onShowGuide?.()
+                }}
+                className="flex w-full items-center gap-3 rounded-xl bg-white/5 px-3 py-2 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+              >
+                <HelpCircle className="h-4 w-4 text-white/60" />
+                <span>Show guided tour</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false)
+                  onOpenResearch?.()
+                }}
+                disabled={!onOpenResearch}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:text-white/40"
+                title={onOpenResearch ? undefined : 'Coming soon'}
+              >
+                <Sparkles className="h-4 w-4 text-white/50" />
+                <span>Research (coming soon)</span>
+              </button>
             </div>
           </div>
 

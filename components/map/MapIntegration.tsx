@@ -33,9 +33,10 @@ import { MapLegendToggle, MapRouteToggle } from './MapControls'
 
 interface MapIntegrationProps {
   map: any
+  mode?: 'full' | 'compact'
 }
 
-export function MapIntegration({ map }: MapIntegrationProps) {
+export function MapIntegration({ map, mode = 'full' }: MapIntegrationProps) {
   const { 
     currentTrip: storeTrip, 
     selectedDayId, 
@@ -73,6 +74,8 @@ export function MapIntegration({ map }: MapIntegrationProps) {
   if (!hasTrip) {
     return null
   }
+
+  const isCompact = mode === 'compact'
 
   return (
     <>
@@ -121,24 +124,28 @@ export function MapIntegration({ map }: MapIntegrationProps) {
       <ExplorePreviewMarker map={map} />
       <ExploreMapFocus map={map} />
       <CountryFocus map={map} />
-      <div className="absolute bottom-4 left-4 z-10 flex items-start gap-3">
-        <MapLegendToggle map={map} />
-        <ExploreMarkersToggle map={map} positioned={false} className="flex-shrink-0" />
-        <MapRouteToggle map={map} />
-      </div>
-      <div className="absolute top-4 right-4 z-10">
-        {isLoadingRoutes && (
-          <div className="glass-card rounded-lg p-3 shadow-lg">
-            <div className="flex items-center gap-2 text-sm text-white">
-              <div className="w-4 h-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <span>Calculating routes...</span>
-            </div>
+      {!isCompact ? (
+        <>
+          <div className="absolute bottom-4 left-4 z-10 flex items-start gap-3">
+            <MapLegendToggle map={map} />
+            <ExploreMarkersToggle map={map} positioned={false} className="flex-shrink-0" />
+            <MapRouteToggle map={map} />
           </div>
-        )}
-      </div>
+          <div className="absolute top-4 right-4 z-10">
+            {isLoadingRoutes && (
+              <div className="glass-card rounded-lg p-3 shadow-lg">
+                <div className="flex items-center gap-2 text-sm text-white">
+                  <div className="w-4 h-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span>Calculating routes...</span>
+                </div>
+              </div>
+            )}
+          </div>
 
-      <ExplorePreviewDrawer />
-      <ItineraryPreviewDrawer />
+          <ExplorePreviewDrawer />
+          <ItineraryPreviewDrawer />
+        </>
+      ) : null}
     </>
   )
 }

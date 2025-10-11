@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Share2, Edit3, HelpCircle, Sparkles, Search, Calendar, Globe, ChevronDown, Loader2, Stars } from 'lucide-react'
+import { Edit3, Search, Calendar, Globe, ChevronDown, Loader2 } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
@@ -90,7 +90,8 @@ export function LeftPanel() {
     ? `${currentTrip.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${currentTrip.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     : 'Set travel dates'
 
-  const dayCount = useMemo(() => currentTrip?.days.length ?? 0, [currentTrip?.days.length])
+  const hasDates = Boolean(currentTrip?.startDate && currentTrip?.endDate)
+  const datesSummary = hasDates ? dateRangeLabel : 'Set travel dates'
 
   const handleTripNameSave = async () => {
     if (!currentTrip) {
@@ -150,13 +151,6 @@ export function LeftPanel() {
     }
   }
 
-  const summonJourneyCurator = () => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    window.dispatchEvent(new CustomEvent('assistant-dock:open', { detail: { state: 'expanded' } }))
-  }
-
   if (!currentTrip) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" data-tour="left-panel">
@@ -177,136 +171,83 @@ export function LeftPanel() {
           {/* Trip Hero Section */}
           <div className="mb-2">
             {/* Trip Title - Hero with Profile and Actions */}
-            <div className="mb-3 flex flex-wrap items-center gap-4">
-              <div className="flex-1 min-w-[220px]">
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <div className="flex flex-1 min-w-[220px] items-center gap-3">
                 {isEditingTripName ? (
                   <div className="relative">
                     <input
                       type="text"
                       value={tripName}
-                      onChange={(e) => setTripName(e.target.value)}
-                      onBlur={handleTripNameSave}
-                      onKeyDown={handleTripNameKeyDown}
-                      className="w-full bg-transparent text-3xl font-bold text-white outline-none focus:outline-none border-b-2 border-blue-400/50 pb-2"
-                      autoFocus
-                      placeholder="Enter trip name..."
-                    />
-                    <div className="absolute -bottom-1 left-0 h-0.5 w-full bg-gradient-to-r from-blue-400 to-purple-400"></div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setIsEditingTripName(true)}
-                    className="group flex items-center gap-3 text-left transition-all duration-200 hover:text-blue-300"
-                  >
-                    <h1 className="text-3xl font-bold text-white group-hover:text-blue-300 transition-colors duration-200">
-                      {currentTrip.name}
-                    </h1>
+                        onChange={(e) => setTripName(e.target.value)}
+                        onBlur={handleTripNameSave}
+                        onKeyDown={handleTripNameKeyDown}
+                        className="w-full bg-transparent text-3xl font-bold text-white outline-none focus:outline-none border-b-2 border-blue-400/50 pb-2"
+                        autoFocus
+                        placeholder="Enter trip name..."
+                      />
+                      <div className="absolute -bottom-1 left-0 h-0.5 w-full bg-gradient-to-r from-blue-400 to-purple-400"></div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setIsEditingTripName(true)}
+                      className="group flex items-center gap-3 text-left transition-all duration-200 hover:text-blue-300"
+                    >
+                      <h1 className="text-3xl font-bold text-white group-hover:text-blue-300 transition-colors duration-200">
+                        {currentTrip.name}
+                      </h1>
                     <Edit3 className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-blue-400" />
                   </button>
                 )}
               </div>
-
-              <button
-                type="button"
-                onClick={summonJourneyCurator}
-                className="group inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-left text-white/90 shadow-lg shadow-emerald-600/10 backdrop-blur transition hover:-translate-y-0.5 hover:border-emerald-300/60 hover:bg-emerald-400/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
-                aria-label="Open Journey Curator assistant"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 via-emerald-500 to-sky-500 text-slate-900 shadow-md transition group-hover:shadow-emerald-500/40">
-                  <Stars className="h-4 w-4" />
-                </span>
-                <span className="flex flex-col leading-tight">
-                  <span className="text-[11px] uppercase tracking-[0.32em] text-emerald-200/80 transition group-hover:text-emerald-100">
-                    AI
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCountrySelector(true)}
+                  className="group flex h-12 items-center gap-3 rounded-full border border-white/10 bg-white/[0.06] px-4 text-left text-white/90 shadow-sm backdrop-blur transition hover:border-blue-400/60 hover:bg-blue-500/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/40"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-blue-400/30 bg-blue-500/10">
+                    <Globe className="h-4 w-4 text-blue-300" />
                   </span>
-                  <span className="text-sm font-semibold">Journey Curator</span>
-                </span>
-              </button>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-semibold uppercase tracking-[0.26em] text-white/50">
+                      Destination
+                    </span>
+                    <span className="block truncate text-sm font-semibold text-white">
+                      {countryLabel}
+                    </span>
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-white/40 transition group-hover:text-blue-300" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDateSelector(true)}
+                  className="group flex h-12 items-center gap-3 rounded-full border border-white/10 bg-white/[0.06] px-4 text-left text-white/90 shadow-sm backdrop-blur transition hover:border-emerald-400/60 hover:bg-emerald-500/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10">
+                    <Calendar className="h-4 w-4 text-emerald-300" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-semibold uppercase tracking-[0.26em] text-white/50">
+                      Dates
+                    </span>
+                    <span className="block truncate text-sm font-semibold text-white">
+                      {datesSummary}
+                    </span>
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-white/40 transition group-hover:text-emerald-300" />
+                </button>
+              </div>
               
               {/* Actions and User Profile */}
-              <div className="ml-auto flex items-center gap-3" data-tour="header-actions">
-                {/* Action Buttons */}
-                <div className="flex items-center gap-2">
-                  <button 
-                    type="button"
-                    onClick={() => setIsShareModalOpen(true)}
-                    className="group p-2 rounded-lg bg-white/5 text-white/70 transition-all duration-200 hover:bg-blue-500/20 hover:text-blue-300"
-                    aria-label="Share trip"
-                  >
-                    <Share2 className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRestartOnboarding}
-                    className="group p-2 rounded-lg bg-white/5 text-white/60 transition-all duration-200 hover:bg-purple-500/20 hover:text-purple-400 hover:shadow-lg hover:shadow-purple-500/20"
-                    title="Show guided tour"
-                    aria-label="Show guided tour"
-                  >
-                    <HelpCircle className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openResearch}
-                    className="group p-2 rounded-lg bg-white/5 text-white/40 transition-all duration-200 disabled:cursor-not-allowed"
-                    title="Open research (coming soon)"
-                    aria-label="Open research (coming soon)"
-                    disabled
-                  >
-                    <Sparkles className="h-4 w-4" />
-                  </button>
-                </div>
-                
-                {/* User Profile */}
-                <div className="ml-2" data-tour="profile">
-                  <UserProfile />
-                </div>
+              <div className="ml-auto flex items-center gap-2" data-tour="header-actions">
+                <UserProfile
+                  onShare={() => setIsShareModalOpen(true)}
+                  onShowGuide={handleRestartOnboarding}
+                  onOpenResearch={openResearch}
+                />
               </div>
             </div>
 
-            {/* Trip Overview Cards */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {/* Destination Card */}
-              <button
-                onClick={() => setShowCountrySelector(true)}
-                className="group relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.04] p-3 text-left transition-all duration-300 hover:border-blue-400/40 hover:bg-gradient-to-br hover:from-blue-500/10 hover:to-purple-500/5 hover:shadow-lg hover:shadow-blue-500/10"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <div className="relative flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-400/30">
-                    <Globe className="h-4 w-4 text-blue-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs uppercase tracking-wider text-white/60 font-medium mb-1">Destination</div>
-                    <div className="text-lg font-semibold text-white truncate">
-                      {countryLabel}
-                    </div>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-white/40 group-hover:text-blue-400 transition-colors duration-200" />
-                </div>
-              </button>
-
-              {/* Duration Card */}
-              <button
-                onClick={() => setShowDateSelector(true)}
-                className="group relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.04] p-3 text-left transition-all duration-300 hover:border-emerald-400/40 hover:bg-gradient-to-br hover:from-emerald-500/10 hover:to-teal-500/5 hover:shadow-lg hover:shadow-emerald-500/10"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <div className="relative flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-400/30">
-                    <Calendar className="h-4 w-4 text-emerald-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs uppercase tracking-wider text-white/60 font-medium mb-1">Duration</div>
-                    <div className="flex items-center gap-2 text-lg font-semibold text-white">
-                      <span>{dayCount === 0 ? 'No days yet' : `${dayCount} ${dayCount === 1 ? 'day' : 'days'}`}</span>
-                      <span className="text-white/40">•</span>
-                      <span className="text-lg font-semibold text-white">{dateRangeLabel}</span>
-                    </div>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-white/40 group-hover:text-emerald-400 transition-colors duration-200" />
-                </div>
-              </button>
-            </div>
           </div>
         </div>
       </div>

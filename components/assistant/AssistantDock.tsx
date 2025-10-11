@@ -7,6 +7,7 @@ import clsx from 'clsx'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { getAuthHeaders } from '@/lib/auth/get-auth-headers'
 import { useAuth } from '@/lib/auth/auth-context'
+import { MiniAssistantMap } from '@/components/map/MiniAssistantMap'
 
 type ChatRole = 'user' | 'assistant'
 
@@ -390,30 +391,44 @@ export function AssistantDock({
                   </h2>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {isRail ? null : (
-                  <button
-                    type="button"
-                    onClick={toggleDockSize}
-                    className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:border-slate-200/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
-                    aria-label={dockState === 'expanded' ? 'Collapse assistant dock' : 'Expand assistant dock'}
-                  >
-                    {dockState === 'expanded' ? (
-                      <Minimize2 className="h-4 w-4" />
-                    ) : (
-                      <Maximize2 className="h-4 w-4" />
-                    )}
-                  </button>
-                )}
-                {isRail && !onRequestClose ? null : (
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:border-red-300/70 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
-                    aria-label="Close assistant"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+              <div className="flex items-start gap-3">
+                {isRail ? (
+                  <>
+                    <MiniAssistantMap className="hidden pointer-events-none md:block" />
+                    {onRequestClose ? (
+                      <button
+                        type="button"
+                        onClick={handleClose}
+                        className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:border-red-300/70 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
+                        aria-label="Close assistant"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={toggleDockSize}
+                      className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:border-slate-200/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
+                      aria-label={dockState === 'expanded' ? 'Collapse assistant dock' : 'Expand assistant dock'}
+                    >
+                      {dockState === 'expanded' ? (
+                        <Minimize2 className="h-4 w-4" />
+                      ) : (
+                        <Maximize2 className="h-4 w-4" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClose}
+                      className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:border-red-300/70 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
+                      aria-label="Close assistant"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </>
                 )}
               </div>
             </div>

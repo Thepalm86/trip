@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react'
+import clsx from 'clsx'
 import mapboxgl from 'mapbox-gl'
 import { MapIntegration } from './MapIntegration'
 import { ExploreSearchDock } from './ExploreSearchDock'
@@ -9,10 +10,61 @@ export interface InteractiveMapRef {
   getMap: () => mapboxgl.Map | null
 }
 
-export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
+type InteractiveMapVariant = 'default' | 'mini'
+
+interface InteractiveMapProps {
+  variant?: InteractiveMapVariant
+  className?: string
+}
+
+type ViewportDetail = {
+  center: {
+    lng: number
+    lat: number
+  }
+  zoom: number
+  bearing: number
+  pitch: number
+}
+
+const VIEWPORT_SYNC_EVENT = 'trip3-map:viewport-sync'
+let lastViewportDetail: ViewportDetail | null = null
+
+export const InteractiveMap = forwardRef<InteractiveMapRef, InteractiveMapProps>((props, ref) => {
+  const { variant = 'default', className } = props
+  const isMini = variant === 'mini'
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const pendingViewportRef = useRef<ViewportDetail | null>(null)
+
+  const applyViewport = useCallback((detail: ViewportDetail, animate = false) => {
+    if (!map.current) {
+      pendingViewportRef.current = detail
+      return
+    }
+    const { center, zoom, bearing, pitch } = detail
+    map.current.easeTo({
+      center: [center.lng, center.lat],
+      zoom,
+      bearing,
+      pitch,
+      duration: animate ? 300 : 0,
+    })
+  }, [])
+
+  const broadcastViewport = useCallback(() => {
+    if (!map.current) return
+    const center = map.current.getCenter()
+    const detail: ViewportDetail = {
+      center: { lng: center.lng, lat: center.lat },
+      zoom: map.current.getZoom(),
+      bearing: map.current.getBearing(),
+      pitch: map.current.getPitch(),
+    }
+    lastViewportDetail = detail
+    window.dispatchEvent(new CustomEvent<ViewportDetail>(VIEWPORT_SYNC_EVENT, { detail }))
+  }, [])
 
   useEffect(() => {
     if (map.current) return // initialize map only once
@@ -38,18 +90,29 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
       antialias: true,
       dragRotate: false,
       minZoom: 1,
+      interactive: !isMini,
     })
 
     map.current.touchZoomRotate?.disableRotation()
 
-    // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
+    // Add navigation controls for full map only
+    if (!isMini) {
+      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
+    }
 
     // Ensure rotation remains locked after load (Mapbox re-enables it otherwise)
     map.current.on('load', () => {
       map.current?.resize()
       map.current?.touchZoomRotate?.disableRotation()
       setIsLoading(false)
+      if (isMini) {
+        if (pendingViewportRef.current) {
+          applyViewport(pendingViewportRef.current, false)
+          pendingViewportRef.current = null
+        }
+      } else {
+        broadcastViewport()
+      }
     })
 
     return () => {
@@ -58,7 +121,7 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
         map.current = null
       }
     }
-  }, [])
+  }, [isMini, applyViewport, broadcastViewport])
 
   // Listen for custom events to center map on destinations
   useEffect(() => {
@@ -96,29 +159,84 @@ export const InteractiveMap = forwardRef<InteractiveMapRef>((props, ref) => {
     }
   }, [])
 
+  useEffect(() => {
+    if (!map.current || isMini) {
+      return
+    }
+
+    const handleMoveEnd = () => {
+      broadcastViewport()
+    }
+
+    map.current.on('moveend', handleMoveEnd)
+
+    return () => {
+      map.current?.off('moveend', handleMoveEnd)
+    }
+  }, [isMini, broadcastViewport, isLoading])
+
+  useEffect(() => {
+    if (!isMini) {
+      return
+    }
+
+    const handleViewportSync = (event: Event) => {
+      const detail = (event as CustomEvent<ViewportDetail>).detail
+      if (!detail) return
+      if (isLoading || !map.current) {
+        pendingViewportRef.current = detail
+        return
+      }
+      applyViewport(detail, false)
+    }
+
+    window.addEventListener(VIEWPORT_SYNC_EVENT, handleViewportSync)
+
+    if (lastViewportDetail) {
+      if (map.current && !isLoading) {
+        applyViewport(lastViewportDetail, false)
+      } else {
+        pendingViewportRef.current = lastViewportDetail
+      }
+    }
+
+    return () => {
+      window.removeEventListener(VIEWPORT_SYNC_EVENT, handleViewportSync)
+    }
+  }, [isMini, isLoading, applyViewport])
+
   // Expose map instance to parent components
   useImperativeHandle(ref, () => ({
     getMap: () => map.current
   }), [])
 
   return (
-    <div className="relative h-full w-full bg-gradient-to-br from-slate-900 to-slate-800 flex-1" data-tour="map">
+    <div
+      className={clsx(
+        'relative h-full w-full bg-gradient-to-br from-slate-900 to-slate-800 flex-1',
+        isMini && 'rounded-2xl overflow-hidden',
+        className
+      )}
+      data-tour="map"
+    >
       {/* Map Container */}
       <div 
         ref={mapContainer} 
-        className="absolute inset-0 rounded-none"
+        className={clsx('absolute inset-0', isMini ? 'rounded-2xl pointer-events-none' : 'rounded-none')}
       />
       
       {/* Map Overlay - Search */}
-      <div className="absolute top-0 left-0 right-0 p-5 sm:p-6 bg-gradient-to-b from-black/45 to-transparent pointer-events-none z-10">
-        <div className="pointer-events-auto">
-          <ExploreSearchDock />
+      {!isMini ? (
+        <div className="absolute top-0 left-0 right-0 p-5 sm:p-6 bg-gradient-to-b from-black/45 to-transparent pointer-events-none z-10">
+          <div className="pointer-events-auto">
+            <ExploreSearchDock />
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {/* Map Integration */}
       {map.current && !isLoading && (
-        <MapIntegration map={map.current} />
+        <MapIntegration map={map.current} mode={isMini ? 'compact' : 'full'} />
       )}
 
       {/* Loading State */}
