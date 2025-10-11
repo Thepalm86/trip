@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
         reply: orchestration.reply,
         metadata: orchestration.metadata,
         followUps: orchestration.followUps,
+        structuredPlan: orchestration.structuredPlan ?? null,
+        planRationale: orchestration.planRationale ?? null,
         context,
       },
       { status: 200 }

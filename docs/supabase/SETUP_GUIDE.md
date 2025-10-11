@@ -75,6 +75,12 @@ Assistant/AI (conversational features):
 
 **Note**: For a minimal Trip3 core, use only the "Core Application Tables" above. The current project has ~1,200 active rows across these 13 tables.
 
+**Recent Schema Updates** (2025-10-11):
+- Added `user_trip_preferences.accessibility` (text[]) for accessibility requirements
+- Added `user_trip_preferences.dietary` (text[]) for dietary restrictions
+- Added `destination_modal_content.display_name` (text) for human-friendly names
+- Added `destination_modal_content.tags` (text[]) for content categorization
+
 ---
 
 ## 3) Two ways to create the schema

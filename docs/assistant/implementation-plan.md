@@ -69,15 +69,68 @@
   - P0 bugs resolved; SLO: 99% responses under 4s, 0 hallucinated itinerary edits in acceptance tests.
   - Stakeholder sign-off to expand to wider audience.
 
-## Phase 4 — Tooling Preview (Future)
-- **Goals**: Prepare deterministic action execution once we allow itinerary edits via assistant.
+## Phase 4 — Action Tooling MVP (4–6 weeks)
+- **Goals**: Let the assistant suggest itinerary edits safely, gated behind user confirmation, using a minimal deterministic tool layer.
+- **Guardrails**: Narrow action catalog (add/edit destination, set base stay, duplicate/move destination, toggle map overlays); all mutations require confirmation; every tool call validated server-side and logged for audit.
 - **Tasks**:
-  - Design intent schema and validation flow for UI actions (e.g., `ReorderDestination`).
-  - Prototype tool router with confirmation UX but keep write path disabled until ready.
-  - Map intents to Supabase RPCs/Mutations with RBAC and audit logging.
+  1. **Intent schema & validation (Week 1)** ✅  
+     _Delivered in `/lib/assistant/actions/types.ts` with accompanying docs/tests on 2025‑02‑XX._  
+     - Draft typed Zod schemas for `AddDestination`, `UpdateDestination`, `SetBaseLocation`, `MoveDestination`, `ToggleMapOverlay`.  
+     - Extend `lib/assistant/types.ts` with discriminated unions, include confidence + natural-language summary fields.  
+     - Update `docs/assistant/tools-specification.md` with schema examples and prompting guardrails.
+  2. **Server tool layer (Week 2)** ✅  
+     _Preview endpoint with Supabase ownership checks + audit logging delivered via `/app/api/assistant/actions/preview` on 2025‑10‑11._  
+     - Implement `/api/assistant/actions/preview` that accepts validated intents and returns idempotent previews; wrap existing `tripApi`/`exploreApiService` mutations in dedicated handlers with RBAC checks.  
+     - Add structured audit logging (Supabase table + Sentry breadcrumb) capturing user id, payload, result, latency.  
+     - Write unit tests covering schema validation, failure paths, and mutation plumbing.
+  3. **Orchestrator integration (Week 3)** ✅  
+     _`lib/assistant/orchestrator.ts` now enforces JSON schema outputs (reply + optional suggestedAction) on 2025‑10‑11. (Superseded by the structured plan work in Phase 5.)_  
+     - Update `lib/assistant/orchestrator.ts` to request structured tool outputs (OpenAI function calling JSON mode).  
+     - Introduce an action suggestion pipeline that returns `{ narrative, suggestedAction }`, with fallbacks when confidence < threshold.  
+     - Extend prompt guard to reject unsupported verbs and flag ambiguous intents.
+  4. **Confirmation UX (Week 4)** ✅  
+     _Assistant dock now renders actionable cards with confirmation + `/api/assistant/actions/execute` hooked up on 2025‑10‑11._  
+     - Surface suggested actions as cards in `components/assistant/AssistantDock.tsx` with “Apply / Dismiss” controls.  
+     - On approval, POST to `/api/assistant/actions/execute`, block UI during mutation, and update Zustand stores with successful results.  
+     - Add optimistic toast messaging + error recovery patterns (retry, show validation errors).
+  5. **Observability & pilot (Week 5–6)**  
+     - Instrument OpenTelemetry spans around preview/execute calls; dashboard success rate, latency, and rejection reasons.  
+     - Run UAT with internal users, gather friction points, and tune confirmation copy.  
+     - Document SOP for support (how to trace a failed action, rollback guidance) in `docs/assistant/operations.md`.
 - **Exit Criteria**:
-  - Documented RFC for tool-use rollout.
-  - Test harness demonstrating simulated command generation and rejection paths.
+- Assistant suggestions appear with structured payloads and can be applied end-to-end for the supported action catalog.  
+- 100% of executed actions validated against schema, logged, and confirmed by the user.  
+- Integration tests cover preview + execute flows and rejection scenarios.  
+- Pilot sign-off with measured success metrics (≥80% acceptance rate, zero unhandled errors in telemetry).
+
+## Phase 5 — Structured Plans & Multi-Step Execution (3 weeks)
+- **Goals**: Let the assistant propose several itinerary adjustments in a single reply while keeping the OpenAI contract simple and validation airtight.
+- **Tasks**:
+  1. **Schema & contract update (Week 1)**  
+     - Replace the current `suggestedAction` field with an optional `structuredPlan` object holding a `steps` array.  
+     - Define each step as `{ type: ActionType, ...optional fields }` with `additionalProperties: false`; keep the top-level schema within OpenAI’s supported keywords (no `oneOf`).  
+     - Document the new contract in `docs/assistant/context-schema.md` and update typed defs in `lib/assistant/actions/types.ts`.
+  2. **Prompt & orchestration guardrails (Week 1)**  
+     - Rewrite system instructions to explain how to emit multi-step plans, when to omit them, and to cap the batch unless the user explicitly asks for multiple edits.  
+     - Update `lib/assistant/orchestrator.ts` parsing logic to read `structuredPlan.steps`, run each step through the Zod discriminated union, and surface parse errors cleanly.  
+     - Add telemetry fields capturing step count and validation failures.
+  3. **Review & approval UX (Week 2)**  
+     - Extend the assistant dock to render multi-step review cards (show each proposed change with diff snippets and allow approve/dismiss).  
+     - Add per-step status to the chat transcript (“Queued”, “Applied”, “Failed”) and clarify when some steps are dropped due to validation issues.  
+     - Update copywriters/PMs on new messaging patterns and add screenshots to the UI blueprint.
+  4. **Execution pipeline (Week 2–3)**  
+     - Adjust the action executor to process a queue of validated steps, wrapping related Supabase mutations in a transaction when possible.  
+     - Emit structured logs and telemetry for each step (success/failure reason, latency, Supabase error code).  
+     - Handle partial failures gracefully: stop executing further steps, inform the user which ones succeeded, and surface retry guidance.
+  5. **QA, analytics, and rollout (Week 3)**  
+     - Add integration tests that cover multi-step happy paths, mixed-success batches, and invalid payloads.  
+     - Ship feature flag + metrics (acceptance rate, average steps per plan, validation failure types).  
+     - Run a pilot with internal users, iterate on instruction tuning, and update the support SOP with troubleshooting steps for multi-step execution.
+- **Exit Criteria**:
+  - Assistant can propose and successfully execute multiple actions in one turn with clear user confirmation.  
+  - Invalid steps are rejected before reaching Supabase and surfaced to the user with actionable messaging.  
+  - Telemetry shows ≥90% success rate on validated steps, and rollback/compensation handling is in place for partial failures.  
+  - Feature flag enabled for general users after pilot sign-off.
 
 ## Dependencies & Risks
 - Access to production-similar Supabase dataset for realistic context testing.

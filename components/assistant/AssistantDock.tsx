@@ -8,6 +8,12 @@ import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { getAuthHeaders } from '@/lib/auth/get-auth-headers'
 import { useAuth } from '@/lib/auth/auth-context'
 import { MiniAssistantMap } from '@/components/map/MiniAssistantMap'
+import type { AssistantActionIntent, AssistantStructuredPlan } from '@/lib/assistant/actions/types'
+import {
+  buildActionPreview,
+  type AssistantActionPreview,
+  type ActionPreviewContext,
+} from '@/lib/assistant/actions/preview'
 
 type ChatRole = 'user' | 'assistant'
 
@@ -30,6 +36,8 @@ interface AssistantResponseBody {
   followUps?: string[]
   blocked?: boolean
   reason?: string
+  structuredPlan?: AssistantStructuredPlan | null
+  planRationale?: string | null
 }
 
 type DockState = 'closed' | 'compact' | 'expanded'
@@ -55,6 +63,12 @@ export function AssistantDock({
   const [followUps, setFollowUps] = useState<string[]>([])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [structuredPlan, setStructuredPlan] = useState<AssistantStructuredPlan | null>(null)
+  const [planPreviews, setPlanPreviews] = useState<AssistantActionPreview[]>([])
+  const [planRationale, setPlanRationale] = useState<string | null>(null)
+  const [isApplyingPlan, setIsApplyingPlan] = useState(false)
+  const [planError, setPlanError] = useState<string | null>(null)
+  const [planSuccess, setPlanSuccess] = useState<string | null>(null)
   const conversationIdRef = useRef<string>(crypto.randomUUID())
   const miniMapAutoShowRef = useRef(true)
   const [isMiniMapVisible, setIsMiniMapVisible] = useState(false)
@@ -68,6 +82,7 @@ export function AssistantDock({
   const currentTrip = useSupabaseTripStore((state) => state.currentTrip)
   const selectedDayId = useSupabaseTripStore((state) => state.selectedDayId)
   const selectedDestination = useSupabaseTripStore((state) => state.selectedDestination)
+  const loadTrip = useSupabaseTripStore((state) => state.loadTrip)
 
   const DEFAULT_MINI_MAP_SIZE = {
     width: 260,
@@ -113,6 +128,60 @@ export function AssistantDock({
       highlightedDestinationId: selectedDestination?.id,
     } as const
   }, [currentTrip, selectedDayId, selectedDestination])
+
+  const buildPreviewContextForAction = useCallback(
+    (action: AssistantActionIntent): ActionPreviewContext => {
+      if (!currentTrip) return {}
+
+      const dayMap = new Map(currentTrip.days.map((day) => [day.id, day]))
+
+      const formatDay = (dayId: string | undefined) => {
+        if (!dayId) return undefined
+        const day = dayMap.get(dayId)
+        if (!day) return undefined
+        const date = day.date instanceof Date ? day.date : new Date(day.date)
+        const dateLabel = Number.isNaN(date.valueOf())
+          ? ''
+          : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        return dateLabel ? `Day ${day.dayOrder + 1} (${dateLabel})` : `Day ${day.dayOrder + 1}`
+      }
+
+      const context: ActionPreviewContext = {}
+
+      switch (action.type) {
+        case 'add_destination': {
+          context.dayLabel = formatDay(action.dayId)
+          break
+        }
+        case 'update_destination': {
+          const day = dayMap.get(action.dayId)
+          const destination = day?.destinations.find((dest) => dest.id === action.destinationId)
+          context.dayLabel = formatDay(action.dayId)
+          context.destinationName = destination?.name
+          break
+        }
+        case 'set_base_location': {
+          context.dayLabel = formatDay(action.dayId)
+          break
+        }
+        case 'move_destination': {
+          const fromDay = dayMap.get(action.fromDayId)
+          const toDay = dayMap.get(action.toDayId)
+          const destination = fromDay?.destinations.find((dest) => dest.id === action.destinationId)
+          context.fromDayLabel = formatDay(action.fromDayId)
+          context.toDayLabel = formatDay(action.toDayId)
+          context.destinationName = destination?.name
+          break
+        }
+        case 'toggle_map_overlay':
+        default:
+          break
+      }
+
+      return context
+    },
+    [currentTrip]
+  )
 
   const isOpen = isRail ? isVisible : dockState !== 'closed'
 
@@ -274,6 +343,79 @@ export function AssistantDock({
     miniMapAutoShowRef.current = false
   }
 
+  const handleDismissPlan = () => {
+    setStructuredPlan(null)
+    setPlanPreviews([])
+    setPlanRationale(null)
+    setPlanError(null)
+    setPlanSuccess(null)
+  }
+
+  const handleApplyPlan = async () => {
+    if (!structuredPlan || structuredPlan.steps.length === 0) return
+
+    try {
+      setIsApplyingPlan(true)
+      setPlanError(null)
+
+      const headers = await getAuthHeaders()
+      if (!headers) {
+        setPlanError('Please sign in again to apply these actions.')
+        return
+      }
+
+      const response = await fetch('/api/assistant/actions/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify({ actions: structuredPlan.steps }),
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setPlanError('Your session expired. Please sign in again to apply assistant actions.')
+          return
+        }
+
+        let details: string | undefined
+        try {
+          const failure = (await response.json()) as { error?: string; details?: unknown }
+          details = typeof failure?.details === 'string' ? failure.details : failure?.error
+        } catch (parseError) {
+          details = undefined
+        }
+
+        throw new Error(details || `Action execution failed with status ${response.status}`)
+      }
+
+      const result = (await response.json()) as { summaries?: string[] }
+
+      if (currentTrip) {
+        await loadTrip(currentTrip.id)
+      }
+
+      const summaryMessage =
+        result.summaries && result.summaries.length
+          ? result.summaries.join(' • ')
+          : 'Actions applied successfully.'
+
+      setPlanSuccess(summaryMessage)
+      setPlanError(null)
+      setStructuredPlan(null)
+      setPlanPreviews([])
+      setPlanRationale(null)
+    } catch (err) {
+      console.error('[assistant] apply action failed', err)
+      const message =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unable to apply actions.'
+      setPlanError(message)
+    } finally {
+      setIsApplyingPlan(false)
+    }
+  }
+
   const appendMessage = (message: ChatMessage) => {
     setMessages((prev) => [...prev, message])
   }
@@ -286,6 +428,11 @@ export function AssistantDock({
     try {
       setIsSending(true)
       setError(null)
+      setPlanError(null)
+      setPlanSuccess(null)
+      setStructuredPlan(null)
+      setPlanPreviews([])
+      setPlanRationale(null)
 
       const headers = await getAuthHeaders()
       if (!headers) {
@@ -345,6 +492,20 @@ export function AssistantDock({
 
       appendMessage(assistantMessage)
       setFollowUps(data.followUps ?? [])
+
+      if (data.structuredPlan?.steps?.length) {
+        setStructuredPlan(data.structuredPlan)
+        setPlanRationale(data.planRationale ?? data.structuredPlan.rationale ?? null)
+        const previews = data.structuredPlan.steps.map((step) => {
+          const previewContext = buildPreviewContextForAction(step)
+          return buildActionPreview(step, previewContext)
+        })
+        setPlanPreviews(previews)
+      } else {
+        setStructuredPlan(null)
+        setPlanPreviews([])
+        setPlanRationale(null)
+      }
 
       if (data.blocked) {
         setError('The assistant could not respond to that request.')
@@ -560,6 +721,68 @@ export function AssistantDock({
                   {suggestion}
                 </button>
               ))}
+            </div>
+          ) : null}
+
+          {planSuccess ? (
+            <div className="mx-6 mb-3 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+              {planSuccess}
+            </div>
+          ) : null}
+
+          {structuredPlan && structuredPlan.steps.length ? (
+            <div className="mx-6 mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-4 text-slate-100">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Suggested plan</p>
+                  <p className="mt-2 text-sm font-medium text-slate-100">
+                    {structuredPlan.steps.length === 1
+                      ? '1 action ready for review'
+                      : `${structuredPlan.steps.length} actions ready for review`}
+                  </p>
+                  {planRationale ? (
+                    <p className="mt-2 text-xs text-slate-400">Why: {planRationale}</p>
+                  ) : null}
+                </div>
+              </div>
+
+              <ol className="mt-3 space-y-3 text-xs text-slate-300">
+                {structuredPlan.steps.map((step, index) => {
+                  const preview = planPreviews[index]
+                  const summary = preview?.summary ?? 'Review assistant action'
+                  return (
+                    <li key={`${step.type}-${index}`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <p className="font-medium text-slate-100">{summary}</p>
+                      <p className="mt-1 text-[11px] uppercase tracking-[0.24em] text-slate-500">{step.type}</p>
+                    </li>
+                  )
+                })}
+              </ol>
+
+              {planError ? (
+                <div className="mt-3 rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                  {planError}
+                </div>
+              ) : null}
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleApplyPlan}
+                  disabled={isApplyingPlan}
+                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/60 bg-emerald-500/15 px-3 py-1.5 text-sm font-medium text-emerald-100 transition hover:border-emerald-300/70 hover:text-white disabled:opacity-60"
+                >
+                  {isApplyingPlan ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Apply {structuredPlan.steps.length > 1 ? 'all' : ''}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDismissPlan}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-slate-200 transition hover:border-white/30 hover:text-white"
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           ) : null}
 

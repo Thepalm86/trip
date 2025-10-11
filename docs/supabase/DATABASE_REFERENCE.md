@@ -124,10 +124,15 @@ Trip planning preferences
 | `budget_range_max` | numeric | NULL | Max budget |
 | `travel_style` | text | NULL | Travel style |
 | `interests` | text[] | NULL | User interests |
+| `accessibility` | text[] | NULL | Accessibility requirements |
+| `dietary` | text[] | NULL | Dietary restrictions |
 | `created_at` | timestamptz | DEFAULT now() | Creation time |
 | `updated_at` | timestamptz | DEFAULT now() | Last update |
 
-**RLS**: Enabled - Full CRUD for own data
+**RLS**: Enabled - Full CRUD for own data  
+**Notes**: 
+- `accessibility` added 2025-10-11 for accessibility-aware trip planning
+- `dietary` added 2025-10-11 for dietary restriction handling (e.g., vegetarian, gluten-free)
 
 ---
 
@@ -270,6 +275,7 @@ AI-generated destination content with 24h TTL
 |--------|------|-------------|-------------|
 | `id` | uuid | PRIMARY KEY, DEFAULT gen_random_uuid() | Content ID |
 | `destination_name` | text | UNIQUE, NOT NULL | Destination name |
+| `display_name` | text | NULL | Human-friendly display name |
 | `destination_coordinates` | point | NULL | Coordinates |
 | `destination_category` | text | NULL | Category |
 | `summary` | text | NULL | Summary |
@@ -280,6 +286,7 @@ AI-generated destination content with 24h TTL
 | `selected_tips` | text | NULL | Tips |
 | `similar_places` | text | NULL | Similar places |
 | `metadata` | jsonb | NULL | Additional metadata |
+| `tags` | text[] | NULL | Content tags |
 | `content_version` | integer | DEFAULT 1 | Version number |
 | `ai_model` | text | NULL | AI model used |
 | `tokens_used` | integer | NULL | Tokens consumed |
@@ -294,8 +301,11 @@ AI-generated destination content with 24h TTL
 
 **RLS**: ✅ Enabled - Public SELECT for non-expired content only (`expires_at > now()`)  
 **TTL**: 24 hours  
-**Indexes**: destination_name (unique), expires_at  
-**Security**: Fixed 2025-10-11 - Removed duplicate policy that bypassed TTL
+**Indexes**: destination_name (unique), expires_at, display_name (where not null), tags (GIN, where not null)  
+**Security**: Fixed 2025-10-11 - Removed duplicate policy that bypassed TTL  
+**Notes**: 
+- `display_name` added 2025-10-11 for cleaner presentation (e.g., "Uffizi Galleries" vs full destination_name)
+- `tags` added 2025-10-11 for content categorization (e.g., family-friendly, nightlife, historical)
 
 #### `destination_images`
 Cached images from Unsplash/Pixabay with 7-day TTL

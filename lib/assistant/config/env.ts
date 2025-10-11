@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 const assistantEnvSchema = z.object({
-  ASSISTANT_MODEL_PRIMARY: z.string().default('gpt-4o-mini'),
-  ASSISTANT_MODEL_FALLBACK: z.string().default('gpt-4o'),
+  ASSISTANT_MODEL_PRIMARY: z.string().default('gpt-4o'),
+  ASSISTANT_MODEL_FALLBACK: z.string().default('gpt-4o-mini'),
   ASSISTANT_FEATURE_FLAG_KEY: z.string().default('assistant_v1_beta'),
   ASSISTANT_COST_BUDGET_WEEKLY: z.coerce.number().positive().default(600),
   ASSISTANT_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),

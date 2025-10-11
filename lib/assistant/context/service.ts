@@ -184,14 +184,14 @@ function mapBaseLocations(day: TripDayRow) {
 }
 
 function mapDestination(destination: TripDestinationRow): AssistantDestination {
-  const coordinates = parsePoint(destination.coordinates) ?? [0, 0]
+  const coordinates = parsePoint(destination.coordinates)
   return {
     id: destination.id,
     name: destination.name,
     description: destination.description ?? undefined,
     category: destination.category ?? undefined,
     city: destination.city ?? undefined,
-    coordinates,
+    coordinates: coordinates ?? undefined,
     durationHours: destination.estimated_duration_hours ?? undefined,
     notes: destination.notes ?? undefined,
     cost: destination.cost ?? undefined,
@@ -203,6 +203,7 @@ function mapTripDay(day: TripDayRow): AssistantDay {
   const destinations = sortDestinations(day.trip_destinations ?? []).map(mapDestination)
 
   return {
+    id: day.id,
     dayOrder: day.day_order,
     date: day.date,
     baseLocations: mapBaseLocations(day),
@@ -237,13 +238,20 @@ function mapExploreMarkers(rows: ExplorePlaceRow[]) {
         ? (metadata['source'] as string)
         : undefined
 
+    const normalizedSource =
+      sourceValue === 'assistant'
+        ? 'assistant'
+        : sourceValue === 'explore'
+          ? 'explore'
+          : 'user'
+
     return {
       id: row.id,
       name: row.name,
       coordinates: [row.longitude, row.latitude] as [number, number],
       category: row.category ?? undefined,
       context: row.context ?? row.notes ?? undefined,
-      source: sourceValue === 'assistant' ? 'assistant' : 'user',
+      source: normalizedSource,
       metadata,
     }
   })

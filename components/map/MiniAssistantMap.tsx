@@ -175,16 +175,16 @@ export function MiniAssistantMap({
     const nextX = event.clientX - dragState.offsetX
     const nextY = event.clientY - dragState.offsetY
     const clamped = clampPosition(nextX, nextY)
-    setPosition((prev) => {
-      if (prev.x === clamped.x && prev.y === clamped.y) {
-        return prev
-      }
-      const result = clamped
-      onTransformChange?.({
-        position: result,
-        size: sizeRef.current,
-      })
-      return result
+    const current = positionRef.current
+    if (current.x === clamped.x && current.y === clamped.y) {
+      return
+    }
+
+    positionRef.current = clamped
+    setPosition(clamped)
+    onTransformChange?.({
+      position: clamped,
+      size: sizeRef.current,
     })
   }
 

@@ -67,6 +67,21 @@ Contains:
 
 ---
 
+## 📋 Change History
+
+### 5. [CHANGELOG.md](./CHANGELOG.md)
+**Database schema change history**
+
+Contains:
+- All migration history with dates
+- Reasons for each change
+- Impact analysis
+- Rollback procedures
+
+**Use when**: Understanding recent changes or planning rollbacks
+
+---
+
 ## 📂 Additional Resources
 
 ### audit/ folder

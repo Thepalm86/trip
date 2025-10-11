@@ -13,7 +13,7 @@ export const assistantDestinationSchema = z.object({
     .or(z.string())
     .optional(),
   city: z.string().optional(),
-  coordinates: z.tuple([z.number(), z.number()]),
+  coordinates: z.tuple([z.number(), z.number()]).optional(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
   durationHours: z.number().optional(),
@@ -31,6 +31,7 @@ export const assistantDestinationSchema = z.object({
 })
 
 export const assistantDaySchema = z.object({
+  id: z.string(),
   dayOrder: z.number().int().nonnegative(),
   date: z.string(),
   baseLocations: z

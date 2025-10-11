@@ -113,7 +113,7 @@ Client → Prompt Guard → Context Service → Conversation Orchestrator → LL
 - For longer-running updates (e.g., accommodation booking), orchestrator includes “pending sync” messaging to keep the user informed.
 
 ## Future Tool-Use Enablement
-- Tool router accepts validated intents (`ReorderDestination`, `AddActivity`, …) produced by the LLM.
+- Tool router accepts validated intents (`add_destination`, `set_base_location`, …) produced by the LLM (see `docs/assistant/tools-specification.md` for the canonical schema).
 - Each intent maps to existing Supabase RPCs or Next.js API handlers and requires explicit user confirmation in the UI.
 - Logging and guard policies ensure we can roll back or replay state changes if the automation misfires.
 

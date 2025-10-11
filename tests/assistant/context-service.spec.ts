@@ -43,6 +43,28 @@ test('mapDestination normalizes fields and coordinates', () => {
   assert.deepEqual(destination.links, [{ label: 'Vendor', url: 'https://example.com' }])
 })
 
+test('mapDestination leaves coordinates undefined when missing', () => {
+  const destination = mapDestination({
+    id: 'dest-2',
+    day_id: 'day-1',
+    name: 'Forum Walk',
+    description: null,
+    coordinates: null,
+    city: null,
+    category: null,
+    rating: null,
+    image_url: null,
+    estimated_duration_hours: null,
+    opening_hours: null,
+    cost: null,
+    order_index: 2,
+    notes: null,
+    links_json: null,
+  } as any)
+
+  assert.equal(destination.coordinates, undefined)
+})
+
 test('mapTrip assembles day ordering and itinerary summary', () => {
   const tripRow = {
     id: 'trip-1',
@@ -122,6 +144,25 @@ test('mapExploreMarkers normalizes metadata and coordinates', () => {
   assert.equal(markers.length, 1)
   assert.equal(markers[0].source, 'assistant')
   assert.deepEqual(markers[0].coordinates, [12.467, 41.889])
+})
+
+test('mapExploreMarkers preserves explore source flag', () => {
+  const markers = mapExploreMarkers([
+    {
+      id: 'marker-2',
+      name: 'Vatican Skip-the-Line',
+      longitude: 12.455,
+      latitude: 41.903,
+      category: 'museum',
+      context: 'Pinned from explore tab',
+      notes: null,
+      links_json: null,
+      metadata: { source: 'explore' },
+      is_favorite: false,
+    },
+  ] as any)
+
+  assert.equal(markers[0].source, 'explore')
 })
 
 test('mapUserPreferences gracefully handles empty rows', () => {
