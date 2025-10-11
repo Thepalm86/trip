@@ -15,6 +15,7 @@ type InteractiveMapVariant = 'default' | 'mini'
 interface InteractiveMapProps {
   variant?: InteractiveMapVariant
   className?: string
+  interactive?: boolean
 }
 
 type ViewportDetail = {
@@ -31,12 +32,13 @@ const VIEWPORT_SYNC_EVENT = 'trip3-map:viewport-sync'
 let lastViewportDetail: ViewportDetail | null = null
 
 export const InteractiveMap = forwardRef<InteractiveMapRef, InteractiveMapProps>((props, ref) => {
-  const { variant = 'default', className } = props
+  const { variant = 'default', className, interactive } = props
   const isMini = variant === 'mini'
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const pendingViewportRef = useRef<ViewportDetail | null>(null)
+  const allowInteractions = interactive ?? !isMini
 
   const applyViewport = useCallback((detail: ViewportDetail, animate = false) => {
     if (!map.current) {
@@ -90,7 +92,8 @@ export const InteractiveMap = forwardRef<InteractiveMapRef, InteractiveMapProps>
       antialias: true,
       dragRotate: false,
       minZoom: 1,
-      interactive: !isMini,
+      interactive: allowInteractions,
+      attributionControl: !isMini,
     })
 
     map.current.touchZoomRotate?.disableRotation()
@@ -121,7 +124,7 @@ export const InteractiveMap = forwardRef<InteractiveMapRef, InteractiveMapProps>
         map.current = null
       }
     }
-  }, [isMini, applyViewport, broadcastViewport])
+  }, [isMini, applyViewport, broadcastViewport, allowInteractions])
 
   // Listen for custom events to center map on destinations
   useEffect(() => {
@@ -222,7 +225,11 @@ export const InteractiveMap = forwardRef<InteractiveMapRef, InteractiveMapProps>
       {/* Map Container */}
       <div 
         ref={mapContainer} 
-        className={clsx('absolute inset-0', isMini ? 'rounded-2xl pointer-events-none' : 'rounded-none')}
+        className={clsx(
+          'absolute inset-0',
+          isMini ? 'rounded-2xl' : 'rounded-none',
+          !allowInteractions && 'pointer-events-none'
+        )}
       />
       
       {/* Map Overlay - Search */}

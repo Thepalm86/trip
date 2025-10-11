@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
-import { MessageSquare, X, Send, Sparkles, Loader2, Maximize2, Minimize2 } from 'lucide-react'
+import { MessageSquare, X, Send, Sparkles, Loader2, Maximize2, Minimize2, Map } from 'lucide-react'
 import clsx from 'clsx'
 
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
@@ -56,11 +56,45 @@ export function AssistantDock({
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const conversationIdRef = useRef<string>(crypto.randomUUID())
+  const miniMapAutoShowRef = useRef(true)
+  const [isMiniMapVisible, setIsMiniMapVisible] = useState(isRail)
+  const miniMapButtonRef = useRef<HTMLButtonElement>(null)
+  const [miniMapTransform, setMiniMapTransform] = useState<{
+    position: { x: number; y: number }
+    size: { width: number; height: number }
+  } | null>(null)
 
   const { needsReauthentication } = useAuth()
   const currentTrip = useSupabaseTripStore((state) => state.currentTrip)
   const selectedDayId = useSupabaseTripStore((state) => state.selectedDayId)
   const selectedDestination = useSupabaseTripStore((state) => state.selectedDestination)
+
+  const DEFAULT_MINI_MAP_SIZE = {
+    width: 260,
+    height: 180,
+  }
+
+  const computeAnchoredMiniMapPosition = useCallback(
+    (width: number, height: number) => {
+      if (typeof window === 'undefined') {
+        return { x: 32, y: 120 }
+      }
+
+      const padding = 16
+      const rect = miniMapButtonRef.current?.getBoundingClientRect()
+      let x = rect ? rect.left : padding
+      let y = rect ? rect.bottom + 12 : padding + 80
+
+      const maxX = window.innerWidth - width - padding
+      const maxY = window.innerHeight - height - padding
+
+      x = Math.min(Math.max(x, padding), Math.max(padding, maxX))
+      y = Math.min(Math.max(y, padding), Math.max(padding, maxY))
+
+      return { x, y }
+    },
+    []
+  )
 
   const uiFingerprint = useMemo(() => {
     if (!currentTrip) {
@@ -119,6 +153,35 @@ export function AssistantDock({
       setError('Please sign in again to chat with the Journey Curator.')
     }
   }, [needsReauthentication])
+
+  useEffect(() => {
+    if (!isRail) {
+      return
+    }
+
+    if (!isVisible) {
+      setIsMiniMapVisible(false)
+      return
+    }
+
+    if (miniMapAutoShowRef.current) {
+      setIsMiniMapVisible(true)
+    }
+  }, [isVisible, isRail])
+
+  useEffect(() => {
+    if (!isRail || !isVisible || !isMiniMapVisible) {
+      return
+    }
+
+    if (!miniMapTransform?.position) {
+      const size = miniMapTransform?.size ?? DEFAULT_MINI_MAP_SIZE
+      setMiniMapTransform({
+        size,
+        position: computeAnchoredMiniMapPosition(size.width, size.height),
+      })
+    }
+  }, [isRail, isVisible, isMiniMapVisible, miniMapTransform, computeAnchoredMiniMapPosition])
 
   useEffect(() => {
     if (typeof window === 'undefined' || isRail) {
@@ -183,6 +246,33 @@ export function AssistantDock({
       window.removeEventListener('assistant-dock:prompt', handlePrompt)
     }
   }, [])
+
+  const handleMiniMapToggle = () => {
+    setIsMiniMapVisible((prev) => {
+      if (prev) {
+        miniMapAutoShowRef.current = false
+        return false
+      }
+
+      setMiniMapTransform((current) => ({
+        size: current?.size ?? DEFAULT_MINI_MAP_SIZE,
+        position:
+          current?.position ??
+          computeAnchoredMiniMapPosition(
+            (current?.size ?? DEFAULT_MINI_MAP_SIZE).width,
+            (current?.size ?? DEFAULT_MINI_MAP_SIZE).height
+          ),
+      }))
+
+      miniMapAutoShowRef.current = false
+      return true
+    })
+  }
+
+  const handleMiniMapClose = () => {
+    setIsMiniMapVisible(false)
+    miniMapAutoShowRef.current = false
+  }
 
   const appendMessage = (message: ChatMessage) => {
     setMessages((prev) => [...prev, message])
@@ -394,7 +484,20 @@ export function AssistantDock({
               <div className="flex items-start gap-3">
                 {isRail ? (
                   <>
-                    <MiniAssistantMap className="hidden pointer-events-none md:block" />
+                    <button
+                      type="button"
+                      ref={miniMapButtonRef}
+                      onClick={handleMiniMapToggle}
+                      className={clsx(
+                        'rounded-full border p-2 transition focus:outline-none focus:ring-2 focus:ring-emerald-300/60',
+                        isMiniMapVisible
+                          ? 'border-emerald-400/70 bg-emerald-500/15 text-emerald-200 hover:border-emerald-300/80 hover:text-emerald-100'
+                          : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/25 hover:text-white'
+                      )}
+                      aria-label={isMiniMapVisible ? 'Hide itinerary mini map' : 'Show itinerary mini map'}
+                    >
+                      <Map className="h-4 w-4" />
+                    </button>
                     {onRequestClose ? (
                       <button
                         type="button"
@@ -501,6 +604,17 @@ export function AssistantDock({
           </form>
         </div>
       ) : null}
+
+      <MiniAssistantMap
+        isOpen={isRail && isVisible && isMiniMapVisible}
+        onClose={handleMiniMapClose}
+        label={tripTitle}
+        initialPosition={miniMapTransform?.position}
+        initialSize={miniMapTransform?.size}
+        onTransformChange={(state) => {
+          setMiniMapTransform(state)
+        }}
+      />
 
       {!isRail && dockState === 'closed' ? (
         <button
