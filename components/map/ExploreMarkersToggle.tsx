@@ -187,7 +187,7 @@ export function ExploreMarkersToggle({ map, className, positioned = true }: Expl
         <button
           type="button"
           onClick={toggleDropdown}
-          className="flex w-full min-w-[220px] items-center gap-2 rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-left text-white shadow-lg transition-all duration-200 hover:bg-white/5"
+          className="flex w-full min-w-[220px] items-center gap-2 rounded-lg border border-white/12 bg-[rgba(8,14,24,0.55)] px-3 py-2 text-left text-white shadow-lg shadow-black/25 backdrop-blur-md transition-all duration-200 hover:bg-white/10 hover:border-white/20"
           aria-haspopup="listbox"
           aria-expanded={isOpen}
         >

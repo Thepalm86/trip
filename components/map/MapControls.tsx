@@ -23,7 +23,7 @@ export function MapLegendToggle({ map, className }: MapToggleProps) {
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex min-h-[3rem] w-full min-w-[220px] items-center gap-2 rounded-lg border border-white/10 bg-slate-900/90 px-3 text-left text-white shadow-lg transition-all duration-200 hover:bg-white/5"
+        className="flex min-h-[3rem] w-full min-w-[220px] items-center gap-2 rounded-lg border border-white/12 bg-[rgba(8,14,24,0.55)] px-3 text-left text-white shadow-lg shadow-black/25 backdrop-blur-md transition-all duration-200 hover:bg-white/10 hover:border-white/20"
         aria-expanded={isExpanded}
       >
         <Info className="h-4 w-4 text-white/60" />
@@ -94,15 +94,15 @@ export function MapRouteToggle({ map, className }: MapToggleProps) {
   })()
 
   const activeClasses = routeModeEnabled
-    ? 'border-emerald-400/80 text-white shadow-lg shadow-emerald-500/20'
-    : 'border-white/12 text-white/80'
+    ? 'border-emerald-400/80 text-white shadow-lg shadow-emerald-500/25'
+    : 'border-white/12 text-white/80 shadow-lg shadow-black/25'
 
   return (
     <button
       type="button"
       onClick={handleToggle}
       aria-pressed={routeModeEnabled}
-      className={`flex min-h-[3rem] w-full min-w-[220px] items-center gap-3 rounded-lg border bg-slate-900/90 px-4 py-2 backdrop-blur-sm transition-all duration-200 ${activeClasses} ${className ?? ''}`}
+      className={`flex min-h-[3rem] w-full min-w-[220px] items-center gap-3 rounded-lg border bg-[rgba(8,14,24,0.55)] px-4 py-2 backdrop-blur-md transition-all duration-200 ${activeClasses} ${className ?? ''}`}
     >
       <RouteIcon className="h-4 w-4" />
       <div className="flex flex-col text-left">
@@ -181,15 +181,15 @@ export function AllDestinationsToggle({ map, className }: MapToggleProps) {
   }
 
   const activeClasses = showAllDestinations
-    ? 'border-emerald-400/80 text-white shadow-lg shadow-emerald-500/20'
-    : 'border-white/12 text-white/80'
+    ? 'border-emerald-400/80 text-white shadow-lg shadow-emerald-500/25'
+    : 'border-white/12 text-white/80 shadow-lg shadow-black/25'
 
   return (
     <button
       type="button"
       onClick={handleToggle}
       aria-pressed={showAllDestinations}
-      className={`flex min-h-[3rem] w-full min-w-[220px] items-center gap-3 rounded-lg border bg-slate-900/90 px-4 py-2 backdrop-blur-sm transition-all duration-200 ${activeClasses} ${className ?? ''}`}
+      className={`flex min-h-[3rem] w-full min-w-[220px] items-center gap-3 rounded-lg border bg-[rgba(8,14,24,0.55)] px-4 py-2 backdrop-blur-md transition-all duration-200 ${activeClasses} ${className ?? ''}`}
     >
       <MapPin className="h-4 w-4" />
       <div className="flex flex-col text-left">
