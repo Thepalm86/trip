@@ -179,7 +179,7 @@ export function ExploreMarkersToggle({ map, className, positioned = true }: Expl
 
   const containerClassName = positioned
     ? cn('absolute bottom-4 left-4 z-10 ml-36', className)
-    : cn('relative', className)
+    : cn('relative w-full', className)
 
   return (
     <div ref={containerRef} className={containerClassName}>
@@ -187,7 +187,7 @@ export function ExploreMarkersToggle({ map, className, positioned = true }: Expl
         <button
           type="button"
           onClick={toggleDropdown}
-          className="flex min-w-[220px] items-center gap-2 rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-left text-white shadow-lg transition-all duration-200 hover:bg-white/5"
+          className="flex w-full min-w-[220px] items-center gap-2 rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-left text-white shadow-lg transition-all duration-200 hover:bg-white/5"
           aria-haspopup="listbox"
           aria-expanded={isOpen}
         >

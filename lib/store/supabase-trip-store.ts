@@ -46,6 +46,7 @@ interface SupabaseTripStore {
   selectedCardId: string | null
   selectedRouteSegmentId: string | null
   showDayRouteOverlay: boolean
+  showAllDestinations: boolean
   routeModeEnabled: boolean
   routeSelectionStart: MapRouteSelectionPoint | null
   adHocRouteConfig: AdHocRouteConfig | null
@@ -89,6 +90,8 @@ interface SupabaseTripStore {
   setSelectedBaseLocation: (payload: { dayId: string; index: number } | null, origin?: SelectionOrigin) => void
   setSelectedRouteSegmentId: (routeId: string | null) => void
   setShowDayRouteOverlay: (show: boolean) => void
+  setShowAllDestinations: (show: boolean) => void
+  toggleShowAllDestinations: () => void
   toggleDayRouteOverlay: () => void
   setRouteModeEnabled: (enabled: boolean) => void
   registerRouteSelection: (point: MapRouteSelectionPoint) => void
@@ -123,6 +126,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   selectedCardId: null,
   selectedRouteSegmentId: null,
   showDayRouteOverlay: false,
+  showAllDestinations: false,
   routeModeEnabled: false,
   routeSelectionStart: null,
   adHocRouteConfig: null,
@@ -1140,6 +1144,14 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
 
   toggleDayRouteOverlay: () => {
     set((state) => ({ showDayRouteOverlay: !state.showDayRouteOverlay }))
+  },
+
+  setShowAllDestinations: (show: boolean) => {
+    set({ showAllDestinations: show })
+  },
+
+  toggleShowAllDestinations: () => {
+    set((state) => ({ showAllDestinations: !state.showAllDestinations }))
   },
 
   setRouteModeEnabled: (enabled: boolean) => {

@@ -57,7 +57,7 @@ export function AssistantDock({
   const [error, setError] = useState<string | null>(null)
   const conversationIdRef = useRef<string>(crypto.randomUUID())
   const miniMapAutoShowRef = useRef(true)
-  const [isMiniMapVisible, setIsMiniMapVisible] = useState(isRail)
+  const [isMiniMapVisible, setIsMiniMapVisible] = useState(false)
   const miniMapButtonRef = useRef<HTMLButtonElement>(null)
   const [miniMapTransform, setMiniMapTransform] = useState<{
     position: { x: number; y: number }
@@ -165,7 +165,7 @@ export function AssistantDock({
     }
 
     if (miniMapAutoShowRef.current) {
-      setIsMiniMapVisible(true)
+      setIsMiniMapVisible(false)
     }
   }, [isVisible, isRail])
 

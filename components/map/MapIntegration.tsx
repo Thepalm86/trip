@@ -14,7 +14,7 @@ import { ExploreMarkersToggle } from './ExploreMarkersToggle'
 import { ItineraryPreviewDrawer } from './ItineraryPreviewDrawer'
 import { ExploreMapFocus } from './ExploreMapFocus'
 import { CountryFocus } from './CountryFocus'
-import { MapLegendToggle, MapRouteToggle } from './MapControls'
+import { MapLegendToggle, MapRouteToggle, AllDestinationsToggle } from './MapControls'
 
 /**
  * MapIntegration - Orchestrates all map-related components
@@ -50,6 +50,7 @@ export function MapIntegration({ map, mode = 'full' }: MapIntegrationProps) {
     selectedRouteSegmentId,
     setSelectedRouteSegmentId,
     showDayRouteOverlay,
+    showAllDestinations,
   } = useSupabaseTripStore()
 
   const emptyTrip: Trip = {
@@ -100,6 +101,7 @@ export function MapIntegration({ map, mode = 'full' }: MapIntegrationProps) {
         tripDays={tripDays}
         selectedDayId={selectedDayId}
         selectedCardId={selectedCardId}
+        showAllDestinations={showAllDestinations}
       />
       <MapEventHandler
         map={map}
@@ -126,10 +128,11 @@ export function MapIntegration({ map, mode = 'full' }: MapIntegrationProps) {
       <CountryFocus map={map} />
       {!isCompact ? (
         <>
-          <div className="absolute bottom-4 left-4 z-10 flex items-start gap-3">
-            <MapLegendToggle map={map} />
-            <ExploreMarkersToggle map={map} positioned={false} className="flex-shrink-0" />
-            <MapRouteToggle map={map} />
+          <div className="absolute bottom-4 left-4 z-10 grid grid-cols-2 gap-3">
+            <MapLegendToggle map={map} className="w-full" />
+            <ExploreMarkersToggle map={map} positioned={false} className="w-full" />
+            <AllDestinationsToggle map={map} className="w-full" />
+            <MapRouteToggle map={map} className="w-full" />
           </div>
           <div className="absolute top-4 right-4 z-10">
             {isLoadingRoutes && (

@@ -263,7 +263,14 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               2
             ],
             'circle-stroke-color': '#ffffff',
-            'circle-opacity': 0.95
+            'circle-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 1,
+              ['boolean', ['feature-state', 'hover'], false], 0.95,
+              ['get', 'isPrimaryDay'],
+              0.85,
+              0.55
+            ]
           }
         })
 
@@ -318,7 +325,9 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               'case',
               ['boolean', ['feature-state', 'selected'], false], 1,
               ['boolean', ['feature-state', 'hover'], false], 0.9,
-              0.8
+              ['get', 'isPrimaryDay'],
+              0.8,
+              0.6
             ]
           }
         })
@@ -378,7 +387,14 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               2
             ],
             'circle-stroke-color': '#ffffff',
-            'circle-opacity': 0.95
+            'circle-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 1,
+              ['boolean', ['feature-state', 'hover'], false], 0.95,
+              ['get', 'isPrimaryDay'],
+              0.9,
+              0.55
+            ]
           }
         })
 
@@ -433,7 +449,9 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
               'case',
               ['boolean', ['feature-state', 'selected'], false], 1,
               ['boolean', ['feature-state', 'hover'], false], 0.9,
-              0.8
+              ['get', 'isPrimaryDay'],
+              0.85,
+              0.6
             ]
           }
         })
