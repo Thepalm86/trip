@@ -1,17 +1,20 @@
 'use client'
 
 import { useRef, useEffect, useState } from 'react'
+import clsx from 'clsx'
 import { InteractiveMap, InteractiveMapRef } from '@/components/map/InteractiveMap'
 import { LeftPanel } from '@/components/left-panel/LeftPanel'
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { TripLoader } from '@/components/trip/TripLoader'
 import { ResearchCommandPalette } from '@/components/research/ResearchCommandPalette'
+import { AssistantDock } from '@/components/assistant/AssistantDock'
 
 export default function HomePage() {
   const mapRef = useRef<InteractiveMapRef>(null)
   const [map, setMap] = useState<any>(null)
   const [leftPanelWidth, setLeftPanelWidth] = useState(60) // Percentage
   const [isResizing, setIsResizing] = useState(false)
+  const [activePane, setActivePane] = useState<'map' | 'assistant'>('map')
   const animationFrameRef = useRef<number | null>(null)
 
   // Get map instance after component mounts
@@ -112,6 +115,32 @@ export default function HomePage() {
     }
   }, [map, leftPanelWidth, isResizing])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const openHandler = () => setActivePane('assistant')
+    const closeHandler = () => setActivePane('map')
+    const toggleHandler = () => setActivePane((prev) => (prev === 'assistant' ? 'map' : 'assistant'))
+
+    window.addEventListener('assistant-dock:open', openHandler)
+    window.addEventListener('assistant-dock:close', closeHandler)
+    window.addEventListener('assistant-dock:toggle', toggleHandler)
+
+    return () => {
+      window.removeEventListener('assistant-dock:open', openHandler)
+      window.removeEventListener('assistant-dock:close', closeHandler)
+      window.removeEventListener('assistant-dock:toggle', toggleHandler)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (map && activePane === 'map') {
+      map.resize()
+    }
+  }, [map, activePane])
+
   return (
     <AuthGuard>
       <TripLoader />
@@ -148,8 +177,60 @@ export default function HomePage() {
           className={`border-l border-white/10 map-panel ${isResizing ? 'resizing' : ''}`}
           style={{ width: `${100 - leftPanelWidth}%` }}
         >
-          <div className="map-container">
-            <InteractiveMap ref={mapRef} />
+          <div className="flex h-full w-full flex-col backdrop-blur-sm">
+            <div className="flex items-center justify-between border-b border-white/10 bg-[rgba(9,16,28,0.78)] px-5 py-4">
+              <div className="inline-flex rounded-full border border-white/10 bg-white/5 p-1 shadow-lg shadow-black/20">
+                <button
+                  type="button"
+                  onClick={() => setActivePane('map')}
+                  className={clsx(
+                    'rounded-full px-4 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60',
+                    activePane === 'map'
+                      ? 'bg-gradient-to-br from-emerald-400 via-emerald-500 to-sky-500 text-slate-900 shadow-lg shadow-emerald-500/40'
+                      : 'text-slate-300 hover:text-white'
+                  )}
+                >
+                  Map
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePane('assistant')}
+                  className={clsx(
+                    'rounded-full px-4 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60',
+                    activePane === 'assistant'
+                      ? 'bg-gradient-to-br from-emerald-400 via-emerald-500 to-sky-500 text-slate-900 shadow-lg shadow-emerald-500/40'
+                      : 'text-slate-300 hover:text-white'
+                  )}
+                >
+                  Assistant
+                </button>
+              </div>
+            </div>
+            <div className="relative flex-1">
+              <div
+                className={clsx(
+                  'absolute inset-0 transition-opacity duration-200',
+                  activePane === 'map' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                )}
+              >
+                <div className="map-container h-full w-full">
+                  <InteractiveMap ref={mapRef} />
+                </div>
+              </div>
+              <div
+                className={clsx(
+                  'absolute inset-0 flex transition-opacity duration-200',
+                  activePane === 'assistant' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                )}
+              >
+                <AssistantDock
+                  variant="rail"
+                  isVisible={activePane === 'assistant'}
+                  onRequestClose={() => setActivePane('map')}
+                  className="h-full w-full lg:rounded-none"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>

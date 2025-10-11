@@ -2,13 +2,13 @@
 
 import { useEffect, useRef } from 'react'
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
-import mapboxgl from 'mapbox-gl'
+import mapboxgl, { Map as MapboxMap } from 'mapbox-gl'
 import { Search, MapPin } from 'lucide-react'
 import { Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 
 interface MapboxGeocoderComponentProps {
-  map: mapboxgl.Map | null
+  map: MapboxMap | null
   onResultSelect?: (result: any) => void
 }
 
@@ -51,8 +51,9 @@ export function MapboxGeocoderComponent({ map, onResultSelect }: MapboxGeocoderC
 
     geocoderRef.current = geocoder
 
-    // Add geocoder to container
-    geocoderContainer.current.appendChild(geocoder.onAdd(map))
+    // Add geocoder to container (type cast handles mapbox-gl vs geocoder type mismatch)
+    const geocoderElement = geocoder.onAdd(map as unknown as any)
+    geocoderContainer.current.appendChild(geocoderElement)
 
     // Handle result selection
     geocoder.on('result', (event) => {
@@ -114,7 +115,7 @@ export function MapboxGeocoderComponent({ map, onResultSelect }: MapboxGeocoderC
     return 2
   }
 
-  const addSearchMarker = (map: mapboxgl.Map, destination: Destination) => {
+  const addSearchMarker = (map: MapboxMap, destination: Destination) => {
     // Create marker element
     const markerElement = document.createElement('div')
     markerElement.className = 'search-marker marker-container'
@@ -135,7 +136,7 @@ export function MapboxGeocoderComponent({ map, onResultSelect }: MapboxGeocoderC
       .addTo(map)
   }
 
-  const showDestinationPopup = (map: mapboxgl.Map, destination: Destination, markerElement: HTMLElement) => {
+  const showDestinationPopup = (map: MapboxMap, destination: Destination, markerElement: HTMLElement) => {
     // Create popup HTML with dynamic day options
     const dayOptions = currentTrip.days.map((day, index) => 
       `<option value="${day.id}">Day ${index + 1} (${new Date(day.date).toLocaleDateString()})</option>`

@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Loader2,
   Route,
+  Sparkles,
 } from 'lucide-react'
 import { TimelineDay, DayLocation, Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
@@ -838,6 +839,24 @@ export function DayCard({
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const isTargetDay = activeTargetDayId === day.id
+
+  const askJourneyCuratorForIdeas = () => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const humanDay = day.dayOrder + 1
+    const baseLocationName = day.baseLocations?.[0]?.name
+    const locationHint = baseLocationName ? ` We're staying near ${baseLocationName}.` : ''
+    const message = `Can you recommend activities for Day ${humanDay} (${day.date}) of ${currentTrip?.name ?? 'my trip'}?${locationHint}`
+
+    window.dispatchEvent(new CustomEvent('assistant-dock:open', { detail: { state: 'expanded' } }))
+    window.dispatchEvent(
+      new CustomEvent('assistant-dock:prompt', {
+        detail: { message },
+      })
+    )
+  }
   const isSourceDay = draggingFromDayId === day.id
   const allTripDays = currentTrip?.days ?? []
 
@@ -1358,6 +1377,19 @@ export function DayCard({
                     Drop to move destination into this day
                   </p>
                 ) : null}
+                <div className="flex flex-col items-center gap-2 pt-1 text-xs text-slate-300/80">
+                  <span className="text-[0.7rem] uppercase tracking-[0.28em] text-slate-400/70">
+                    Need ideas?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={askJourneyCuratorForIdeas}
+                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200 transition hover:border-emerald-300/60 hover:bg-emerald-500/20 hover:text-emerald-100"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Journey Curator
+                  </button>
+                </div>
               </div>
             ) : (
               <>

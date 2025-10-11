@@ -32,9 +32,23 @@ interface AssistantResponseBody {
 }
 
 type DockState = 'closed' | 'compact' | 'expanded'
+type AssistantDockVariant = 'floating' | 'rail'
 
-export function AssistantDock() {
-  const [dockState, setDockState] = useState<DockState>('closed')
+interface AssistantDockProps {
+  variant?: AssistantDockVariant
+  isVisible?: boolean
+  className?: string
+  onRequestClose?: () => void
+}
+
+export function AssistantDock({
+  variant = 'floating',
+  isVisible = true,
+  className,
+  onRequestClose,
+}: AssistantDockProps) {
+  const isRail = variant === 'rail'
+  const [dockState, setDockState] = useState<DockState>(() => (isRail ? 'expanded' : 'closed'))
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [followUps, setFollowUps] = useState<string[]>([])
@@ -65,25 +79,40 @@ export function AssistantDock() {
     } as const
   }, [currentTrip, selectedDayId, selectedDestination])
 
-  const isOpen = dockState !== 'closed'
+  const isOpen = isRail ? isVisible : dockState !== 'closed'
 
-  const handleOpen = useCallback((state: DockState = 'compact') => {
-    setDockState(state === 'closed' ? 'compact' : state)
-    setError(null)
-  }, [])
+  const handleOpen = useCallback(
+    (state: DockState = 'compact') => {
+      if (isRail) {
+        return
+      }
+      setDockState(state === 'closed' ? 'compact' : state)
+      setError(null)
+    },
+    [isRail]
+  )
 
   const handleClose = useCallback(() => {
+    if (isRail) {
+      onRequestClose?.()
+      setError(null)
+      return
+    }
     setDockState('closed')
     setError(null)
-  }, [])
+  }, [isRail, onRequestClose])
 
   const toggleDockSize = useCallback(() => {
+    if (isRail) {
+      return
+    }
     setDockState((prev) => (prev === 'expanded' ? 'compact' : 'expanded'))
-  }, [])
+  }, [isRail])
 
-  const panelWidthClass = dockState === 'expanded' ? 'w-[460px]' : 'w-[380px] sm:w-[400px]'
-  const composerRows = dockState === 'expanded' ? 3 : 2
+  const panelWidthClass = isRail ? 'w-full h-full' : dockState === 'expanded' ? 'w-[460px]' : 'w-[380px] sm:w-[400px]'
+  const composerRows = isRail ? 4 : dockState === 'expanded' ? 3 : 2
   const tripTitle = currentTrip?.name ?? 'Traveal AI Assistant'
+
   useEffect(() => {
     if (needsReauthentication) {
       setError('Please sign in again to chat with the Journey Curator.')
@@ -91,7 +120,7 @@ export function AssistantDock() {
   }, [needsReauthentication])
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || isRail) {
       return
     }
 
@@ -133,7 +162,26 @@ export function AssistantDock() {
       window.removeEventListener('assistant-dock:close', handleExternalClose)
       window.removeEventListener('assistant-dock:toggle', handleExternalToggle)
     }
-  }, [handleOpen, handleClose])
+  }, [handleOpen, handleClose, isRail])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const handlePrompt = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail
+      if (!detail?.message) {
+        return
+      }
+      setInput(detail.message)
+    }
+
+    window.addEventListener('assistant-dock:prompt', handlePrompt)
+    return () => {
+      window.removeEventListener('assistant-dock:prompt', handlePrompt)
+    }
+  }, [])
 
   const appendMessage = (message: ChatMessage) => {
     setMessages((prev) => [...prev, message])
@@ -299,12 +347,23 @@ export function AssistantDock() {
   }
 
   return (
-    <div className="fixed bottom-5 right-4 z-50 flex flex-col items-end gap-3 sm:inset-y-6 sm:right-6 sm:bottom-auto">
+    <div
+      className={clsx(
+        isRail
+          ? clsx(
+              'assistant-rail relative flex h-full w-full flex-col overflow-hidden bg-[rgba(11,19,34,0.94)] text-slate-100 backdrop-blur',
+              !isVisible && 'hidden',
+              className
+            )
+          : clsx('fixed bottom-5 right-4 z-50 flex flex-col items-end gap-3 sm:inset-y-6 sm:right-6 sm:bottom-auto', className)
+      )}
+    >
       {isOpen ? (
         <div
           className={clsx(
             'assistant-panel relative flex max-h-[720px] w-full max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden text-slate-100 transition-all duration-200 sm:max-w-none',
-            panelWidthClass
+            panelWidthClass,
+            isRail && 'max-h-none flex-1 rounded-none border-l border-white/10'
           )}
         >
           {isSending ? (
@@ -313,7 +372,12 @@ export function AssistantDock() {
             </div>
           ) : null}
 
-          <header className="relative bg-gradient-to-br from-white/5 via-white/[0.04] to-white/[0.02] px-6 pb-6 pt-6">
+          <header
+            className={clsx(
+              'relative bg-gradient-to-br from-white/5 via-white/[0.04] to-white/[0.02] px-6 pb-6 pt-6',
+              isRail && 'border-b border-white/10'
+            )}
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 shadow-inner ring-1 ring-white/15">
@@ -327,31 +391,35 @@ export function AssistantDock() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={toggleDockSize}
-                  className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:border-slate-200/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
-                  aria-label={dockState === 'expanded' ? 'Collapse assistant dock' : 'Expand assistant dock'}
-                >
-                  {dockState === 'expanded' ? (
-                    <Minimize2 className="h-4 w-4" />
-                  ) : (
-                    <Maximize2 className="h-4 w-4" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:border-red-300/70 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
-                  aria-label="Close assistant"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                {isRail ? null : (
+                  <button
+                    type="button"
+                    onClick={toggleDockSize}
+                    className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:border-slate-200/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
+                    aria-label={dockState === 'expanded' ? 'Collapse assistant dock' : 'Expand assistant dock'}
+                  >
+                    {dockState === 'expanded' ? (
+                      <Minimize2 className="h-4 w-4" />
+                    ) : (
+                      <Maximize2 className="h-4 w-4" />
+                    )}
+                  </button>
+                )}
+                {isRail && !onRequestClose ? null : (
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:border-red-300/70 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
+                    aria-label="Close assistant"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
           </header>
 
-          <section className="assistant-scroll flex-1 overflow-y-auto px-6 pb-4 pt-5">
+          <section className={clsx('assistant-scroll flex-1 overflow-y-auto px-6 pb-4 pt-5', isRail && 'pb-6')}>
             {!currentTrip ? (
               <div className="assistant-section px-5 py-6 text-sm text-slate-100/85">
                 Load or create a trip to start collaborating with the Traveal assistant. I will adapt responses to the
@@ -389,7 +457,13 @@ export function AssistantDock() {
             </div>
           ) : null}
 
-          <form onSubmit={handleSubmit} className="border-t border-white/5 bg-black/10 px-6 pb-6 pt-4">
+          <form
+            onSubmit={handleSubmit}
+            className={clsx(
+              'border-t border-white/5 bg-black/10 px-6 pb-6 pt-4',
+              isRail && 'border-white/10 bg-black/20'
+            )}
+          >
             <div className="flex items-end gap-3">
               <textarea
                 value={input}
@@ -413,7 +487,7 @@ export function AssistantDock() {
         </div>
       ) : null}
 
-      {dockState === 'closed' ? (
+      {!isRail && dockState === 'closed' ? (
         <button
           type="button"
           onClick={() => handleOpen('compact')}

@@ -145,19 +145,44 @@ function parseCoordinates(value: unknown): [number, number] | undefined {
 
 function rowToCuratedItem(row: CuratedContentRow): CuratedKnowledgeItem | null {
   if (!row || typeof row !== 'object') return null
-  const summary =
-    (row as CuratedContentRow).general_information ??
-    (row as CuratedContentRow).summary ??
-    (row as CuratedContentRow).why_visit
+
+  const destinationName =
+    'destination_name' in row && typeof row.destination_name === 'string'
+      ? row.destination_name
+      : undefined
+  if (!destinationName) return null
+
+  const id = 'id' in row && typeof row.id === 'string' ? row.id : destinationName
+  const displayName =
+    'display_name' in row && typeof row.display_name === 'string' ? row.display_name : undefined
+  const generalInformation =
+    'general_information' in row && typeof row.general_information === 'string'
+      ? row.general_information
+      : undefined
+  const summaryField = 'summary' in row && typeof row.summary === 'string' ? row.summary : undefined
+  const whyVisit = 'why_visit' in row && typeof row.why_visit === 'string' ? row.why_visit : undefined
+
+  const summary = (generalInformation ?? summaryField ?? whyVisit)?.trim()
   if (!summary) return null
 
+  const metadataRaw = 'metadata' in row ? row.metadata : undefined
+  const metadata =
+    metadataRaw && typeof metadataRaw === 'object' && !Array.isArray(metadataRaw)
+      ? (metadataRaw as Record<string, unknown>)
+      : undefined
+
+  const selectedTips = 'selected_tips' in row ? row.selected_tips ?? undefined : undefined
+  const tagsValue = 'tags' in row ? row.tags ?? undefined : undefined
+  const coordinatesValue =
+    'destination_coordinates' in row ? row.destination_coordinates ?? undefined : undefined
+
   return {
-    id: row.id ?? row.destination_name,
-    name: row.display_name ?? row.destination_name,
-    summary: summary.trim(),
-    highlights: parseHighlights(row.selected_tips ?? row.metadata?.highlights),
-    tags: parseTags(row.tags ?? row.metadata?.tags),
-    coordinates: parseCoordinates(row.destination_coordinates ?? row.metadata?.coordinates),
+    id,
+    name: displayName ?? destinationName,
+    summary,
+    highlights: parseHighlights(selectedTips ?? metadata?.highlights),
+    tags: parseTags(tagsValue ?? metadata?.tags),
+    coordinates: parseCoordinates(coordinatesValue ?? metadata?.coordinates),
     source: 'destination_modal_content',
   }
 }
