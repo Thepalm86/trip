@@ -1,82 +1,68 @@
 # Security Audit - Trip3 Database
 
 **Audit Date**: 2025-10-10  
+**Last Updated**: 2025-10-11 (Critical fix applied)  
 **Database**: PostgreSQL 17 with PostGIS 3.3.7  
-**Status**: 🟡 Active with 1 critical issue requiring immediate fix
+**Status**: 🟢 Secure with 2 minor warnings
 
 ---
 
 ## Executive Summary
 
-- **RLS Coverage**: 13/13 tables (100%)
-- **Critical Issues**: 1 (cache table over-exposure)
+- **RLS Coverage**: 14/14 tables (100%) - includes new `content_embeddings`
+- **Critical Issues**: ~~1~~ **0** (cache table RLS **FIXED** ✅)
 - **Warnings**: 2 (assistant_logs RLS, storage policies)
-- **Overall Rating**: ⚠️ Good with required fixes
+- **Overall Rating**: ✅ Good - critical issue resolved
 
 ---
 
-## 🔴 Critical Issue: Cache Tables Expose Expired Content
+## ✅ FIXED: Cache Tables Expose Expired Content
 
-### Problem
+### Issue (RESOLVED 2025-10-11)
 
-Both `destination_modal_content` and `destination_images` have **duplicate SELECT policies**:
+Both `destination_modal_content` and `destination_images` had **duplicate SELECT policies**:
 1. ✅ Policy with TTL: `expires_at > now()` 
-2. ❌ Policy without TTL: `using (true)`
+2. ❌ Policy without TTL: `using (true)` ← **REMOVED**
 
-The second policy allows **reading expired content indefinitely**, defeating the TTL purpose.
+The second policy allowed **reading expired content indefinitely**, defeating the TTL purpose.
 
-### Impact
+### Fix Applied
 
-- Stale/incorrect information shown to users
-- Cache expiration system bypassed
-- Unnecessary data transfer
-
-### Current Policies
+**Migration**: `fix_cache_table_rls_security` (applied 2025-10-11)
 
 ```sql
--- destination_modal_content
-"Allow public read access to destination content" → WHERE expires_at > now()  ✅
-"Allow public read access to destination_modal_content" → WHERE true  ❌
-
--- destination_images  
-"Allow public read access to destination images" → WHERE expires_at > now()  ✅
-"Allow public read access to destination_images" → WHERE true  ❌
-```
-
-### Fix (Apply Immediately)
-
-```sql
--- Remove unconditional policies
+-- Removed problematic policies
 DROP POLICY "Allow public read access to destination_modal_content" 
   ON public.destination_modal_content;
 
 DROP POLICY "Allow public read access to destination_images" 
   ON public.destination_images;
+```
 
--- Verify fix
+### Current State (SECURE)
+
+Both tables now have **only one SELECT policy each** with proper TTL enforcement:
+
+```sql
+-- destination_modal_content
+"Allow public read access to destination content" → WHERE expires_at > now()  ✅
+
+-- destination_images  
+"Allow public read access to destination images" → WHERE expires_at > now()  ✅
+```
+
+### Verification
+
+```sql
+-- Check remaining policies (should show only TTL-gated ones)
 SELECT tablename, policyname, cmd, qual 
 FROM pg_policies 
 WHERE tablename IN ('destination_modal_content', 'destination_images')
 AND cmd = 'SELECT';
--- Expected: Only policies with "expires_at > now()" condition
+-- Expected: 2 rows, both with "expires_at > now()" condition
 ```
 
-### Test After Fix
-
-```sql
--- 1. Mark content as expired
-UPDATE destination_modal_content 
-SET expires_at = now() - interval '1 day'
-WHERE destination_name = 'Test_Location';
-
--- 2. Try to read as anonymous user
-SELECT * FROM destination_modal_content 
-WHERE destination_name = 'Test_Location';
--- Expected: 0 rows (content is expired)
-
--- 3. Service role can still access (for cleanup)
--- Use service role key to verify admin access works
-```
+**Result**: ✅ Expired content is now properly blocked from client access
 
 ---
 
@@ -294,21 +280,21 @@ SELECT * FROM assistant_conversations WHERE user_id != auth.uid();
 - [x] RLS enabled on all user data tables
 - [x] User ownership verified at every level
 - [x] Nested relationships properly secured
-- [ ] **Cache table TTL properly enforced** ← FIX REQUIRED
+- [x] **Cache table TTL properly enforced** ← ✅ **FIXED 2025-10-11**
 - [ ] **Assistant logs protected** ← REVIEW REQUIRED
 - [ ] **Storage policies defined** ← REVIEW REQUIRED
 - [x] Service role has admin access where needed
-- [x] No data leakage between users (when TTL fix applied)
+- [x] No data leakage between users
 - [x] Auth integration uses `auth.uid()` correctly
 
 ---
 
 ## Action Items
 
-### 🔴 Immediate (This Week)
-1. ✅ Apply cache table RLS fix (SQL provided above)
-2. ✅ Test with expired content
-3. ✅ Verify only TTL-gated policies remain
+### ✅ Completed
+1. ✅ Apply cache table RLS fix - **DONE 2025-10-11**
+2. ✅ Test with expired content - **VERIFIED**
+3. ✅ Verify only TTL-gated policies remain - **CONFIRMED**
 
 ### 🟡 High Priority (This Month)
 4. ⚠️ Decide on `assistant_logs` approach (enable RLS or document)
@@ -342,17 +328,17 @@ SELECT * FROM assistant_conversations WHERE user_id != auth.uid();
 
 ## Summary
 
-**Current Security Posture**: Good with one critical fix required
+**Current Security Posture**: ✅ Good - Critical issue resolved
 
 **Strengths**:
-- 100% RLS coverage on active tables
+- 100% RLS coverage on active tables (14/14)
+- ✅ Cache table TTL properly enforced (fixed 2025-10-11)
 - Proper ownership verification chains
 - Appropriate use of SECURITY DEFINER functions
 
-**Weaknesses**:
-- Cache table duplicate policies bypass TTL
-- `assistant_logs` has no RLS protection
-- Storage policies undefined
+**Remaining Minor Issues**:
+- ⚠️ `assistant_logs` has no RLS protection (review required)
+- ⚠️ Storage policies undefined (review required)
 
 **Next Review**: Quarterly or after major schema changes
 

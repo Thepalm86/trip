@@ -61,11 +61,16 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
     const fetchOverview = async () => {
       try {
         setIsLoadingOverview(true)
+        const authHeaders = await getAuthHeaders()
+        if (!authHeaders) {
+          throw new Error('AUTH_MISSING')
+        }
+
         const response = await fetch('/api/destination/overview', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(await getAuthHeaders()),
+            ...authHeaders,
           },
           body: JSON.stringify({
             destination: destination.name,
@@ -82,7 +87,11 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
         setOverview(data.overview)
       } catch (error) {
         console.error('Error fetching overview:', error)
-        setError('Failed to load destination information')
+        if (error instanceof Error && error.message === 'AUTH_MISSING') {
+          setError('Sign in to view curated destination insights.')
+        } else {
+          setError('Failed to load destination information')
+        }
         // Fallback to basic description
         setOverview(destination.description || `Discover ${destination.name}${destination.city ? ` in ${destination.city}` : ''}, a ${destination.category || 'destination'} worth exploring.`)
       } finally {
@@ -100,6 +109,9 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
         setIsLoadingPhotos(true)
         const searchQuery = `${destination.name}${destination.city ? ` ${destination.city}` : ''} travel`
         const authHeaders = await getAuthHeaders()
+        if (!authHeaders) {
+          throw new Error('AUTH_MISSING')
+        }
         const response = await fetch(`/api/destination/photos?query=${encodeURIComponent(searchQuery)}&count=10`, {
           headers: authHeaders,
         })
@@ -112,6 +124,9 @@ export function DestinationOverviewModal({ destination, onClose }: DestinationOv
         setPhotos(data.photos)
       } catch (error) {
         console.error('Error fetching photos:', error)
+        if (error instanceof Error && error.message === 'AUTH_MISSING') {
+          setError((prev) => prev ?? 'Sign in to view curated destination insights.')
+        }
         // Fallback to a single placeholder image
         setPhotos([{
           id: 'fallback',

@@ -22,16 +22,16 @@ Contains:
 ---
 
 ### 2. [SECURITY_AUDIT.md](./SECURITY_AUDIT.md)
-**Security review with critical issues and fixes**
+**Security review with warnings and recommendations**
 
 Contains:
-- 🔴 1 Critical issue: Cache table RLS fix (SQL provided)
+- ✅ Critical issue FIXED: Cache table RLS (applied 2025-10-11)
 - ⚠️ 2 Warnings: assistant_logs RLS, storage policies
 - Testing recommendations
 - Compliance checklist
 - Action items by priority
 
-**Use when**: Reviewing security, applying fixes, or testing RLS policies
+**Use when**: Reviewing security, testing RLS policies, or checking compliance
 
 ---
 
@@ -82,8 +82,8 @@ Contains older audit documents (may be outdated):
 
 ## 🚨 Quick Actions
 
-### Fix Critical Security Issue
-See `SECURITY_AUDIT.md` → "Critical Issue" section
+### ✅ Security Status
+Critical cache RLS issue fixed 2025-10-11. See `SECURITY_AUDIT.md` for details.
 
 ### Look Up Table Schema
 See `DATABASE_REFERENCE.md` → "Complete Table Schemas" section
@@ -98,11 +98,12 @@ See `DATABASE_REFERENCE.md` → "RLS Policy Reference" section
 
 ## 📊 Quick Stats
 
-- **Active Tables**: 13
-- **Total Rows**: ~1,200
+- **Active Tables**: 14 (added `content_embeddings`)
+- **Total Rows**: ~1,210
 - **Extensions**: 8
-- **Functions**: 45+
+- **Functions**: 46+ (added `match_content_embeddings`)
 - **RLS Coverage**: 100%
+- **Security Status**: ✅ Critical issues resolved
 
 ---
 

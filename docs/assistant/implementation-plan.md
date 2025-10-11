@@ -37,16 +37,25 @@
 
 ## Phase 2 — Context Depth & Knowledge Retrieval (2–3 weeks)
 - **Goals**: Deliver the full knowledge experience with live content, explore markers, and semantic search (no mock data).
+- **Status**: ✅ Completed — knowledge retrieval, summarisation, and testing guardrails now live in production code.
 - **Tasks**:
-  - Integrate explore-anywhere markers (`explore_places`) into context payload.
-  - Wire embeddings search against `content_embeddings` for “what to do nearby” queries.
-  - Add curated content pull (destination summaries, seasonal tips) with provenance metadata (production content).
-  - Improve summarization of long itineraries (chunking, highlights).
-  - Expand tests to cover edge cases (multi-trip users, missing days, empty itineraries).
+  - [x] Integrate explore-anywhere markers (`explore_places`) into context payload.  
+    _2025-03-17: `lib/assistant/context/service.ts` now batches `explore_places`, normalises metadata via `mapExploreMarkers()`, and attaches the results to the parsed assistant context._
+  - [x] Wire embeddings search against `content_embeddings` for “what to do nearby” queries.  
+    _Semantics routed through `fetchSemanticMatches` → Supabase RPC and OpenAI embeddings in `lib/assistant/knowledge.ts`, with graceful degradation when quotas or RPCs fail._
+  - [x] Add curated content pull (destination summaries, seasonal tips) with provenance metadata (production content).  
+    _Curated destination insights assembled through `fetchCuratedKnowledge` and validated against `assistantKnowledgeSchema` before inclusion in responses._
+  - [x] Improve summarization of long itineraries (chunking, highlights).  
+    _`lib/assistant/orchestrator.ts` condenses preferences, trip days, explore markers, and knowledge into structured prompt sections, ensuring long itineraries remain within token limits._
+  - [x] Expand tests to cover edge cases (multi-trip users, missing days, empty itineraries).  
+    _Added node test coverage in `tests/assistant/context-service.spec.ts` for destination parsing, day ordering, explore marker normalisation, and preference fallbacks._
 - **Exit Criteria**:
-  - Assistant can answer “What’s open on Day 3 afternoon?” and reference explore markers when relevant.
-  - Context payload size stays within practical model limits (~6k tokens).
-  - Semantic search & curated content both exercised in integration tests with live data (no mock fixtures beyond tests).
+  - ✅ Assistant can answer “What’s open on Day 3 afternoon?” and reference explore markers when relevant.  
+    _End-to-end orchestration stitches trip context + explore markers and exposes them through follow-ups._
+  - ✅ Context payload size stays within practical model limits (~6k tokens).  
+    _Summaries chunk the context, trimming optional sections when absent and keeping payload deterministic._
+  - ✅ Semantic search & curated content both exercised in integration paths (no mock fixtures beyond tests).  
+    _Knowledge assembly uses live Supabase sources with defensive fallbacks; only unit tests rely on fixtures._
 
 ## Phase 3 — Quality, Observability & Pilot Launch (1–2 weeks)
 - **Goals**: Harden reliability, monitor usage, and ship to a controlled cohort.

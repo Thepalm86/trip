@@ -6,6 +6,7 @@ import clsx from 'clsx'
 
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { getAuthHeaders } from '@/lib/auth/get-auth-headers'
+import { useAuth } from '@/lib/auth/auth-context'
 
 type ChatRole = 'user' | 'assistant'
 
@@ -41,6 +42,7 @@ export function AssistantDock() {
   const [error, setError] = useState<string | null>(null)
   const conversationIdRef = useRef<string>(crypto.randomUUID())
 
+  const { needsReauthentication } = useAuth()
   const currentTrip = useSupabaseTripStore((state) => state.currentTrip)
   const selectedDayId = useSupabaseTripStore((state) => state.selectedDayId)
   const selectedDestination = useSupabaseTripStore((state) => state.selectedDestination)
@@ -63,8 +65,6 @@ export function AssistantDock() {
     } as const
   }, [currentTrip, selectedDayId, selectedDestination])
 
-  const selectedDayOrder = uiFingerprint?.selectedDayOrder ?? null
-
   const isOpen = dockState !== 'closed'
 
   const handleOpen = useCallback((state: DockState = 'compact') => {
@@ -83,16 +83,12 @@ export function AssistantDock() {
 
   const panelWidthClass = dockState === 'expanded' ? 'w-[460px]' : 'w-[380px] sm:w-[400px]'
   const composerRows = dockState === 'expanded' ? 3 : 2
-  const tripTitle = currentTrip?.name ?? 'Trip3 Concierge'
-  const dayCount = currentTrip?.days?.length ?? 0
-  const subtitle = currentTrip
-    ? [
-        dayCount ? `${dayCount} day${dayCount > 1 ? 's' : ''} planned` : null,
-        selectedDayOrder ? `Focused on Day ${selectedDayOrder}` : null,
-      ]
-        .filter(Boolean)
-        .join(' • ') || 'Your itinerary companion'
-    : 'Load a trip to unlock tailored guidance.'
+  const tripTitle = currentTrip?.name ?? 'Traveal AI Assistant'
+  useEffect(() => {
+    if (needsReauthentication) {
+      setError('Please sign in again to chat with the Journey Curator.')
+    }
+  }, [needsReauthentication])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -148,20 +144,25 @@ export function AssistantDock() {
       return
     }
 
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: text.trim(),
-      createdAt: new Date().toISOString(),
-    }
-
-    appendMessage(userMessage)
-    setInput('')
-    setIsSending(true)
-    setError(null)
-
     try {
+      setIsSending(true)
+      setError(null)
+
       const headers = await getAuthHeaders()
+      if (!headers) {
+        setError('Please sign in again to chat with the Journey Curator.')
+        return
+      }
+
+      const userMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: text.trim(),
+        createdAt: new Date().toISOString(),
+      }
+
+      appendMessage(userMessage)
+      setInput('')
       const body = {
         conversationId: conversationIdRef.current,
         message: {
@@ -169,7 +170,7 @@ export function AssistantDock() {
           role: 'user' as const,
           content: userMessage.content,
         },
-        history: messages.slice(-10).map((msg) => ({
+        history: [...messages.slice(-10), userMessage].map((msg) => ({
           id: msg.id,
           role: msg.role,
           content: msg.content,
@@ -188,6 +189,10 @@ export function AssistantDock() {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setError('Your session expired. Please sign in again to continue the conversation.')
+          return
+        }
         throw new Error(`Assistant request failed with status ${response.status}`)
       }
 
@@ -207,7 +212,14 @@ export function AssistantDock() {
       }
     } catch (err) {
       console.error('[assistant] send message failed', err)
-      setError('Unable to reach the assistant. Please try again.')
+      const message =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error occurred'
+
+      if (message.toLowerCase().includes('authenticate')) {
+        setError('Please sign in again to chat with the Journey Curator.')
+      } else {
+        setError('Unable to reach the assistant. Please try again.')
+      }
     } finally {
       setIsSending(false)
     }
@@ -226,15 +238,17 @@ export function AssistantDock() {
   const renderMessages = () => {
     if (!messages.length) {
       return (
-        <div className="assistant-section px-5 py-6 text-sm text-slate-100/90">
-          <div className="flex items-center gap-2 text-emerald-200">
-            <Sparkles className="h-4 w-4" />
-            <span>Welcome to your Trip3 concierge.</span>
+        <div className="assistant-section flex flex-col items-center justify-center gap-4 px-6 py-10 text-center text-slate-100/90">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-200 shadow-inner">
+            <Sparkles className="h-5 w-5" />
           </div>
-          <p className="mt-3 text-slate-300">
-            Ask about day plans, find signature experiences, or let me suggest refinements. I already understand your
-            current trip details and selections.
-          </p>
+          <div className="space-y-2">
+            <p className="text-base font-semibold text-slate-100">Hi, I'm your Traveal travel assistant.</p>
+            <p className="text-sm text-slate-400">
+              Ask me to shape your itinerary, fill open slots with standout experiences, surface dining ideas, or highlight
+              destinations on the map.
+            </p>
+          </div>
         </div>
       )
     }
@@ -265,7 +279,7 @@ export function AssistantDock() {
                   ) : (
                     <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
                   )}
-                  <span>{isUser ? 'You' : 'Trip3 Assistant'}</span>
+                  <span>{isUser ? 'You' : 'Traveal Assistant'}</span>
                   {timestamp ? (
                     <>
                       <span className="text-slate-500">•</span>
@@ -306,11 +320,10 @@ export function AssistantDock() {
                   <Sparkles className="h-5 w-5 text-emerald-300" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[11px] uppercase tracking-[0.32em] text-slate-300/70">Trip3 Concierge</p>
+                  <p className="text-[11px] uppercase tracking-[0.32em] text-slate-300/70">Traveal AI Assistant</p>
                   <h2 className="text-xl font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>
                     {tripTitle}
                   </h2>
-                  <p className="text-sm text-slate-300">{subtitle}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -336,24 +349,12 @@ export function AssistantDock() {
                 </button>
               </div>
             </div>
-            {currentTrip ? (
-              <div className="mt-5 grid grid-cols-2 gap-2 text-xs text-slate-200/80">
-                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-300/90" />
-                  <span>{selectedDestination ? 'Detail view active' : 'Timeline overview'}</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2">
-                  <span className="text-emerald-200/80">Days in trip</span>
-                  <span className="font-medium text-slate-100">{dayCount || '—'}</span>
-                </div>
-              </div>
-            ) : null}
           </header>
 
           <section className="assistant-scroll flex-1 overflow-y-auto px-6 pb-4 pt-5">
             {!currentTrip ? (
               <div className="assistant-section px-5 py-6 text-sm text-slate-100/85">
-                Load or create a trip to start collaborating with the Trip3 concierge. I will adapt responses to the
+                Load or create a trip to start collaborating with the Traveal assistant. I will adapt responses to the
                 itinerary you select.
               </div>
             ) : (

@@ -292,9 +292,10 @@ AI-generated destination content with 24h TTL
 | `updated_at` | timestamptz | DEFAULT now() | Last update |
 | `expires_at` | timestamptz | DEFAULT (now() + '24:00:00') | Expiration |
 
-**RLS**: ⚠️ See SECURITY_AUDIT.md - Has duplicate SELECT policy issue  
+**RLS**: ✅ Enabled - Public SELECT for non-expired content only (`expires_at > now()`)  
 **TTL**: 24 hours  
-**Indexes**: destination_name (unique), expires_at
+**Indexes**: destination_name (unique), expires_at  
+**Security**: Fixed 2025-10-11 - Removed duplicate policy that bypassed TTL
 
 #### `destination_images`
 Cached images from Unsplash/Pixabay with 7-day TTL
@@ -323,9 +324,10 @@ Cached images from Unsplash/Pixabay with 7-day TTL
 | `updated_at` | timestamptz | DEFAULT now() | Last update |
 | `expires_at` | timestamptz | DEFAULT (now() + '7 days') | Expiration |
 
-**RLS**: ⚠️ See SECURITY_AUDIT.md - Has duplicate SELECT policy issue  
+**RLS**: ✅ Enabled - Public SELECT for non-expired images only (`expires_at > now()`)  
 **TTL**: 7 days  
-**Indexes**: destination_name, expires_at
+**Indexes**: destination_name, expires_at  
+**Security**: Fixed 2025-10-11 - Removed duplicate policy that bypassed TTL
 
 #### `export_history`
 Export and share history logs
