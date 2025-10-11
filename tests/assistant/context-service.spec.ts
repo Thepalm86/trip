@@ -6,7 +6,6 @@ import { __testables } from '@/lib/assistant/context/service'
 const {
   parsePoint,
   mapDestination,
-  mapTripDay,
   mapTrip,
   mapExploreMarkers,
   mapUserPreferences,

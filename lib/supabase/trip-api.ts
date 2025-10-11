@@ -162,9 +162,11 @@ function dbDayToTimelineDay(day: DatabaseDay, destinations: DatabaseDestination[
 
   return {
     id: day.id,
+    dayOrder: day.day_order,
     date: new Date(day.date),
     destinations: dayDestinations,
     baseLocations: baseLocations,
+    openSlots: [],
     notes: day.notes ?? undefined,
   }
 }

@@ -27,38 +27,47 @@ interface TripStore {
   updateTripDates: (startDate: Date, endDate: Date) => void
 }
 
-const createInitialTrip = (): Trip => ({
-  id: generateId(),
-  name: 'Italy Adventure',
-  startDate: new Date(),
-  endDate: addDays(new Date(), 2),
-  country: 'IT',
-  days: [
-    {
-      id: generateId(),
-      date: new Date(),
-      destinations: [],
-      baseLocations: [],
-      notes: '',
-    },
-    {
-      id: generateId(),
-      date: addDays(new Date(), 1),
-      destinations: [],
-      baseLocations: [],
-      notes: '',
-    },
-    {
-      id: generateId(),
-      date: addDays(new Date(), 2),
-      destinations: [],
-      baseLocations: [],
-      notes: '',
-    }
-  ]
-})
+const createInitialTrip = (): Trip => {
+  const startDate = new Date()
+  const days: TimelineDay[] = Array.from({ length: 3 }, (_, index) => ({
+    id: generateId(),
+    dayOrder: index,
+    date: addDays(startDate, index),
+    destinations: [],
+    baseLocations: [],
+    openSlots: [],
+    notes: '',
+  }))
+
+  return {
+    id: generateId(),
+    name: 'Italy Adventure',
+    startDate,
+    endDate: days[days.length - 1]?.date ?? startDate,
+    country: 'IT',
+    days,
+  }
+}
 
 const initialTrip = createInitialTrip()
+
+const createEmptyDay = (startDate: Date, order: number): TimelineDay => ({
+  id: generateId(),
+  dayOrder: order,
+  date: addDays(startDate, order),
+  destinations: [],
+  baseLocations: [],
+  openSlots: [],
+  notes: '',
+})
+
+const reindexTripDays = (startDate: Date, days: TimelineDay[]): TimelineDay[] =>
+  days.map((day, index) => ({
+    ...day,
+    dayOrder: index,
+    date: addDays(startDate, index),
+    openSlots: day.openSlots ?? [],
+  }))
 
 export const useTripStore = create<TripStore>((set) => ({
   // Initial state
@@ -97,18 +106,15 @@ export const useTripStore = create<TripStore>((set) => ({
 
   addNewDay: () => {
     set((state) => {
-      const newDay: TimelineDay = {
-        id: generateId(),
-        date: addDays(state.currentTrip.startDate, state.currentTrip.days.length),
-        destinations: [],
-        baseLocations: [],
-        notes: '',
-      }
+      const nextOrder = state.currentTrip.days.length
+      const newDay = createEmptyDay(state.currentTrip.startDate, nextOrder)
+      const reindexedDays = reindexTripDays(state.currentTrip.startDate, [...state.currentTrip.days, newDay])
+      const nextEndDate = reindexedDays[reindexedDays.length - 1]?.date ?? state.currentTrip.endDate
       return {
         currentTrip: {
           ...state.currentTrip,
-          days: [...state.currentTrip.days, newDay],
-          endDate: newDay.date
+          days: reindexedDays,
+          endDate: nextEndDate
         },
         selectedDayId: newDay.id
       }
@@ -123,6 +129,7 @@ export const useTripStore = create<TripStore>((set) => ({
       const dayIndex = state.currentTrip.days.findIndex(day => day.id === dayId)
       const newDay: TimelineDay = {
         id: generateId(),
+        dayOrder: dayToDuplicate.dayOrder + 1,
         date: addDays(dayToDuplicate.date, 1),
         destinations: dayToDuplicate.destinations.map(dest => ({
           ...dest,
@@ -131,6 +138,7 @@ export const useTripStore = create<TripStore>((set) => ({
         baseLocations: dayToDuplicate.baseLocations
           ? dayToDuplicate.baseLocations.map(baseLocation => ({ ...baseLocation }))
           : [],
+        openSlots: dayToDuplicate.openSlots ? [...dayToDuplicate.openSlots] : [],
         notes: dayToDuplicate.notes,
       }
 
@@ -138,17 +146,14 @@ export const useTripStore = create<TripStore>((set) => ({
       const newDays = [...state.currentTrip.days]
       newDays.splice(dayIndex + 1, 0, newDay)
 
-      // Update dates for all subsequent days
-      const updatedDays = newDays.map((day, index) => ({
-        ...day,
-        date: addDays(state.currentTrip.startDate, index)
-      }))
+      const reindexedDays = reindexTripDays(state.currentTrip.startDate, newDays)
+      const nextEndDate = reindexedDays[reindexedDays.length - 1]?.date ?? state.currentTrip.endDate
 
       return {
         currentTrip: {
           ...state.currentTrip,
-          days: updatedDays,
-          endDate: updatedDays[updatedDays.length - 1].date
+          days: reindexedDays,
+          endDate: nextEndDate
         },
         selectedDayId: newDay.id
       }
@@ -159,21 +164,17 @@ export const useTripStore = create<TripStore>((set) => ({
     set((state) => {
       if (state.currentTrip.days.length <= 1) return state // Don't remove the last day
 
-      const updatedDays = state.currentTrip.days.filter(day => day.id !== dayId)
-      
-      // Update dates for remaining days
-      const finalDays = updatedDays.map((day, index) => ({
-        ...day,
-        date: addDays(state.currentTrip.startDate, index)
-      }))
+      const remainingDays = state.currentTrip.days.filter(day => day.id !== dayId)
+      const reindexedDays = reindexTripDays(state.currentTrip.startDate, remainingDays)
+      const nextEndDate = reindexedDays[reindexedDays.length - 1]?.date ?? state.currentTrip.endDate
 
       return {
         currentTrip: {
           ...state.currentTrip,
-          days: finalDays,
-          endDate: finalDays[finalDays.length - 1].date
+          days: reindexedDays,
+          endDate: nextEndDate
         },
-        selectedDayId: finalDays[0]?.id ?? null
+        selectedDayId: reindexedDays[0]?.id ?? null
       }
     })
   },
@@ -270,38 +271,24 @@ export const useTripStore = create<TripStore>((set) => ({
   updateTripDates: (startDate: Date, endDate: Date) => {
     set((state) => {
       const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)) + 1
-      const currentDaysCount = state.currentTrip.days.length
-      
+      const desiredCount = Math.max(daysDiff, 1)
       let updatedDays = [...state.currentTrip.days]
-      
-      // Update existing days with new dates
-      updatedDays = updatedDays.map((day, index) => ({
-        ...day,
-        date: addDays(startDate, index)
-      }))
-      
-      // Add new days if the trip is longer
-      if (daysDiff > currentDaysCount) {
-        for (let i = currentDaysCount; i < daysDiff; i++) {
-          updatedDays.push({
-            id: generateId(),
-            date: addDays(startDate, i),
-            destinations: [],
-            baseLocations: [],
-            notes: '',
-          })
+
+      if (desiredCount > updatedDays.length) {
+        for (let i = updatedDays.length; i < desiredCount; i++) {
+          updatedDays.push(createEmptyDay(startDate, i))
         }
-      }
-      
-      // Remove extra days if the trip is shorter
-      if (daysDiff < currentDaysCount) {
-        updatedDays = updatedDays.slice(0, daysDiff)
+      } else if (desiredCount < updatedDays.length) {
+        updatedDays = updatedDays.slice(0, desiredCount)
       }
 
+      const reindexedDays = reindexTripDays(startDate, updatedDays)
+
       const nextSelectedDayId = (() => {
-        if (!updatedDays.length) return null
-        const stillValid = state.selectedDayId && updatedDays.some(day => day.id === state.selectedDayId)
-        return stillValid ? state.selectedDayId : updatedDays[0].id
+        if (!reindexedDays.length) return null
+        const stillValid =
+          state.selectedDayId && reindexedDays.some(day => day.id === state.selectedDayId)
+        return stillValid ? state.selectedDayId : reindexedDays[0].id
       })()
 
       return {
@@ -309,7 +296,7 @@ export const useTripStore = create<TripStore>((set) => ({
           ...state.currentTrip,
           startDate,
           endDate,
-          days: updatedDays
+          days: reindexedDays
         },
         selectedDayId: nextSelectedDayId
       }

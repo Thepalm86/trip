@@ -19,9 +19,11 @@ export interface Destination {
 
 export interface TimelineDay {
   id: string
+  dayOrder: number
   date: Date
   destinations: Destination[]
   baseLocations: DayLocation[]
+  openSlots?: string[]
   notes?: string
 }
 

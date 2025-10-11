@@ -176,7 +176,7 @@ function buildContextSummary(context: AssistantContext): string {
   ].join('\n')
 }
 
-function buildMessages(input: OrchestratorInput, model: string) {
+function buildMessages(input: OrchestratorInput) {
   const { payload, context } = input
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: 'system', content: SYSTEM_PROMPT },
@@ -265,7 +265,7 @@ async function callModel(
     }
   }
 
-  const messages = buildMessages(input, model)
+  const messages = buildMessages(input)
 
   const response = await openAiClient.chat.completions.create({
     model,
