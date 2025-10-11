@@ -227,7 +227,9 @@ export const InteractiveMap = forwardRef<InteractiveMapRef, InteractiveMapProps>
         ref={mapContainer} 
         className={clsx(
           'absolute inset-0',
-          isMini ? 'rounded-2xl' : 'rounded-none',
+          isMini
+            ? 'rounded-2xl [&_.mapboxgl-ctrl-attrib]:hidden [&_.mapboxgl-ctrl-bottom-left]:hidden [&_.mapboxgl-ctrl-bottom-right]:hidden [&_.mapboxgl-ctrl-logo]:hidden'
+            : 'rounded-none',
           !allowInteractions && 'pointer-events-none'
         )}
       />

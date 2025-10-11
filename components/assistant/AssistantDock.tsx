@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
-import { MessageSquare, X, Send, Sparkles, Loader2, Maximize2, Minimize2, Map } from 'lucide-react'
+import { MessageSquare, X, Send, Sparkles, Loader2, Maximize2, Minimize2, Globe } from 'lucide-react'
 import clsx from 'clsx'
 
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
@@ -496,7 +496,7 @@ export function AssistantDock({
                       )}
                       aria-label={isMiniMapVisible ? 'Hide itinerary mini map' : 'Show itinerary mini map'}
                     >
-                      <Map className="h-4 w-4" />
+                      <Globe className="h-4 w-4" />
                     </button>
                     {onRequestClose ? (
                       <button

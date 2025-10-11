@@ -136,9 +136,16 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    if (map && activePane === 'map') {
-      map.resize()
+    if (!map || activePane !== 'map') {
+      return
     }
+
+    const canvas = typeof map.getCanvas === 'function' ? map.getCanvas() : null
+    if (!canvas) {
+      return
+    }
+
+    map.resize()
   }, [map, activePane])
 
   return (
@@ -178,13 +185,13 @@ export default function HomePage() {
           style={{ width: `${100 - leftPanelWidth}%` }}
         >
           <div className="flex h-full w-full flex-col backdrop-blur-sm">
-            <div className="flex items-center justify-between border-b border-white/10 bg-[rgba(9,16,28,0.78)] px-5 py-4">
+            <div className="flex items-center justify-center border-b border-white/10 bg-[rgba(9,16,28,0.78)] px-5 py-4">
               <div className="inline-flex rounded-full border border-white/10 bg-white/5 p-1 shadow-lg shadow-black/20">
                 <button
                   type="button"
                   onClick={() => setActivePane('map')}
                   className={clsx(
-                    'rounded-full px-4 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60',
+                    'rounded-full px-8 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60',
                     activePane === 'map'
                       ? 'bg-gradient-to-br from-emerald-400 via-emerald-500 to-sky-500 text-slate-900 shadow-lg shadow-emerald-500/40'
                       : 'text-slate-300 hover:text-white'
@@ -196,7 +203,7 @@ export default function HomePage() {
                   type="button"
                   onClick={() => setActivePane('assistant')}
                   className={clsx(
-                    'rounded-full px-4 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60',
+                    'rounded-full px-8 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60',
                     activePane === 'assistant'
                       ? 'bg-gradient-to-br from-emerald-400 via-emerald-500 to-sky-500 text-slate-900 shadow-lg shadow-emerald-500/40'
                       : 'text-slate-300 hover:text-white'

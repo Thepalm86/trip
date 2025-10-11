@@ -58,6 +58,8 @@ export function MiniAssistantMap({
     startHeight: number
     startX: number
     startY: number
+    startTop: number
+    startRight: number
   } | null>(null)
 
   const positionRef = useRef(position)
@@ -207,12 +209,15 @@ export function MiniAssistantMap({
     const deltaX = event.clientX - resizeState.startX
     const deltaY = event.clientY - resizeState.startY
 
-    const { width, height } = clampSize(resizeState.startWidth + deltaX, resizeState.startHeight + deltaY)
+    const proposedWidth = resizeState.startWidth - deltaX
+    const proposedHeight = resizeState.startHeight + deltaY
+    const { width, height } = clampSize(proposedWidth, proposedHeight)
+    const baseLeft = resizeState.startRight - width
+    const nextPosition = clampPosition(baseLeft, resizeState.startTop, width, height)
     const nextSize = { width, height }
-    const nextPosition = clampPosition(positionRef.current.x, positionRef.current.y, width, height)
 
     setSize((prev) => {
-      if (prev.width === nextSize.width && prev.height === nextSize.height) {
+      if (prev.width === width && prev.height === height) {
         return prev
       }
       return nextSize
@@ -267,6 +272,8 @@ export function MiniAssistantMap({
       startHeight: sizeRef.current.height,
       startX: event.clientX,
       startY: event.clientY,
+      startTop: positionRef.current.y,
+      startRight: positionRef.current.x + sizeRef.current.width,
     }
     setIsResizing(true)
     window.addEventListener('pointermove', handleResizeMove)
@@ -307,7 +314,7 @@ export function MiniAssistantMap({
         <InteractiveMap ref={mapRef} variant="mini" interactive className="rounded-b-2xl" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 to-transparent" />
         <div
-          className="absolute right-3 bottom-3 flex h-7 w-7 cursor-se-resize items-center justify-center rounded-md border border-white/25 bg-white/15 text-white/70 transition hover:border-white/40 hover:bg-white/25"
+          className="absolute left-3 bottom-3 flex h-7 w-7 cursor-sw-resize items-center justify-center rounded-md border border-white/25 bg-white/15 text-white/70 transition hover:border-white/40 hover:bg-white/25"
           onPointerDown={handleResizeStart}
         >
           <svg viewBox="0 0 8 8" className="h-3.5 w-3.5" aria-hidden="true" focusable="false">
