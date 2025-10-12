@@ -104,6 +104,11 @@ function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget }: 
       } satisfies TimelineDayDropData,
   })
 
+  const primaryBase = day.baseLocations[0] ?? null
+  const baseCity =
+    primaryBase?.city?.trim() ||
+    (primaryBase?.name ? primaryBase.name.split(',')[0]?.trim() : null)
+
   const baseClasses = 'w-full p-3 rounded-lg text-left transition-all duration-200'
   const stateClasses = isSelected
     ? 'bg-purple-500/20 border border-purple-400/30'
@@ -132,19 +137,19 @@ function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget }: 
             Day {index + 1} • {day.date.toLocaleDateString('en-US', { 
               weekday: 'short', 
               month: 'short', 
-              day: 'numeric' 
-            })}
-          </div>
-          <div className="text-xs text-white/60 truncate">
-            {day.baseLocations.length > 0 && (
-              `${day.baseLocations[0].city || day.baseLocations[0].name}${day.baseLocations[0].name !== day.baseLocations[0].city ? ` • ${day.baseLocations[0].name}` : ''}`
-            )}
-          </div>
-        </div>
-        <div className="text-xs text-white/60">
-          {day.destinations.length}
-        </div>
+          day: 'numeric' 
+        })}
       </div>
+      <div className="text-xs text-white/60 truncate">
+        {day.baseLocations.length > 0 && (
+          baseCity || day.baseLocations[0].name
+        )}
+      </div>
+    </div>
+    <div className="text-xs text-white/60">
+      {day.destinations.length}
+    </div>
+  </div>
       {isOver && (
         <div className="mt-2 text-xs text-green-400 font-medium text-center">
           Drop here to move destination

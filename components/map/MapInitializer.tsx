@@ -280,7 +280,11 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           type: 'symbol',
           source: 'base-locations',
           layout: {
-            'text-field': ['get', 'dayNumber'],
+            'text-field': [
+              'coalesce',
+              ['get', 'dayBadge'],
+              ['to-string', ['get', 'dayNumber']]
+            ],
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
             'text-size': 11,
             'text-anchor': 'center',
@@ -404,7 +408,11 @@ export function MapInitializer({ map, hasTrip }: MapInitializerProps) {
           type: 'symbol',
           source: 'destinations',
           layout: {
-            'text-field': ['get', 'activityLetter'],
+            'text-field': [
+              'coalesce',
+              ['get', 'activityLabel'],
+              ['get', 'activityLetter']
+            ],
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
             'text-size': 11,
             'text-anchor': 'center',

@@ -27,6 +27,36 @@ const lightenColor = (hex: string | undefined, amount: number) => {
   return `#${lightened.toString(16).padStart(6, '0')}`
 }
 
+const formatDayBadge = (days: number[]) => {
+  if (!Array.isArray(days) || days.length === 0) {
+    return ''
+  }
+
+  const uniqueSortedDays = Array.from(new Set(days)).sort((a, b) => a - b)
+  if (uniqueSortedDays.length === 1) {
+    return `${uniqueSortedDays[0]}`
+  }
+
+  const segments: string[] = []
+  let rangeStart = uniqueSortedDays[0]
+  let previous = uniqueSortedDays[0]
+
+  for (let i = 1; i < uniqueSortedDays.length; i++) {
+    const current = uniqueSortedDays[i]
+    if (current === previous + 1) {
+      previous = current
+      continue
+    }
+
+    segments.push(rangeStart === previous ? `${rangeStart}` : `${rangeStart}-${previous}`)
+    rangeStart = current
+    previous = current
+  }
+
+  segments.push(rangeStart === previous ? `${rangeStart}` : `${rangeStart}-${previous}`)
+  return segments.join(',')
+}
+
 interface MarkerManagerProps {
   map: any
   hasTrip: boolean
@@ -60,6 +90,20 @@ export function MarkerManager({
 
       const baseLocationFeatures: any[] = []
       const seenCoordinates = new Set<string>()
+      const coordinateDayMap = new Map<string, number[]>()
+
+      tripDays.forEach((day, dayIndex) => {
+        day.baseLocations?.forEach((baseLocation) => {
+          if (!baseLocation?.coordinates) {
+            return
+          }
+
+          const coordKey = `${baseLocation.coordinates[0]}:${baseLocation.coordinates[1]}`
+          const days = coordinateDayMap.get(coordKey) ?? []
+          days.push(dayIndex + 1)
+          coordinateDayMap.set(coordKey, days)
+        })
+      })
 
       if (showAllDestinations) {
         tripDays.forEach((day, dayIndex) => {
@@ -73,6 +117,7 @@ export function MarkerManager({
               return
             }
             seenCoordinates.add(coordKey)
+            const dayBadge = formatDayBadge(coordinateDayMap.get(coordKey) ?? [dayIndex + 1])
 
             baseLocationFeatures.push({
               type: 'Feature' as const,
@@ -84,6 +129,7 @@ export function MarkerManager({
                 name: baseLocation.name,
                 dayIndex,
                 dayNumber: dayIndex + 1,
+                dayBadge,
                 dayId: day.id,
                 baseIndex,
                 context: baseLocation.context,
@@ -140,6 +186,7 @@ export function MarkerManager({
             return
           }
           seenCoordinates.add(coordKey)
+          const dayBadge = formatDayBadge(coordinateDayMap.get(coordKey) ?? [dayIndex + 1])
 
           baseLocationFeatures.push({
             type: 'Feature' as const,
@@ -151,6 +198,7 @@ export function MarkerManager({
               name: firstBaseLocation.name,
               dayIndex,
               dayNumber: dayIndex + 1,
+              dayBadge,
               dayId: day.id,
               baseIndex: 0,
               context: firstBaseLocation.context,
@@ -217,6 +265,7 @@ export function MarkerManager({
           const baseColor = metadata.colors.border ?? fallbackColor
           const hoverColor = lightenColor(baseColor, 0.25)
           const selectedColor = lightenColor(baseColor, 0.12)
+          const activityLetter = String.fromCharCode(65 + destIndex)
 
           return {
             type: 'Feature' as const,
@@ -231,7 +280,8 @@ export function MarkerManager({
               dayNumber: dayIndex + 1,
               dayId: day.id,
               destIndex,
-              activityLetter: String.fromCharCode(65 + destIndex), // Convert to letters: A, B, C, etc.
+              activityLetter, // Convert to letters: A, B, C, etc.
+              activityLabel: `${dayIndex + 1}${activityLetter}`,
               destinationId: destination.id,
               markerColor: baseColor,
               markerColorHover: hoverColor,
