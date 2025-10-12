@@ -149,7 +149,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         ? trips.find(trip => trip.id === currentTrip.id) ?? (trips.length > 0 ? trips[0] : null)
         : (trips.length > 0 ? trips[0] : null)
       
-      // Preserve selectedDayId if it's still valid, otherwise default to first day
+      // Preserve selectedDayId if it's still valid, otherwise leave nothing selected
       const currentSelectedDayId = get().selectedDayId
       const isValidSelectedDay = newCurrentTrip?.days.some(day => day.id === currentSelectedDayId)
       
@@ -161,7 +161,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         return {
           trips,
           currentTrip: newCurrentTrip,
-          selectedDayId: isValidSelectedDay ? currentSelectedDayId : (newCurrentTrip?.days[0]?.id || null),
+          selectedDayId: isValidSelectedDay ? currentSelectedDayId : null,
           selectedDestination: null,
           selectedBaseLocation: null,
           selectionOrigin: null,
@@ -192,7 +192,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     try {
       const trip = await tripApi.getTrip(tripId)
       
-      // Preserve selectedDayId if it's still valid, otherwise default to first day
+      // Preserve selectedDayId if it's still valid, otherwise leave nothing selected
       const currentSelectedDayId = get().selectedDayId
       const isValidSelectedDay = trip?.days.some(day => day.id === currentSelectedDayId)
       
@@ -203,7 +203,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
 
         return {
           currentTrip: trip,
-          selectedDayId: isValidSelectedDay ? currentSelectedDayId : (trip?.days[0]?.id ?? null),
+          selectedDayId: isValidSelectedDay ? currentSelectedDayId : null,
           selectedDestination: null,
           selectedBaseLocation: null,
           selectionOrigin: null,

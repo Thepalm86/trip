@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Calendar, Plus, Map, Heart } from 'lucide-react'
+import { Calendar, Plus, Map, Heart, LayoutList } from 'lucide-react'
 import { Destination, TimelineDay, DayLocation } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { DayCard } from './DayCard'
 import { AddDestinationModal } from './AddDestinationModal'
 import { DayNotesModal } from './DayNotesModal'
 import { BaseLocationPicker } from './BaseLocationPicker'
+import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 import {
   DndContext,
   DragCancelEvent,
@@ -26,6 +27,7 @@ import { useDroppable } from '@dnd-kit/core'
 
 const DAY_CONTAINER_PREFIX = 'day-'
 const TIMELINE_DAY_PREFIX = 'timeline-day-'
+const BASE_LOCATION_BULLET_COLOR = '#34d399'
 
 type DestinationDragData = {
   type: 'destination'
@@ -93,9 +95,10 @@ interface DroppableDayProps {
   onSelect: (dayId: string) => void
   isSource: boolean
   isTarget: boolean
+  isExpanded: boolean
 }
 
-function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget }: DroppableDayProps) {
+function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget, isExpanded }: DroppableDayProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: `${TIMELINE_DAY_PREFIX}${day.id}`,
     data: {
@@ -108,6 +111,19 @@ function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget }: 
   const baseCity =
     primaryBase?.city?.trim() ||
     (primaryBase?.name ? primaryBase.name.split(',')[0]?.trim() : null)
+  const destinationSummaries = day.destinations.map((destination, destIndex) => {
+    const label = destination.name?.trim() || destination.city?.trim() || `Stop ${destIndex + 1}`
+    const colors = getExploreCategoryMetadata(destination.category).colors
+    return {
+      id: destination.id,
+      label,
+      color: colors.border,
+    }
+  })
+  const MAX_DESTINATIONS = 3
+  const visibleDestinations = destinationSummaries.slice(0, MAX_DESTINATIONS)
+  const remainingDestinations = destinationSummaries.length - visibleDestinations.length
+  const showDetails = isExpanded
 
   const baseClasses = 'w-full p-3 rounded-lg text-left transition-all duration-200'
   const stateClasses = isSelected
@@ -126,30 +142,80 @@ function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget }: 
       onClick={() => onSelect(day.id)}
       className={`${baseClasses} ${stateClasses} ${sourceClass}`}
     >
-      <div className="flex items-center gap-3">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
-          isSelected ? 'bg-purple-500 text-white' : 'bg-white/10 text-white/80'
-        }`}>
-          {index + 1}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-white">
+            Day {index + 1}
+            <span className="text-white/60">
+              {' '}•{' '}
+              {day.date.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric' 
+              })}
+            </span>
+          </div>
+          {showDetails ? (
+            <div className="mt-2 space-y-3">
+              <div>
+                <div className="text-xs font-semibold text-white/75">
+                  Destinations
+                </div>
+                <div className="mt-1 space-y-1.5">
+                  {visibleDestinations.map((destination) => (
+                    <div key={destination.id} className="flex items-center gap-2 pl-3">
+                      <span
+                        className="inline-flex h-1.5 w-1.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: destination.color }}
+                      />
+                      <span className="text-xs text-white/70 truncate">
+                        {destination.label}
+                      </span>
+                    </div>
+                  ))}
+                  {remainingDestinations > 0 ? (
+                    <div className="pl-5 text-xs text-white/55">
+                      +{remainingDestinations} more
+                    </div>
+                  ) : null}
+                  {destinationSummaries.length === 0 ? (
+                    <div className="pl-3 text-xs text-white/45 italic">
+                      • Add destinations
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-white/75">
+                  {day.baseLocations.length > 0 ? 'Accommodation' : 'Stay'}
+                </div>
+                <div className="mt-1">
+                  {day.baseLocations.length > 0 ? (
+                    <div className="flex items-center gap-2 pl-3">
+                      <span
+                        className="inline-flex h-1.5 w-1.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: BASE_LOCATION_BULLET_COLOR }}
+                      />
+                      <span className="text-xs text-white/70 truncate">
+                        {baseCity || day.baseLocations[0].name}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="pl-3 text-xs text-white/45 italic">
+                      • Set a base location
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            null
+          )}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-white text-sm">
-            Day {index + 1} • {day.date.toLocaleDateString('en-US', { 
-              weekday: 'short', 
-              month: 'short', 
-          day: 'numeric' 
-        })}
+        <div className="text-xs text-white/60">
+          {day.destinations.length}
+        </div>
       </div>
-      <div className="text-xs text-white/60 truncate">
-        {day.baseLocations.length > 0 && (
-          baseCity || day.baseLocations[0].name
-        )}
-      </div>
-    </div>
-    <div className="text-xs text-white/60">
-      {day.destinations.length}
-    </div>
-  </div>
       {isOver && (
         <div className="mt-2 text-xs text-green-400 font-medium text-center">
           Drop here to move destination
@@ -190,6 +256,7 @@ export function ItineraryTab() {
   const [activeDestination, setActiveDestination] = useState<Destination | null>(null)
   const [activeBaseLocation, setActiveBaseLocation] = useState<{ location: DayLocation; dayId: string } | null>(null)
   const [activeTargetDayId, setActiveTargetDayId] = useState<string | null>(null)
+  const [expandAllDays, setExpandAllDays] = useState(false)
 
   const handleDragStart = (event: DragStartEvent) => {
     const activeData = event.active.data.current as DestinationDragData | BaseLocationDragData | undefined
@@ -390,7 +457,8 @@ export function ItineraryTab() {
   }
 
 
-  const selectedDay = currentTrip.days.find(day => day.id === selectedDayId) || currentTrip.days[0]
+  const selectedDay = currentTrip.days.find(day => day.id === selectedDayId)
+  const hasDays = currentTrip.days.length > 0
 
   return (
     <DndContext
@@ -407,13 +475,30 @@ export function ItineraryTab() {
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-white/80">Timeline</h3>
-              <button
-                onClick={addNewDay}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all duration-200 text-sm font-medium"
-              >
-                <Plus className="h-3 w-3" />
-                Add Day
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={addNewDay}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-400/40 bg-blue-500/20 text-blue-200 transition-all duration-200 hover:bg-blue-500/30 hover:text-blue-50"
+                  aria-label="Add day to timeline"
+                  title="Add day to timeline"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpandAllDays(prev => !prev)}
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-150 ${
+                    expandAllDays
+                      ? 'border-white/40 bg-white/15 text-white'
+                      : 'border-white/10 bg-transparent text-white/60 hover:border-white/20 hover:text-white'
+                  }`}
+                  aria-pressed={expandAllDays}
+                  aria-label={expandAllDays ? 'Collapse all days' : 'Expand all days'}
+                  title={expandAllDays ? 'Collapse all days' : 'Expand all days'}
+                >
+                  <LayoutList className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -431,6 +516,7 @@ export function ItineraryTab() {
                     onSelect={handleSelectDay}
                     isSource={activeDrag?.dayId === day.id}
                     isTarget={activeTargetDayId === day.id}
+                    isExpanded={expandAllDays}
                   />
                 ))
               )}
@@ -452,6 +538,20 @@ export function ItineraryTab() {
               activeTargetDayId={activeTargetDayId}
               draggingFromDayId={activeDrag?.dayId ?? null}
             />
+          ) : hasDays ? (
+            <div className="flex h-full items-center justify-center px-6">
+              <div className="text-center space-y-3 max-w-sm">
+                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                  <LayoutList className="h-6 w-6 text-white/40" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-1">Select a day to see details</h3>
+                  <p className="text-sm text-white/60">
+                    Choose a day from the timeline on the left to review destinations, notes, and accommodations.
+                  </p>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center">
               <div className="text-center space-y-4 max-w-sm">
