@@ -39,8 +39,8 @@ export function OnboardingDemoItinerary() {
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-hide bg-white/[0.01]" data-tour="day-details">
-        <div className="mx-auto max-w-3xl p-6">
-          <div className="mb-6 flex items-start justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+        <div className="mx-auto max-w-3xl p-6 space-y-6">
+          <div className="flex items-start justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-5">
             <div>
               <div className="flex items-center gap-2 text-sm uppercase tracking-widest text-white/50">
                 <span>Base stay</span>
@@ -62,6 +62,28 @@ export function OnboardingDemoItinerary() {
                 <Route className="h-3.5 w-3.5 text-blue-300" />
                 Demo view · no changes saved
               </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-2xl border border-white/12 bg-white/[0.03] px-5 py-4 shadow-inner">
+            <div className="flex items-center gap-3 text-sm text-white/80">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/40 to-indigo-500/30 text-lg font-semibold text-white">
+                1
+              </div>
+              <div>
+                <p className="font-semibold">Day 1 · Amsterdam</p>
+                <p className="text-xs text-white/55">Friday · 3 destinations scheduled · Route overlay on</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <button className="inline-flex items-center gap-2 rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-1.5 font-semibold text-blue-100 shadow">
+                <Route className="h-3 w-3" />
+                Day routes
+              </button>
+              <button className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.04] px-3 py-1.5 text-white/75">
+                <CopyPlus className="h-3 w-3" />
+                Duplicate day
+              </button>
             </div>
           </div>
 
@@ -92,7 +114,7 @@ export function OnboardingDemoItinerary() {
 
               <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-xs text-white/60">
                 <span className="font-semibold text-white/80">Tip:</span>
-                Hover the icons in the real app to see tooltips describing each action.
+                Use the quick actions to view details, duplicate this stop to another day, or tweak the notes without leaving the card.
               </div>
             </div>
 

@@ -39,31 +39,43 @@ export function AppOnboarding() {
         id: 'trip-overview',
         selector: '[data-tour="trip-summary"]',
         title: 'Trip overview header',
-        description: 'Rename the trip, choose a focus country, and set travel dates. The timeline stays in sync with your selections.'
+        description: 'Rename the trip, choose a focus country, and fine-tune your travel window—the refreshed timeline keeps everything in sync.'
       },
       {
         id: 'header-actions',
         selector: '[data-tour="header-actions"]',
         title: 'Quick actions',
-        description: 'Reopen this guide, jump into research, and soon share settings—all from the action buttons beside the trip name.'
+        description: 'Reopen this guide, launch the research palette, and share the plan straight from these controls.'
       },
       {
         id: 'timeline',
         selector: '[data-tour="timeline"]',
         title: 'Organize each day',
-        description: 'Add days, switch between them, and see counts for destinations at a glance in the refreshed day list.'
+        description: 'Add or duplicate days, expand the list for an overview, and drag destinations or stays between them.'
       },
       {
         id: 'day-details',
         selector: '[data-tour="day-details"]',
         title: 'Plan activities & stays',
-        description: 'Add accommodations, drag destinations, and capture notes inside the detailed planner for the selected day.'
+        description: 'Toggle routes, reorder destinations, manage accommodations, and capture notes within the detailed planner for the selected day.'
+      },
+      {
+        id: 'assistant-rail',
+        selector: '[data-tour="assistant-tab"]',
+        title: 'Assistant insight rail',
+        description: 'Switch to the Assistant tab to chat alongside the itinerary, review follow-up suggestions, and pop open the mini-map for quick context.'
       },
       {
         id: 'map',
         selector: '[data-tour="map"]',
         title: 'Visualize the trip',
-        description: 'The map reflects your itinerary choices so you can review routes, markers, and travel context instantly.'
+        description: 'The map reflects your selections in real time so you can review routes, markers, and overall geography instantly.'
+      },
+      {
+        id: 'map-controls',
+        selector: '[data-tour="map-controls"]',
+        title: 'Route & legend controls',
+        description: 'Use the legend, route mode, and “Show all destinations” toggles to explore the trip’s footprint at a glance.'
       },
       {
         id: 'explore',
@@ -72,10 +84,17 @@ export function AppOnboarding() {
         description: 'Search cities or points of interest, add them to a day or save them for later, and notice the hollow explore markers contrast with filled itinerary pins.'
       },
       {
+        id: 'research-shortcut',
+        selector: '',
+        title: 'Research command palette',
+        description: 'Press ⌘K / Ctrl+K any time to open saved sources and sift through ideas you or your teammates have captured.',
+        centered: true
+      },
+      {
         id: 'profile',
         selector: '[data-tour="profile"]',
         title: 'Account & collaboration',
-        description: 'Manage your account and prepare for upcoming collaboration tools from the profile menu.'
+        description: 'Manage your account, trigger this tour again, and prep for upcoming collaboration features from the profile menu.'
       }
     ], []
   )

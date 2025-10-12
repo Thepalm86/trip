@@ -15,10 +15,8 @@ import {
   GripVertical,
   Edit,
   Trash2,
-  ArrowRight,
   Loader2,
   Route,
-  Sparkles,
 } from 'lucide-react'
 import { TimelineDay, DayLocation, Destination } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
@@ -499,55 +497,59 @@ function RouteConnector({
   onSelect,
 }: RouteConnectorProps) {
   const [isHovered, setIsHovered] = useState(false)
-  const capsuleStyle: CSSProperties = {
-    borderColor: applyAlpha(color, isSelected ? 'AA' : isHovered ? '88' : '66'),
+  const haloAlpha = isSelected ? '45' : isHovered ? '25' : '12'
+
+  const circleStyle: CSSProperties = {
+    borderColor: applyAlpha(color, isSelected ? 'FF' : isHovered ? 'CC' : 'AA'),
     background: isSelected
-      ? `linear-gradient(135deg, ${applyAlpha(color, '48')} 0%, ${applyAlpha(color, '18')} 100%)`
-      : isHovered
-      ? `linear-gradient(135deg, ${applyAlpha(color, '28')} 0%, rgba(30,41,59,0.55) 100%)`
-      : `linear-gradient(135deg, rgba(15,23,42,0.65) 0%, rgba(30,41,59,0.35) 100%)`,
+      ? `linear-gradient(135deg, ${applyAlpha(color, '4A')} 0%, ${applyAlpha(color, '16')} 100%)`
+      : `linear-gradient(135deg, ${applyAlpha(color, isHovered ? '32' : '20')} 0%, rgba(15,23,42,0.92) 100%)`,
     boxShadow: isSelected
-      ? `0px 16px 40px ${applyAlpha(color, '30')}`
+      ? `0 14px 32px ${applyAlpha(color, '35')}, 0 0 0 3px ${applyAlpha(color, haloAlpha)}`
       : isHovered
-      ? `0px 18px 38px ${applyAlpha(color, '22')}`
-      : `0px 12px 30px rgba(15, 23, 42, 0.35)`
+      ? `0 12px 28px ${applyAlpha(color, '22')}`
+      : `0 8px 20px rgba(15,23,42,0.45)`,
+    color: '#f8fafc'
   }
 
-  const iconRingStyle: CSSProperties = {
-    borderColor: applyAlpha(color, isHovered || isSelected ? 'CC' : 'AA'),
-    background: isSelected
-      ? `linear-gradient(135deg, ${applyAlpha(color, '4C')} 0%, ${applyAlpha(color, '22')} 100%)`
-      : `linear-gradient(135deg, ${applyAlpha(color, isHovered ? '44' : '38')} 0%, ${applyAlpha(color, isHovered ? '1C' : '14')} 100%)`,
-    color: applyAlpha(color, 'F2')
+  const labelStyle: CSSProperties = {
+    color: isSelected ? '#f8fafc' : applyAlpha(color, isHovered ? 'EE' : 'D0')
   }
 
   return (
-    <div className="relative my-4 flex flex-col items-center py-5">
-      <button
-        type="button"
-        aria-pressed={isSelected}
-        onClick={(event) => {
-          event.stopPropagation()
-          onSelect(routeKey)
-        }}
-        onMouseDown={(event) => event.stopPropagation()}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className={`relative z-10 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold text-slate-100 transition-all duration-150 ${
-          isSelected
-            ? 'ring-2 ring-white/20'
-            : 'hover:border-white/30 hover:text-white'
-        }`}
-        style={capsuleStyle}
-      >
-        <span
-          className="flex h-8 w-8 items-center justify-center rounded-full border-2 text-white"
-          style={iconRingStyle}
+    <div className="relative px-4 py-2">
+      <div className="flex flex-col items-center gap-1.5">
+        <button
+          type="button"
+          aria-label={label}
+          aria-pressed={isSelected}
+          onClick={(event) => {
+            event.stopPropagation()
+            onSelect(routeKey)
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          className={`group relative flex flex-col items-center gap-1 text-[0.72rem] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
+            isSelected ? 'scale-[1.01]' : ''
+          }`}
         >
-          <ArrowRight className="h-3.5 w-3.5" />
-        </span>
-        <span className="whitespace-nowrap leading-none">{label}</span>
-      </button>
+          <span
+            className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all duration-200 ${
+              isSelected ? 'ring-2 ring-white/20' : 'group-hover:ring-2 group-hover:ring-white/10'
+            }`}
+            style={circleStyle}
+          >
+            <Route className="h-5 w-5" />
+          </span>
+          <span
+            className="pointer-events-none absolute left-full top-1/2 z-20 ml-3 -translate-y-1/2 rounded-full border border-white/10 bg-slate-900/95 px-3 py-1 text-[0.7rem] leading-tight tracking-wide text-white/85 shadow-lg backdrop-blur-md opacity-0 translate-x-[-4px] whitespace-nowrap transition-all duration-150 group-hover:opacity-100 group-hover:translate-x-0 group-focus-visible:opacity-100 group-focus-visible:translate-x-0"
+            style={labelStyle}
+          >
+            {label}
+          </span>
+        </button>
+      </div>
     </div>
   )
 }
@@ -839,24 +841,6 @@ export function DayCard({
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const isTargetDay = activeTargetDayId === day.id
-
-  const askJourneyCuratorForIdeas = () => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    const humanDay = day.dayOrder + 1
-    const baseLocationName = day.baseLocations?.[0]?.name
-    const locationHint = baseLocationName ? ` We're staying near ${baseLocationName}.` : ''
-    const message = `Can you recommend activities for Day ${humanDay} (${day.date}) of ${currentTrip?.name ?? 'my trip'}?${locationHint}`
-
-    window.dispatchEvent(new CustomEvent('assistant-dock:open', { detail: { state: 'expanded' } }))
-    window.dispatchEvent(
-      new CustomEvent('assistant-dock:prompt', {
-        detail: { message },
-      })
-    )
-  }
   const isSourceDay = draggingFromDayId === day.id
   const allTripDays = currentTrip?.days ?? []
 
@@ -1377,19 +1361,6 @@ export function DayCard({
                     Drop to move destination into this day
                   </p>
                 ) : null}
-                <div className="flex flex-col items-center gap-2 pt-1 text-xs text-slate-300/80">
-                  <span className="text-[0.7rem] uppercase tracking-[0.28em] text-slate-400/70">
-                    Need ideas?
-                  </span>
-                  <button
-                    type="button"
-                    onClick={askJourneyCuratorForIdeas}
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200 transition hover:border-emerald-300/60 hover:bg-emerald-500/20 hover:text-emerald-100"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Journey Curator
-                  </button>
-                </div>
               </div>
             ) : (
               <>

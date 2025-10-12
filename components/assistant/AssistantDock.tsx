@@ -439,6 +439,7 @@ export function AssistantDock({
 
   return (
     <div
+      data-tour={isRail ? 'assistant-rail' : undefined}
       className={clsx(
         isRail
           ? clsx(
@@ -488,6 +489,7 @@ export function AssistantDock({
                       type="button"
                       ref={miniMapButtonRef}
                       onClick={handleMiniMapToggle}
+                      data-tour={isRail ? 'assistant-mini-map' : undefined}
                       className={clsx(
                         'rounded-full border p-2 transition focus:outline-none focus:ring-2 focus:ring-emerald-300/60',
                         isMiniMapVisible

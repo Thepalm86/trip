@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { Calendar, Plus, Map, Heart, LayoutList } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import clsx from 'clsx'
+import { Calendar, CalendarRange, Plus, Map, Heart, LayoutList, Sparkles } from 'lucide-react'
 import { Destination, TimelineDay, DayLocation } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { DayCard } from './DayCard'
 import { AddDestinationModal } from './AddDestinationModal'
 import { DayNotesModal } from './DayNotesModal'
 import { BaseLocationPicker } from './BaseLocationPicker'
+import { AssistantDock } from '@/components/assistant/AssistantDock'
 import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 import {
   DndContext,
@@ -28,6 +30,74 @@ import { useDroppable } from '@dnd-kit/core'
 const DAY_CONTAINER_PREFIX = 'day-'
 const TIMELINE_DAY_PREFIX = 'timeline-day-'
 const BASE_LOCATION_BULLET_COLOR = '#34d399'
+
+const DETAIL_TAB_STORAGE_KEY = 'trip3:itinerary:detail-tabs'
+const GLOBAL_TAB_KEY = '__global'
+
+const DETAIL_TABS = [
+  {
+    id: 'plan' as const,
+    label: 'Plan',
+    description: 'Destinations & stays',
+    Icon: CalendarRange,
+  },
+  {
+    id: 'assistant' as const,
+    label: 'Assistant',
+    description: 'Collaborate & ideate',
+    Icon: Sparkles,
+  },
+] as const
+
+type DetailTabId = (typeof DETAIL_TABS)[number]['id']
+type DetailTabPreferences = Record<string, DetailTabId>
+const DEFAULT_DETAIL_TAB: DetailTabId = 'plan'
+
+function readStoredDetailTabs(): DetailTabPreferences {
+  if (typeof window === 'undefined') {
+    return {}
+  }
+
+  try {
+    const raw = window.localStorage.getItem(DETAIL_TAB_STORAGE_KEY)
+    if (!raw) {
+      return {}
+    }
+
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const result: DetailTabPreferences = {}
+
+    for (const [key, value] of Object.entries(parsed)) {
+      if (value === 'plan' || value === 'assistant') {
+        result[key] = value
+      }
+    }
+
+    return result
+  } catch (error) {
+    console.warn('ItineraryTab: failed to parse detail tab preferences', error)
+    return {}
+  }
+}
+
+function applyDetailTabPreference(
+  preferences: DetailTabPreferences,
+  key: string,
+  tab: DetailTabId
+): DetailTabPreferences {
+  const current = preferences[key] ?? DEFAULT_DETAIL_TAB
+  if (current === tab) {
+    return preferences
+  }
+
+  const next = { ...preferences }
+  if (tab === DEFAULT_DETAIL_TAB) {
+    delete next[key]
+  } else {
+    next[key] = tab
+  }
+  return next
+}
 
 type DestinationDragData = {
   type: 'destination'
@@ -241,6 +311,12 @@ export function ItineraryTab() {
     reorderDestinations,
     reorderBaseLocations,
   } = useSupabaseTripStore()
+
+  const clearRouteSegmentSelection = useCallback(() => {
+    useSupabaseTripStore.setState({
+      selectedRouteSegmentId: null,
+    })
+  }, [])
   
   // Drag and drop sensors
   const sensors = useSensors(
@@ -263,6 +339,47 @@ export function ItineraryTab() {
   const [activeBaseLocation, setActiveBaseLocation] = useState<{ location: DayLocation; dayId: string } | null>(null)
   const [activeTargetDayId, setActiveTargetDayId] = useState<string | null>(null)
   const [expandAllDays, setExpandAllDays] = useState(false)
+  const [detailTabPreferences, setDetailTabPreferences] = useState<DetailTabPreferences>(() => readStoredDetailTabs())
+
+  useEffect(() => {
+    if (!currentTrip) {
+      return
+    }
+
+    const validKeys = new Set<string>(currentTrip.days.map(day => day.id))
+    validKeys.add(GLOBAL_TAB_KEY)
+
+    setDetailTabPreferences(prev => {
+      let mutated = false
+      const next: DetailTabPreferences = {}
+
+      for (const [key, value] of Object.entries(prev)) {
+        if (!validKeys.has(key)) {
+          mutated = true
+          continue
+        }
+        next[key] = value
+      }
+
+      return mutated ? next : prev
+    })
+  }, [currentTrip])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      if (Object.keys(detailTabPreferences).length === 0) {
+        window.localStorage.removeItem(DETAIL_TAB_STORAGE_KEY)
+      } else {
+        window.localStorage.setItem(DETAIL_TAB_STORAGE_KEY, JSON.stringify(detailTabPreferences))
+      }
+    } catch (error) {
+      console.warn('ItineraryTab: failed to persist detail tab preferences', error)
+    }
+  }, [detailTabPreferences])
 
   const handleDragStart = (event: DragStartEvent) => {
     const activeData = event.active.data.current as DestinationDragData | BaseLocationDragData | undefined
@@ -455,16 +572,78 @@ export function ItineraryTab() {
     setShowBaseLocationPicker(true)
   }
 
-  const handleSelectDay = (dayId: string) => {
-    setSelectedDay(dayId)
-    setActiveTargetDayId(null)
-    setActiveDestination(null)
-    setActiveDrag(null)
-  }
-
-
   const selectedDay = currentTrip.days.find(day => day.id === selectedDayId)
+  const selectedDayIndex = selectedDay ? currentTrip.days.findIndex(d => d.id === selectedDay.id) : -1
   const hasDays = currentTrip.days.length > 0
+  const activeContextKey = selectedDay?.id ?? GLOBAL_TAB_KEY
+  const activeDetailTab = detailTabPreferences[activeContextKey] ?? DEFAULT_DETAIL_TAB
+
+  const updateDetailTabPreferenceForKey = useCallback(
+    (tab: DetailTabId, targetDayId?: string | null) => {
+      const key = targetDayId ?? selectedDay?.id ?? GLOBAL_TAB_KEY
+      setDetailTabPreferences(prev => applyDetailTabPreference(prev, key, tab))
+      if (tab === 'assistant') {
+        clearRouteSegmentSelection()
+      }
+    },
+    [selectedDay?.id, clearRouteSegmentSelection]
+  )
+
+  const setDetailTabForCurrentContext = useCallback(
+    (tab: DetailTabId) => {
+      updateDetailTabPreferenceForKey(tab)
+    },
+    [updateDetailTabPreferenceForKey]
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const openHandler = () => {
+      setDetailTabForCurrentContext('assistant')
+      clearRouteSegmentSelection()
+    }
+    const closeHandler = () => setDetailTabForCurrentContext('plan')
+    const toggleHandler = () => {
+      const key = selectedDay?.id ?? GLOBAL_TAB_KEY
+      const current = detailTabPreferences[key] ?? DEFAULT_DETAIL_TAB
+      if (current === 'assistant') {
+        setDetailTabForCurrentContext('plan')
+      } else {
+        setDetailTabForCurrentContext('assistant')
+        clearRouteSegmentSelection()
+      }
+    }
+    const promptHandler = () => {
+      setDetailTabForCurrentContext('assistant')
+      clearRouteSegmentSelection()
+    }
+
+    window.addEventListener('assistant-dock:open', openHandler)
+    window.addEventListener('assistant-dock:close', closeHandler)
+    window.addEventListener('assistant-dock:toggle', toggleHandler)
+    window.addEventListener('assistant-dock:prompt', promptHandler)
+
+    return () => {
+      window.removeEventListener('assistant-dock:open', openHandler)
+      window.removeEventListener('assistant-dock:close', closeHandler)
+      window.removeEventListener('assistant-dock:toggle', toggleHandler)
+      window.removeEventListener('assistant-dock:prompt', promptHandler)
+    }
+  }, [detailTabPreferences, selectedDay?.id, setDetailTabForCurrentContext, clearRouteSegmentSelection])
+
+  const handleSelectDay = useCallback(
+    (dayId: string) => {
+      setSelectedDay(dayId)
+      setActiveTargetDayId(null)
+      setActiveDestination(null)
+      setActiveDrag(null)
+      updateDetailTabPreferenceForKey('plan', dayId)
+    },
+    [setSelectedDay, updateDetailTabPreferenceForKey]
+  )
 
   return (
     <DndContext
@@ -531,55 +710,147 @@ export function ItineraryTab() {
         </div>
 
         {/* Day Details */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide" data-tour="day-details">
-          {selectedDay ? (
-            <DayCard
-              day={selectedDay}
-              dayIndex={currentTrip.days.findIndex(d => d.id === selectedDay.id)}
-              isExpanded={true}
-              onAddDestination={() => handleAddDestination(selectedDay.id)}
-              onAddNotes={() => handleAddNotes(selectedDay.id)}
-              onSetBaseLocation={() => handleSetBaseLocation(selectedDay.id)}
-              activeDestinationId={activeDrag?.destinationId ?? null}
-              activeTargetDayId={activeTargetDayId}
-              draggingFromDayId={activeDrag?.dayId ?? null}
-            />
-          ) : hasDays ? (
-            <div className="flex h-full items-center justify-center px-6">
-              <div className="text-center space-y-3 max-w-sm">
-                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto">
-                  <LayoutList className="h-6 w-6 text-white/40" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-1">Select a day to see details</h3>
-                  <p className="text-sm text-white/60">
-                    Choose a day from the timeline on the left to review destinations, notes, and accommodations.
-                  </p>
-                </div>
-              </div>
+        <div className="flex-1 flex flex-col bg-white/[0.01]" data-tour="day-details">
+          <div className="border-b border-white/12 bg-white/[0.035]">
+            <div
+              role="tablist"
+              aria-label="Day detail views"
+              className="grid grid-cols-2 gap-0 overflow-hidden text-sm text-white/70 backdrop-blur-sm"
+            >
+              {DETAIL_TABS.map(({ id, label, description, Icon }) => {
+                const isActive = id === activeDetailTab
+                const tabId = `day-detail-tab-${id}`
+                const panelId = `day-detail-panel-${id}`
+
+                return (
+                  <button
+                    key={id}
+                    id={tabId}
+                    role="tab"
+                    type="button"
+                    aria-selected={isActive}
+                    aria-controls={panelId}
+                    data-tour={id === 'assistant' ? 'assistant-tab' : id === 'plan' ? 'plan-tab' : undefined}
+                    onClick={() => setDetailTabForCurrentContext(id)}
+                    className={clsx(
+                      'group relative flex h-full w-full items-center gap-3 px-5 py-2.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60 border-y border-transparent first:border-l last:border-r rounded-none',
+                      isActive
+                        ? 'bg-gradient-to-r from-sky-500/85 via-blue-600/85 to-indigo-500/85 text-white shadow-[0_20px_45px_-22px_rgba(59,130,246,0.75)] ring-1 ring-blue-300/50 border-blue-400/50'
+                        : 'text-white/70 hover:bg-white/10 hover:text-white border-white/8'
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={clsx(
+                          'flex h-6 w-6 items-center justify-center rounded-md border text-[11px] uppercase tracking-[0.22em] transition',
+                          isActive ? 'border-white/30 bg-slate-900/10 text-white' : 'border-white/15 bg-white/5 text-white/70 group-hover:border-white/25'
+                        )}
+                      >
+                        <Icon className="h-3 w-3" />
+                      </span>
+                      <div className="flex flex-col items-start leading-tight">
+                        <span className="text-sm font-semibold">{label}</span>
+                        <span
+                          className={clsx(
+                            'text-xs transition',
+                            isActive ? 'text-white/80' : 'text-white/55 group-hover:text-white/70'
+                          )}
+                        >
+                          {description}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={clsx(
+                        'pointer-events-none absolute inset-x-5 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-sky-400 via-blue-300 to-indigo-400 transition-opacity duration-150',
+                        isActive ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                  </button>
+                )
+              })}
             </div>
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <div className="text-center space-y-4 max-w-sm">
-                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
-                  <Calendar className="h-8 w-8 text-white/40" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-2">No days in your timeline yet</h3>
-                  <p className="text-sm text-white/60">
-                    Pick travel dates or use the Add Day button to create your first day. They will appear here with their details.
-                  </p>
-                </div>
-                <button
-                  onClick={addNewDay}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500 text-white font-medium transition-all duration-200 hover:bg-blue-600"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add First Day
-                </button>
+          </div>
+
+          <div className="relative flex-1 min-h-0">
+            <section
+              role="tabpanel"
+              id="day-detail-panel-plan"
+              aria-labelledby="day-detail-tab-plan"
+              className={clsx(
+                'absolute inset-0 flex min-h-0 flex-col transition-opacity duration-200',
+                activeDetailTab === 'plan' ? 'opacity-100' : 'pointer-events-none opacity-0'
+              )}
+            >
+              <div className="h-full overflow-y-auto scrollbar-hide">
+                {selectedDay ? (
+                  <DayCard
+                    day={selectedDay}
+                    dayIndex={selectedDayIndex}
+                    isExpanded={true}
+                    onAddDestination={() => handleAddDestination(selectedDay.id)}
+                    onAddNotes={() => handleAddNotes(selectedDay.id)}
+                    onSetBaseLocation={() => handleSetBaseLocation(selectedDay.id)}
+                    activeDestinationId={activeDrag?.destinationId ?? null}
+                    activeTargetDayId={activeTargetDayId}
+                    draggingFromDayId={activeDrag?.dayId ?? null}
+                  />
+                ) : hasDays ? (
+                  <div className="flex h-full items-center justify-center px-6">
+                    <div className="text-center space-y-3 max-w-sm">
+                      <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                        <LayoutList className="h-6 w-6 text-white/40" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white mb-1">Select a day to see details</h3>
+                        <p className="text-sm text-white/60">
+                          Choose a day from the timeline on the left to review destinations, notes, and accommodations.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <div className="text-center space-y-4 max-w-sm">
+                      <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                        <Calendar className="h-8 w-8 text-white/40" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white mb-2">No days in your timeline yet</h3>
+                        <p className="text-sm text-white/60">
+                          Pick travel dates or use the Add Day button to create your first day. They will appear here with their details.
+                        </p>
+                      </div>
+                      <button
+                        onClick={addNewDay}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500 text-white font-medium transition-all duration-200 hover:bg-blue-600"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add First Day
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            </section>
+
+            <section
+              role="tabpanel"
+              id="day-detail-panel-assistant"
+              aria-labelledby="day-detail-tab-assistant"
+              className={clsx(
+                'absolute inset-0 flex min-h-0 flex-col transition-opacity duration-200',
+                activeDetailTab === 'assistant' ? 'opacity-100' : 'pointer-events-none opacity-0'
+              )}
+            >
+              <AssistantDock
+                variant="rail"
+                isVisible={activeDetailTab === 'assistant'}
+                onRequestClose={() => setDetailTabForCurrentContext('plan')}
+                className="h-full w-full rounded-none border-0 bg-transparent shadow-none"
+              />
+            </section>
+          </div>
         </div>
       </div>
 

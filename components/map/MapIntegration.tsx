@@ -128,7 +128,10 @@ export function MapIntegration({ map, mode = 'full' }: MapIntegrationProps) {
       <CountryFocus map={map} />
       {!isCompact ? (
         <>
-          <div className="absolute bottom-4 left-4 z-10 grid grid-cols-2 gap-3">
+          <div
+            className="absolute bottom-4 left-4 z-10 grid grid-cols-2 gap-3"
+            data-tour="map-controls"
+          >
             <MapLegendToggle map={map} className="w-full" />
             <ExploreMarkersToggle map={map} positioned={false} className="w-full" />
             <AllDestinationsToggle map={map} className="w-full" />

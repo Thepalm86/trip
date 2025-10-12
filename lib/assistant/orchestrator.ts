@@ -231,12 +231,6 @@ function buildFollowUps(context: AssistantContext): string[] {
 
   if (context.trip?.days?.length) {
     const missingDays = context.trip.days.filter((day) => day.destinations.length === 0)
-    if (missingDays.length) {
-      followUps.push(
-        `Need ideas for Day ${missingDays[0].dayOrder + 1}? I can suggest activities or dining options.`
-      )
-    }
-
     const openSlots = context.trip.days.find((day) => (day.openSlots?.length ?? 0) > 0)
     if (openSlots) {
       followUps.push(

@@ -36,7 +36,7 @@ export function UserProfile({ onShare, onShowGuide, onOpenResearch }: UserProfil
   const initials = displayName.slice(0, 2).toUpperCase()
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative" ref={dropdownRef} data-tour="profile">
       {/* Profile Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
