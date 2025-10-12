@@ -124,6 +124,7 @@ function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget, is
   const visibleDestinations = destinationSummaries.slice(0, MAX_DESTINATIONS)
   const remainingDestinations = destinationSummaries.length - visibleDestinations.length
   const showDetails = isExpanded
+  const hasBaseLocation = day.baseLocations.length > 0
 
   const baseClasses = 'w-full p-3 rounded-lg text-left transition-all duration-200'
   const stateClasses = isSelected
@@ -155,8 +156,13 @@ function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget, is
               })}
             </span>
           </div>
+          {hasBaseLocation && !showDetails ? (
+            <div className="mt-2 text-xs text-white/55 truncate">
+              {baseCity || day.baseLocations[0].name}
+            </div>
+          ) : null}
           {showDetails ? (
-            <div className="mt-2 space-y-3">
+            <div className="mt-3 space-y-3">
               <div>
                 <div className="text-xs font-semibold text-white/75">
                   Destinations
@@ -471,7 +477,7 @@ export function ItineraryTab() {
     >
       <div className="h-full flex" data-tour="day-plan-wrapper">
         {/* Days List */}
-        <div className="w-80 border-r border-white/10 bg-white/[0.02] overflow-y-auto scrollbar-hide" data-tour="timeline">
+        <div className="w-72 border-r border-white/10 bg-white/[0.02] overflow-y-auto scrollbar-hide" data-tour="timeline">
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-white/80">Timeline</h3>
