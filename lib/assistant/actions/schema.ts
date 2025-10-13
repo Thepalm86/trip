@@ -26,11 +26,18 @@ export const assistantUiActionTypeSchema = z.enum([
   'AddPlaceToItinerary',
   'RescheduleItineraryItem',
   'RemoveOrReplaceItem',
+  'AddExploreMarker',
 ])
+
+const optionalPlaceIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .optional()
 
 export const assistantAddPlacePayloadSchema = z
   .object({
-    placeId: z.string().min(1),
+    placeId: optionalPlaceIdSchema,
     fallbackQuery: z.string().min(1),
     tripId: z.string().min(1),
     dayId: z.string().min(1),
@@ -43,6 +50,25 @@ export const assistantAddPlacePayloadSchema = z
     fromMapSelection: z.boolean().optional(),
     lat: z.number().optional(),
     lng: z.number().optional(),
+  })
+  .refine(ensureLatLngPair, {
+    message: 'lat and lng must either both be provided or omitted',
+    path: ['lat'],
+  })
+
+export const assistantAddExploreMarkerPayloadSchema = z
+  .object({
+    query: z.string().min(1),
+    city: z.string().optional(),
+    region: z.string().optional(),
+    country: z.string().optional(),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    notes: z.string().optional(),
+    confidence: z.number().min(0).max(100).optional(),
+    lat: z.number().optional(),
+    lng: z.number().optional(),
+    source: z.literal('assistant').default('assistant'),
   })
   .refine(ensureLatLngPair, {
     message: 'lat and lng must either both be provided or omitted',
@@ -96,8 +122,8 @@ export const assistantRemoveOrReplacePayloadSchema = z
 
 export const assistantUiActionMetaSchema = z
   .object({
-    requestId: z.string().min(1),
-    issuedAt: z.string().datetime(),
+    requestId: z.string().min(1).optional(),
+    issuedAt: z.string().datetime().optional(),
     confidence: z.number().min(0).max(1).optional(),
     rationale: z.string().optional(),
   })
@@ -110,6 +136,11 @@ export const assistantUiActionSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('AddPlaceToItinerary'),
     payload: assistantAddPlacePayloadSchema,
+    meta: assistantUiActionMetaSchema.optional(),
+  }),
+  z.object({
+    type: z.literal('AddExploreMarker'),
+    payload: assistantAddExploreMarkerPayloadSchema,
     meta: assistantUiActionMetaSchema.optional(),
   }),
   z.object({
@@ -134,7 +165,26 @@ const metaJsonSchema = {
     confidence: { type: 'number', minimum: 0, maximum: 1 },
     rationale: { type: 'string' },
   },
-  required: ['requestId', 'issuedAt'],
+  required: [],
+  additionalProperties: false,
+}
+
+const addExploreMarkerPayloadJsonSchema = {
+  type: 'object',
+  properties: {
+    query: { type: 'string', minLength: 1 },
+    city: { type: 'string' },
+    region: { type: 'string' },
+    country: { type: 'string' },
+    category: { type: 'string' },
+    tags: { type: 'array', items: { type: 'string' } },
+    notes: { type: 'string' },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+    lat: { type: 'number' },
+    lng: { type: 'number' },
+    source: { const: 'assistant' },
+  },
+  required: ['query', 'source'],
   additionalProperties: false,
 }
 
@@ -155,7 +205,7 @@ const addPlacePayloadJsonSchema = {
     lat: { type: 'number' },
     lng: { type: 'number' },
   },
-  required: ['placeId', 'fallbackQuery', 'tripId', 'dayId', 'startTime', 'durationMinutes', 'source', 'confidence'],
+  required: ['fallbackQuery', 'tripId', 'dayId', 'startTime', 'durationMinutes', 'source', 'confidence'],
   additionalProperties: false,
 }
 
@@ -238,6 +288,16 @@ export const assistantUiActionJsonSchema = {
     {
       type: 'object',
       properties: {
+        type: { const: 'AddExploreMarker' },
+        payload: addExploreMarkerPayloadJsonSchema,
+        meta: metaJsonSchema,
+      },
+      required: ['type', 'payload'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object',
+      properties: {
         type: { const: 'RescheduleItineraryItem' },
         payload: reschedulePayloadJsonSchema,
         meta: metaJsonSchema,
@@ -265,6 +325,7 @@ export const assistantUiActionCollectionJsonSchema = {
 } as const
 
 export type AssistantAddPlacePayload = z.infer<typeof assistantAddPlacePayloadSchema>
+export type AssistantAddExploreMarkerPayload = z.infer<typeof assistantAddExploreMarkerPayloadSchema>
 export type AssistantReschedulePayload = z.infer<typeof assistantReschedulePayloadSchema>
 export type AssistantRemoveOrReplacePayload = z.infer<
   typeof assistantRemoveOrReplacePayloadSchema

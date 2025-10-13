@@ -1,10 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/client'
 import { Destination, TimelineDay, Trip, DayLocation } from '@/types'
 import { addDays } from '@/lib/utils'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabase = createClient()
 
 // Database types matching our schema
 interface DatabaseTrip {
@@ -341,17 +339,22 @@ export const tripApi = {
       }
     })
 
-    const { data: days, error: daysError } = await supabase
-      .from('trip_days')
-      .insert(dayInserts)
-      .select('*')
+    let createdDays: DatabaseDay[] = []
 
-    if (daysError) throw daysError
+    if (dayInserts.length > 0) {
+      const { data: days, error: daysError } = await supabase
+        .from('trip_days')
+        .insert(dayInserts)
+        .select('*')
+
+      if (daysError) throw daysError
+      createdDays = days as DatabaseDay[]
+    }
 
     // Create destinations
     const destinationInserts: any[] = []
     trip.days.forEach((day, dayIndex) => {
-      const dayData = days.find(d => d.day_order === dayIndex)
+      const dayData = createdDays.find(d => d.day_order === dayIndex)
       if (dayData) {
         day.destinations.forEach((dest, destIndex) => {
           destinationInserts.push({

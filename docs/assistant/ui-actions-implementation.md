@@ -20,6 +20,7 @@
 | Action | Description | Required Payload | Optional Payload | Notes |
 | --- | --- | --- | --- | --- |
 | `AddPlaceToItinerary` | Insert a recommended POI into a specified day/time slot. | `place_id`, `fallback_query`, `trip_id`, `day_id`, `start_time`, `duration_minutes`, `source` (`assistant`), `confidence` | `notes`, `tags`, `from_map_selection`, `lat`, `lng` | Use default duration (90 min) if model omits; must reference an existing day. |
+| `AddExploreMarker` | Pin a discovery candidate to Explore Anywhere so the user can review it later. | `query`, `source` (`assistant`) | `city`, `region`, `country`, `category`, `tags`, `notes`, `confidence` (0–100), `lat`, `lng` | Model should supply a rich query string and only include coordinates when explicitly provided (we backfill via search). Cap at three markers per turn. |
 | `RescheduleItineraryItem` | Move or stretch an existing itinerary stop to another slot. | `trip_id`, `day_id`, `item_id`, `new_day_id`, `new_start_time`, `new_duration_minutes` | `locked_dependencies` (array), `user_confirmed` (bool) | If `locked_dependencies` present, assistant must acknowledge and request confirmation before executing. |
 | `RemoveOrReplaceItem` | Remove a stop or swap it with an alternative. | `trip_id`, `day_id`, `item_id`, `mode` (`remove` \| `replace`), `user_confirmed` | `replacement` (schema identical to `AddPlaceToItinerary`), `reason` | Always emit `user_confirmed=true` once user explicitly approves; otherwise return guidance-only. |
 
@@ -39,21 +40,23 @@
   - Subscribe to SSE updates, validate payload via shared schema (bundled with `zod`).  
   - Route to domain handlers:
     - `trip-store` mutations (`addItem`, `moveItem`, `removeItem`, `replaceItem`).  
+    - `explore-store` mutations (`addActivePlace`, `addRecent`) for Explore markers.  
     - `InteractiveMap` ref methods (`focusPlace`, `highlightRoute`).  
   - Emit undo notifications via toasts or inline banners.
 - **State Stores**  
   - Trip store gains deterministic reducers with optimistic rollback hooks.  
+  - Explore store handles persistence/dedupe for assistant-suggested markers.  
   - Map component exposes imperative API using React context or event emitter.
 - **Telemetry & Audit**  
   - Server logs include action payload, validation status, and downstream success/failure.  
   - Client posts action outcomes back to `/api/assistant/actions/log` for aggregated analytics.
 
 ### Sequence (Textual)
-1. User asks assistant to add/move/remove an item.  
+1. User asks assistant to add/move/remove an item or save new places to Explore.  
 2. Prompt builder assembles conversation history + context + action contract.  
 3. LLM responds with JSON envelope containing action(s).  
 4. Orchestrator validates; returns SSE stream with `reply` and `ui_actions`.  
-5. Client dispatcher consumes actions, updates trip store/map, shows confirmation toast.  
+5. Client dispatcher consumes actions, updates trip/explore stores and map focus, shows confirmation toast.  
 6. Client reports outcome (success/error/undo) for logging; orchestrator stores conversation turn with action metadata.
 
 ## Shared Tech Stack & Libraries
@@ -90,6 +93,18 @@
   - Integration: record prompt fixture where assistant adds a POI; verify SSE payload + UI update.
 - **Exit Criteria**  
   - Assistant adds POI to correct day/time in staging, shows confirmation toast, and logs action.
+
+### Phase 1.5 — `AddExploreMarker` (4 days) — ✅ Completed
+- **Schema & Prompt**  
+  - Added `AddExploreMarker` discriminant to the shared Zod schema/JSON contract and refreshed the system guidance to limit markers per turn.  
+  - Kept payload slim by leaning on the Explore search endpoint for lat/lng enrichment instead of hallucinated coordinates.
+- **Frontend**  
+  - Extended `action-bridge` with a handler that calls `/api/explore/search`, enriches results with assistant-provided hints, and stores them via `explore-store` (including recent pins).  
+  - Added fallback path to create markers when coordinates are supplied directly in the payload.
+- **Testing**  
+  - Widened schema unit tests to include Explore marker success cases and coordinate fallback.
+- **Exit Criteria**  
+  - Assistant can pin up to three high-confidence Explore suggestions per turn with dedupe and Supabase persistence.
 
 ### Phase 2 — `RescheduleItineraryItem` (1 week)
 - Extend schema with `RescheduleItineraryItem` specifics, including constraint checks (e.g., locked bookings).  
@@ -133,9 +148,10 @@
 - Update `lib/assistant/types.ts` with:
   ```ts
   export const assistantUiActionSchema = z.object({
-    type: z.enum(["AddPlaceToItinerary", "RescheduleItineraryItem", "RemoveOrReplaceItem"]),
+    type: z.enum(["AddPlaceToItinerary", "AddExploreMarker", "RescheduleItineraryItem", "RemoveOrReplaceItem"]),
     payload: z.union([
       addPlacePayloadSchema,
+      addExploreMarkerPayloadSchema,
       reschedulePayloadSchema,
       removeOrReplacePayloadSchema,
     ]),
@@ -146,7 +162,7 @@
   });
   ```
 - Share same schema via barrel export for frontend consumption (`@trip3/assistant-actions`).  
-- Ensure trip-store exposes mutation signatures aligning with payload: `addPlaceFromAssistant(payload: AddPlacePayload, meta: ActionMeta)`.
+- Ensure trip/explore stores expose mutation signatures aligning with payload: `addPlaceFromAssistant(payload: AddPlacePayload, meta: ActionMeta)` and `addExploreMarkerFromAssistant(payload: AddExploreMarkerPayload, meta: ActionMeta)`.
 
 ## Validation & Testing
 - **Unit Tests**  

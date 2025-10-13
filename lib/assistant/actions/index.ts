@@ -1,5 +1,6 @@
 export {
   assistantAddPlacePayloadSchema,
+  assistantAddExploreMarkerPayloadSchema,
   assistantReschedulePayloadSchema,
   assistantRemoveOrReplacePayloadSchema,
   assistantUiActionCollectionSchema,
@@ -12,6 +13,7 @@ export {
 
 export type {
   AssistantAddPlacePayload,
+  AssistantAddExploreMarkerPayload,
   AssistantReschedulePayload,
   AssistantRemoveOrReplacePayload,
   AssistantUiAction,

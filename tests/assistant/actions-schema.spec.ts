@@ -35,6 +35,65 @@ test('assistantUiActionSchema accepts AddPlaceToItinerary payload', () => {
   assert.equal(action.payload.lat, 25.375)
 })
 
+test('assistantUiActionSchema allows missing placeId and synthesizes later', () => {
+  const action = assistantUiActionSchema.parse({
+    type: 'AddPlaceToItinerary',
+    payload: {
+      fallbackQuery: 'Trevi Fountain',
+      tripId: 'trip_1',
+      dayId: 'day_1',
+      startTime: '2025-10-20T09:00:00Z',
+      durationMinutes: 120,
+      source: 'assistant',
+      confidence: 0.88,
+      lat: 41.9009,
+      lng: 12.4833,
+    },
+  })
+
+  assert.equal(action.payload.fallbackQuery, 'Trevi Fountain')
+  assert.equal(action.payload.placeId, undefined)
+})
+
+test('assistantUiActionSchema accepts AddExploreMarker payload', () => {
+  const action = assistantUiActionSchema.parse({
+    type: 'AddExploreMarker',
+    payload: {
+      query: 'Historic cafes in Lisbon',
+      city: 'Lisbon',
+      country: 'Portugal',
+      category: 'cafe',
+      tags: ['coffee', 'heritage'],
+      notes: 'User loves azulejo decor.',
+      confidence: 76,
+      source: 'assistant',
+    },
+    meta: {
+      requestId: 'f76a5c86-f268-4a7c-8cea-3f43f79d6171',
+      issuedAt: '2025-03-05T10:00:00Z',
+    },
+  })
+
+  assert.equal(action.type, 'AddExploreMarker')
+  assert.equal(action.payload.city, 'Lisbon')
+  assert.equal(action.payload.confidence, 76)
+})
+
+test('assistantUiActionSchema supports AddExploreMarker fallback coordinates', () => {
+  const action = assistantUiActionSchema.parse({
+    type: 'AddExploreMarker',
+    payload: {
+      query: 'Sunset viewpoint near Oia',
+      lat: 25.392,
+      lng: 36.461,
+      source: 'assistant',
+    },
+  })
+
+  assert.equal(action.payload.lat, 25.392)
+  assert.equal(action.payload.lng, 36.461)
+})
+
 test('assistantUiActionSchema accepts HH:MM startTime and custom requestId', () => {
   const action = assistantUiActionSchema.parse({
     type: 'AddPlaceToItinerary',

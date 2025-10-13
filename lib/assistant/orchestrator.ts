@@ -61,6 +61,7 @@ You may emit a UI action when the user explicitly requests a change and all requ
 - AddPlaceToItinerary — Adds a new point of interest to a specific day/time. Include tripId, dayId, startTime, durationMinutes, confidence, placeId, and fallbackQuery. Only add when the user agrees or requested it; otherwise ask first.
 - RescheduleItineraryItem — Moves an existing item to a new slot. Provide the current itemId/dayId and the new day/time. Request confirmation if lockedDependencies are present.
 - RemoveOrReplaceItem — Removes or swaps an item. Emit only with userConfirmed=true. For replacements include the new place details inside replacement.
+- AddExploreMarker — Pins a discovery suggestion to Explore Anywhere. Provide a descriptive query (include city/region/country when known), optional category/tags/notes, and confidence. Do not invent coordinates; omit lat/lng unless explicitly provided. Limit yourself to three markers per conversation turn.
 
 Formatting requirements:
 - Use full ISO 8601 timestamps with date for any startTime fields (e.g., 2025-10-23T10:00:00Z).
@@ -116,15 +117,27 @@ function normalizeActions(actions: AssistantUiAction[]): AssistantUiAction[] {
     const requestId =
       providedRequestId && UUID_REGEX.test(providedRequestId) ? providedRequestId : randomUUID()
     const issuedAt = action.meta?.issuedAt ?? new Date().toISOString()
+    let confidence = action.meta?.confidence
+
+    if (confidence === undefined) {
+      if (action.type === 'AddPlaceToItinerary') {
+        confidence = action.payload.confidence
+      } else if (action.type === 'AddExploreMarker') {
+        confidence =
+          typeof action.payload.confidence === 'number'
+            ? action.payload.confidence / (action.payload.confidence > 1 ? 100 : 1)
+            : undefined
+      }
+    } else if (action.type === 'AddExploreMarker' && confidence > 1) {
+      confidence = confidence / 100
+    }
 
     return {
       ...action,
       meta: {
         requestId,
         issuedAt,
-        confidence:
-          action.meta?.confidence ??
-          (action.type === 'AddPlaceToItinerary' ? action.payload.confidence : undefined),
+        confidence,
         rationale: action.meta?.rationale,
       },
     }

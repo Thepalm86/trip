@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
+import { addDays } from '@/lib/utils'
 import { useAuth } from '@/lib/auth/auth-context'
 
 export function TripLoader() {
@@ -14,12 +15,17 @@ export function TripLoader() {
     createTripRef.current = useSupabaseTripStore.getState().createTrip
   })
 
-  const hasEnsuredTripRef = useRef(false)
+  const ensuredUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!user) return
-    if (hasEnsuredTripRef.current) return
-    hasEnsuredTripRef.current = true
+    if (!user) {
+      ensuredUserIdRef.current = null
+      return
+    }
+    if (ensuredUserIdRef.current === user.id) {
+      return
+    }
+    ensuredUserIdRef.current = user.id
 
     let cancelled = false
 
@@ -41,19 +47,49 @@ export function TripLoader() {
 
         if (!currentTrip && trips.length === 0) {
           console.log('TripLoader: No trips found, creating default trip...')
-          const today = new Date()
+          const startDate = new Date()
+          const endDate = addDays(startDate, 1)
+          const firstDayId =
+            typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+              ? crypto.randomUUID()
+              : Math.random().toString(36).slice(2)
+          const secondDayId =
+            typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+              ? crypto.randomUUID()
+              : Math.random().toString(36).slice(2)
           const defaultTrip = {
             name: 'My First Trip',
-            startDate: today,
-            endDate: today,
+            startDate,
+            endDate,
             country: '',
-            days: [],
+            days: [
+              {
+                id: `temp-day-${firstDayId}`,
+                dayOrder: 0,
+                date: startDate,
+                destinations: [],
+                baseLocations: [],
+                openSlots: [],
+                notes: undefined,
+              },
+              {
+                id: `temp-day-${secondDayId}`,
+                dayOrder: 1,
+                date: endDate,
+                destinations: [],
+                baseLocations: [],
+                openSlots: [],
+                notes: undefined,
+              },
+            ],
           }
 
           await createTripRef.current(defaultTrip)
         }
       } catch (error) {
         console.error('TripLoader: Error ensuring trips:', error)
+        // Allow retry if initialization fails
+        ensuredUserIdRef.current = null
       }
     }
 

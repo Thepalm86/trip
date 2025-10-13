@@ -5,12 +5,14 @@ import { useCallback } from 'react'
 import {
   assistantUiActionCollectionSchema,
   type AssistantAddPlacePayload,
+  type AssistantAddExploreMarkerPayload,
   type AssistantRemoveOrReplacePayload,
   type AssistantReschedulePayload,
   type AssistantUiAction,
 } from '@/lib/assistant/actions'
-import { type Destination } from '@/types'
+import { type Destination, type ExplorePlace } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
+import { useExploreStore } from '@/lib/store/explore-store'
 
 type TripStoreApi = ReturnType<typeof useSupabaseTripStore.getState>
 
@@ -264,6 +266,98 @@ async function applyAddPlace(
   return { status: 'applied' as const }
 }
 
+async function applyAddExploreMarker(
+  payload: AssistantAddExploreMarkerPayload,
+  addActivePlace: ReturnType<typeof useExploreStore.getState>['addActivePlace'],
+  addRecent: ReturnType<typeof useExploreStore.getState>['addRecent']
+) {
+  const queryTokens = [payload.query, payload.city, payload.region, payload.country]
+    .map((token) => token?.trim())
+    .filter(Boolean)
+
+  const searchQuery = queryTokens.join(', ')
+  const fallbackQuery = payload.query.trim()
+
+  const executeSearch = async () => {
+    if (!searchQuery.length) {
+      return null
+    }
+
+    try {
+      const response = await fetch(`/api/explore/search?query=${encodeURIComponent(searchQuery)}`)
+      if (!response.ok) {
+        throw new Error(`Explore search failed with status ${response.status}`)
+      }
+
+      const data = (await response.json()) as { results?: ExplorePlace[] }
+      const [first] = data.results ?? []
+      return first ?? null
+    } catch (error) {
+      console.warn('[assistant-ui] explore search failed', { searchQuery, error })
+      return null
+    }
+  }
+
+  let resolved = await executeSearch()
+
+  if (!resolved && payload.lat !== undefined && payload.lng !== undefined) {
+    resolved = {
+      id: `assistant-${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`,
+      name: fallbackQuery,
+      fullName: fallbackQuery,
+      coordinates: [payload.lng, payload.lat],
+      category: payload.category ?? 'location',
+      context: [payload.city, payload.country].filter(Boolean).join(', ') || undefined,
+      notes: payload.notes ?? undefined,
+      source: 'cache',
+      metadata: {
+        assistantFallback: true,
+        confidence: payload.confidence,
+      },
+    } satisfies ExplorePlace
+  }
+
+  if (!resolved) {
+    return {
+      status: 'skipped' as const,
+      reason: `No explore match found for "${fallbackQuery}".`,
+    }
+  }
+
+  const enriched: ExplorePlace = {
+    ...resolved,
+    id: resolved.id ?? `assistant-${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`,
+    name: resolved.name ?? fallbackQuery,
+    fullName: resolved.fullName ?? resolved.name ?? fallbackQuery,
+    coordinates: resolved.coordinates,
+    category: payload.category ?? resolved.category ?? 'location',
+    notes: payload.notes ?? resolved.notes ?? undefined,
+    source: resolved.source ?? 'google',
+    metadata: {
+      ...(resolved.metadata ?? {}),
+      assistantConfidence: payload.confidence,
+      assistantQuery: payload.query,
+      assistantRegion: payload.region,
+      assistantCountry: payload.country,
+      assistantCategory: payload.category,
+      assistantTags: payload.tags,
+    },
+    isFavorite: resolved.isFavorite ?? false,
+  }
+
+  if (!enriched.coordinates) {
+    return {
+      status: 'skipped' as const,
+      reason: `Resolved explore marker missing coordinates for "${fallbackQuery}".`,
+    }
+  }
+
+  await addActivePlace(enriched)
+  addRecent(enriched)
+
+  return { status: 'applied' as const }
+}
+
 async function applyReschedule(
   payload: AssistantReschedulePayload,
   moveDestination: TripStoreApi['moveDestination'],
@@ -414,6 +508,8 @@ export function useAssistantActionBridge() {
   const removeDestinationFromDay = useSupabaseTripStore((state) => state.removeDestinationFromDay)
   const setSelectedDay = useSupabaseTripStore((state) => state.setSelectedDay)
   const setSelectedDestination = useSupabaseTripStore((state) => state.setSelectedDestination)
+  const addExplorePlace = useExploreStore((state) => state.addActivePlace)
+  const addExploreRecent = useExploreStore((state) => state.addRecent)
 
   return useCallback(
     async (
@@ -447,6 +543,7 @@ export function useAssistantActionBridge() {
       })
 
       const results: AssistantActionDispatchResult[] = []
+      let appliedExploreMarkers = 0
 
       for (const action of dedupedActions) {
         try {
@@ -471,6 +568,27 @@ export function useAssistantActionBridge() {
                 setSelectedDestination
               )
               results.push({ action, ...outcome })
+              break
+            }
+            case 'AddExploreMarker': {
+              if (appliedExploreMarkers >= 3) {
+                results.push({
+                  action,
+                  status: 'skipped',
+                  reason: 'Explore marker cap (3 per assistant turn) reached.',
+                })
+                break
+              }
+
+              const outcome = await applyAddExploreMarker(
+                action.payload,
+                addExplorePlace,
+                addExploreRecent
+              )
+              results.push({ action, ...outcome })
+              if (outcome.status === 'applied') {
+                appliedExploreMarkers += 1
+              }
               break
             }
             case 'RemoveOrReplaceItem': {
@@ -514,6 +632,8 @@ export function useAssistantActionBridge() {
       removeDestinationFromDay,
       setSelectedDay,
       setSelectedDestination,
+      addExplorePlace,
+      addExploreRecent,
     ]
   )
 }
