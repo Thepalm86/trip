@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         reply: orchestration.reply,
+        actions: orchestration.actions,
         metadata: orchestration.metadata,
         followUps: orchestration.followUps,
         context,

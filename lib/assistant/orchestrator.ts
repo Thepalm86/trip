@@ -1,10 +1,18 @@
-import OpenAI from 'openai'
+import { randomUUID } from 'node:crypto'
 
+import OpenAI from 'openai'
+import { z } from 'zod'
+
+import { loadAssistantEnv } from '@/lib/assistant/config/env'
 import type {
   AssistantContext,
   AssistantMessagePayload,
 } from '@/lib/assistant/context/types'
-import { loadAssistantEnv } from '@/lib/assistant/config/env'
+import {
+  assistantUiActionCollectionJsonSchema,
+  assistantUiActionCollectionSchema,
+  type AssistantUiAction,
+} from '@/lib/assistant/actions'
 
 type OrchestratorInput = {
   payload: AssistantMessagePayload
@@ -17,6 +25,8 @@ type OrchestratorInput = {
 
 type OrchestratorResult = {
   reply: string
+  actions: AssistantUiAction[]
+  analysis?: string
   metadata: {
     model: string
     promptTokens?: number
@@ -43,7 +53,83 @@ Guidelines:
 - Suggest at most 3 actionable next steps.
 - Never invent reservations, tickets, or costs that are not present in the context.
 - Respect the user’s preferences (budget, style, dietary, accessibility).
-- Keep the tone optimistic, professional, and friendly.`.trim()
+- Keep the tone optimistic, professional, and friendly.`
+
+const UI_ACTION_PROMPT = `
+### UI Actions
+You may emit a UI action when the user explicitly requests a change and all required identifiers are present.
+- AddPlaceToItinerary — Adds a new point of interest to a specific day/time. Include tripId, dayId, startTime, durationMinutes, confidence, placeId, and fallbackQuery. Only add when the user agrees or requested it; otherwise ask first.
+- RescheduleItineraryItem — Moves an existing item to a new slot. Provide the current itemId/dayId and the new day/time. Request confirmation if lockedDependencies are present.
+- RemoveOrReplaceItem — Removes or swaps an item. Emit only with userConfirmed=true. For replacements include the new place details inside replacement.
+
+Formatting requirements:
+- Use full ISO 8601 timestamps with date for any startTime fields (e.g., 2025-10-23T10:00:00Z).
+- If you include meta.requestId, supply a UUID string; otherwise omit meta entirely.
+- Use the explicit identifiers shown in the context (dayId, destination id) for payload fields. Never invent new IDs or reuse dates as IDs.
+
+Always explain what you did in natural language and mention any follow-up needed (e.g., “Let me know if you want a different time.”). If the user input is ambiguous, ask a clarifying question instead of taking action.`
+  .concat(
+    '\n\nReturn your answer as JSON matching {"analysis": string?, "reply": string, "actions": AssistantUIAction[]} where actions defaults to an empty array when no action is taken.'
+  )
+
+const ASSISTANT_RESPONSE_JSON_SCHEMA = {
+  name: 'assistant_response',
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      analysis: {
+        type: 'string',
+        description:
+          'Brief chain-of-thought style reasoning or safety notes. This is not shown to the user.',
+      },
+      reply: {
+        type: 'string',
+        description: 'The message shown to the user in the assistant chat.',
+      },
+      actions: {
+        ...assistantUiActionCollectionJsonSchema,
+        description:
+          'Array of UI actions for the Trip3 client to execute. Leave empty if no action is required.',
+      },
+    },
+    required: ['reply', 'actions'],
+  },
+} as const
+
+const assistantResponseEnvelopeSchema = z.object({
+  analysis: z.string().optional(),
+  reply: z.string().min(1),
+  actions: assistantUiActionCollectionSchema.optional(),
+})
+
+type AssistantResponseEnvelope = z.infer<typeof assistantResponseEnvelopeSchema>
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function normalizeActions(actions: AssistantUiAction[]): AssistantUiAction[] {
+  if (!actions.length) return actions
+
+  return actions.map((action) => {
+    const providedRequestId = action.meta?.requestId
+    const requestId =
+      providedRequestId && UUID_REGEX.test(providedRequestId) ? providedRequestId : randomUUID()
+    const issuedAt = action.meta?.issuedAt ?? new Date().toISOString()
+
+    return {
+      ...action,
+      meta: {
+        requestId,
+        issuedAt,
+        confidence:
+          action.meta?.confidence ??
+          (action.type === 'AddPlaceToItinerary' ? action.payload.confidence : undefined),
+        rationale: action.meta?.rationale,
+      },
+    }
+  })
+}
 
 function summarizePreferences(context: AssistantContext): string {
   const prefs = context.user.preferences
@@ -85,7 +171,7 @@ function summarizeTrip(context: AssistantContext): string {
 
   trip.days.forEach((day) => {
     const humanDay = day.dayOrder + 1
-    const header = `Day ${humanDay} (${day.date})`
+    const header = `Day ${humanDay} (${day.date}) [dayId: ${day.id}]`
     const base = day.baseLocations
       ?.map((loc) => `${loc.name}${loc.context ? ` — ${loc.context}` : ''}`)
       .join('; ')
@@ -93,8 +179,9 @@ function summarizeTrip(context: AssistantContext): string {
     const destinations = day.destinations
       .map((dest, index) => {
         const label = String.fromCharCode(97 + index)
-        const details: string[] = [`${label}) ${dest.name}`]
+        const details: string[] = [`${label}) ${dest.name} (id: ${dest.id})`]
         if (dest.category) details.push(`[${dest.category}]`)
+        if (dest.startTime) details.push(`Start: ${dest.startTime}`)
         if (dest.notes) details.push(`Notes: ${dest.notes}`)
         if (dest.durationHours) details.push(`Duration: ${dest.durationHours}h`)
         if (dest.cost) details.push(`Cost: $${dest.cost}`)
@@ -183,6 +270,8 @@ function buildMessages(input: OrchestratorInput) {
     {
       role: 'system',
       content: [
+        UI_ACTION_PROMPT.trim(),
+        '',
         'Context timestamp:',
         context.generatedAt,
         '',
@@ -255,6 +344,7 @@ async function callModel(
       reply:
         "I'm unable to reach the language model right now. Please check the OpenAI API configuration.",
       metadata: { model: 'unconfigured' },
+      actions: [],
       followUps: buildFollowUps(input.context),
     }
   }
@@ -268,10 +358,27 @@ async function callModel(
     top_p: 0.9,
     presence_penalty: 0,
     frequency_penalty: 0,
+    response_format: {
+      type: 'json_schema',
+      json_schema: ASSISTANT_RESPONSE_JSON_SCHEMA,
+    },
   })
 
   const choice = response.choices[0]
-  const reply = choice?.message?.content?.trim() || 'Sorry, I could not generate a response.'
+  const rawContent = choice?.message?.content?.trim()
+  let envelope: AssistantResponseEnvelope | null = null
+
+  if (rawContent) {
+    try {
+      envelope = assistantResponseEnvelopeSchema.parse(JSON.parse(rawContent))
+    } catch (error) {
+      console.warn('[assistant] failed to parse structured response, falling back to text', error)
+    }
+  }
+
+  const reply = envelope?.reply ?? rawContent ?? 'Sorry, I could not generate a response.'
+  const actions = normalizeActions(envelope?.actions ?? [])
+  const analysis = envelope?.analysis
   const usage = response.usage ?? undefined
   const metadata = {
     model: response.model,
@@ -289,6 +396,8 @@ async function callModel(
 
   return {
     reply,
+    actions,
+    analysis,
     metadata,
     followUps: buildFollowUps(input.context),
   }
@@ -304,6 +413,7 @@ export async function orchestrateAssistantResponse(
     return {
       reply:
         "I'm having trouble reaching the assistant brain right now. Please try again in a moment.",
+      actions: [],
       metadata: {
         model: 'unavailable',
       },

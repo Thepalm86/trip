@@ -8,6 +8,8 @@ import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { getAuthHeaders } from '@/lib/auth/get-auth-headers'
 import { useAuth } from '@/lib/auth/auth-context'
 import { MiniAssistantMap } from '@/components/map/MiniAssistantMap'
+import { type AssistantUiAction } from '@/lib/assistant/actions'
+import { useAssistantActionBridge } from '@/lib/ai-assistant/ui/action-bridge'
 
 type ChatRole = 'user' | 'assistant'
 
@@ -20,6 +22,7 @@ interface ChatMessage {
 
 interface AssistantResponseBody {
   reply: string
+  actions?: AssistantUiAction[]
   metadata?: {
     model: string
     promptTokens?: number
@@ -68,6 +71,7 @@ export function AssistantDock({
   const currentTrip = useSupabaseTripStore((state) => state.currentTrip)
   const selectedDayId = useSupabaseTripStore((state) => state.selectedDayId)
   const selectedDestination = useSupabaseTripStore((state) => state.selectedDestination)
+  const dispatchAssistantActions = useAssistantActionBridge()
 
   const DEFAULT_MINI_MAP_SIZE = {
     width: 260,
@@ -345,6 +349,10 @@ export function AssistantDock({
 
       appendMessage(assistantMessage)
       setFollowUps(data.followUps ?? [])
+      void dispatchAssistantActions(data.actions ?? [], {
+        conversationId: conversationIdRef.current,
+        responseMessageId: assistantMessage.id,
+      })
 
       if (data.blocked) {
         setError('The assistant could not respond to that request.')

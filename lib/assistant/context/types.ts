@@ -31,6 +31,7 @@ export const assistantDestinationSchema = z.object({
 })
 
 export const assistantDaySchema = z.object({
+  id: z.string(),
   dayOrder: z.number().int().nonnegative(),
   date: z.string(),
   baseLocations: z

@@ -203,6 +203,7 @@ function mapTripDay(day: TripDayRow): AssistantDay {
   const destinations = sortDestinations(day.trip_destinations ?? []).map(mapDestination)
 
   return {
+    id: day.id,
     dayOrder: day.day_order,
     date: day.date,
     baseLocations: mapBaseLocations(day),

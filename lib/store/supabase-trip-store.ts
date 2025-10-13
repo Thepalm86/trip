@@ -41,6 +41,7 @@ interface SupabaseTripStore {
   isLoading: boolean
   error: string | null
   lastUpdate: number // Force re-renders
+  hasLoadedTrips: boolean
   
   // Selection state
   selectedCardId: string | null
@@ -62,7 +63,7 @@ interface SupabaseTripStore {
   updateTrip: (tripId: string, updates: Partial<Trip>) => Promise<void>
   duplicateTrip: (tripId: string, newName: string) => Promise<string>
   
-  addDestinationToDay: (destination: Destination, dayId: string) => Promise<void>
+  addDestinationToDay: (destination: Destination, dayId: string, options?: { index?: number }) => Promise<void>
   updateDestination: (dayId: string, destinationId: string, destination: Destination) => Promise<void>
   removeDestinationFromDay: (destinationId: string, dayId: string) => Promise<void>
   addNewDay: () => Promise<void>
@@ -106,8 +107,8 @@ interface SupabaseTripStore {
   
   
   // Utility
-  setError: (error: string | null) => void
-  clearError: () => void
+ setError: (error: string | null) => void
+ clearError: () => void
 }
 
 export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
@@ -121,6 +122,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   isLoading: false,
   error: null,
   lastUpdate: Date.now(),
+  hasLoadedTrips: false,
   
   // Selection state
   selectedCardId: null,
@@ -137,6 +139,10 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
 
   // Load all trips for the user
   loadTrips: async () => {
+    const state = get()
+    if (state.isLoading) {
+      return
+    }
     console.log('SupabaseTripStore: Loading trips...')
     set({ isLoading: true, error: null })
     try {
@@ -166,6 +172,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           selectedBaseLocation: null,
           selectionOrigin: null,
           isLoading: false,
+          hasLoadedTrips: true,
           ...(shouldResetRoute
             ? {
                 routeModeEnabled: false,
@@ -181,7 +188,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.error('SupabaseTripStore: Error loading trips:', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to load trips',
-        isLoading: false 
+        isLoading: false,
+        hasLoadedTrips: false,
       })
     }
   },
@@ -301,63 +309,66 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   },
 
   // Add destination to day
-  addDestinationToDay: async (destination: Destination, dayId: string) => {
-    console.log('SupabaseTripStore: Adding destination to day', { destination, dayId })
+  addDestinationToDay: async (destination: Destination, dayId: string, options?: { index?: number }) => {
+    console.log('SupabaseTripStore: Adding destination to day', { destination, dayId, options })
     set({ isLoading: true, error: null })
     try {
       const createdDestination = await tripApi.addDestinationToDay(dayId, destination)
       console.log('SupabaseTripStore: Destination created in database', createdDestination)
 
       const { currentTrip, trips } = get()
-      if (currentTrip) {
-        const updatedTrip = {
-          ...currentTrip,
-          days: currentTrip.days.map(day =>
-            day.id === dayId
-              ? { ...day, destinations: [...day.destinations, createdDestination] }
-              : day
-          )
-        }
-
-        const updatedTrips = trips.map(trip =>
-          trip.id === currentTrip.id
-            ? {
-                ...trip,
-                days: trip.days.map(day =>
-                  day.id === dayId
-                    ? { ...day, destinations: [...day.destinations, createdDestination] }
-                    : day
-                ),
-              }
-            : trip
-        )
-
-        console.log('SupabaseTripStore: Updating local state with new destination', { 
-          dayId, 
-          newDestinationCount: updatedTrip.days.find(d => d.id === dayId)?.destinations.length 
-        })
-        
-        set({ 
-          currentTrip: updatedTrip, 
-          trips: updatedTrips, 
-          isLoading: false,
-          lastUpdate: Date.now()
-        })
-      } else {
+      if (!currentTrip) {
         console.warn('SupabaseTripStore: No current trip found when adding destination')
         set({ isLoading: false })
+        return
       }
+
+      const targetDay = currentTrip.days.find((day) => day.id === dayId)
+      if (!targetDay) {
+        console.warn('SupabaseTripStore: Target day not found when adding destination', { dayId })
+        set({ isLoading: false })
+        return
+      }
+
+      const insertIndexRaw = options?.index ?? targetDay.destinations.length
+      const insertIndex = Math.max(0, Math.min(targetDay.destinations.length, insertIndexRaw))
+      const destinationsWithNew = [...targetDay.destinations]
+      destinationsWithNew.splice(insertIndex, 0, createdDestination)
+
+      await tripApi.reorderDestinations(dayId, destinationsWithNew.map((dest) => dest.id))
+
+      const updatedTrip = {
+        ...currentTrip,
+        days: currentTrip.days.map((day) =>
+          day.id === dayId ? { ...day, destinations: destinationsWithNew } : day
+        ),
+      }
+
+      const updatedTrips = trips.map((trip) => (trip.id === currentTrip.id ? updatedTrip : trip))
+
+      console.log('SupabaseTripStore: Updating local state with new destination', {
+        dayId,
+        insertIndex,
+        newDestinationCount: destinationsWithNew.length,
+      })
+
+      set({
+        currentTrip: updatedTrip,
+        trips: updatedTrips,
+        isLoading: false,
+        lastUpdate: Date.now(),
+      })
     } catch (error) {
       console.error('SupabaseTripStore: Error adding destination', {
         message: error instanceof Error ? error.message : 'Unknown error',
         details: (error as any)?.details,
         hint: (error as any)?.hint,
         code: (error as any)?.code,
-        fullError: error
+        fullError: error,
       })
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to add destination',
-        isLoading: false 
+        isLoading: false,
       })
     }
   },

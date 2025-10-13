@@ -40,6 +40,7 @@ import {
   getWaypointKey,
 } from '@/lib/map/route-style'
 import { getExploreCategoryMetadata } from '@/lib/explore/categories'
+import { stripScheduleMetadata } from '@/lib/ai-assistant/ui/action-bridge'
 
 interface DayCardProps {
   day: TimelineDay
@@ -645,6 +646,7 @@ function DraggableDestination({
   }
 
   const primaryDestinationLink = destination.links?.find(link => link.url)
+  const displayNote = stripScheduleMetadata(destination.notes).trim()
 
   return (
     <div
@@ -786,9 +788,9 @@ function DraggableDestination({
               </div>
             </div>
           </div>
-        {destination.notes && (
+        {displayNote && (
           <div className="rounded-lg border border-white/10 bg-white/5 p-2">
-            <p className="text-xs italic text-white/60">"{destination.notes}"</p>
+            <p className="text-xs italic text-white/60">"{displayNote}"</p>
           </div>
         )}
       </div>
