@@ -9,6 +9,8 @@ type SelectionOrigin = 'map' | 'timeline' | 'preview'
 
 export type RouteSelectionSource = 'base' | 'destination' | 'explore'
 
+export type RouteProfile = 'driving' | 'walking'
+
 export interface MapRouteSelectionPoint {
   id: string
   label: string
@@ -22,6 +24,7 @@ interface AdHocRouteConfig {
   id: string
   from: MapRouteSelectionPoint
   to: MapRouteSelectionPoint
+  profile: RouteProfile
 }
 
 interface AdHocRouteResult extends AdHocRouteConfig {
@@ -50,6 +53,7 @@ interface SupabaseTripStore {
   showAllDestinations: boolean
   routeModeEnabled: boolean
   routeSelectionStart: MapRouteSelectionPoint | null
+  routeProfile: RouteProfile
   adHocRouteConfig: AdHocRouteConfig | null
   adHocRouteResult: AdHocRouteResult | null
   
@@ -95,6 +99,7 @@ interface SupabaseTripStore {
   toggleShowAllDestinations: () => void
   toggleDayRouteOverlay: () => void
   setRouteModeEnabled: (enabled: boolean) => void
+  setRouteProfile: (profile: RouteProfile) => void
   registerRouteSelection: (point: MapRouteSelectionPoint) => void
   clearAdHocRoute: () => void
   setAdHocRouteResult: (result: AdHocRouteResult | null) => void
@@ -131,6 +136,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   showAllDestinations: false,
   routeModeEnabled: false,
   routeSelectionStart: null,
+  routeProfile: 'driving',
   adHocRouteConfig: null,
   adHocRouteResult: null,
   
@@ -1191,6 +1197,31 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     })
   },
 
+  setRouteProfile: (profile: RouteProfile) => {
+    set((state) => {
+      if (state.routeProfile === profile) {
+        return {}
+      }
+
+      if (!state.routeModeEnabled) {
+        return { routeProfile: profile }
+      }
+
+      if (state.adHocRouteConfig) {
+        return {
+          routeProfile: profile,
+          adHocRouteConfig: {
+            ...state.adHocRouteConfig,
+            profile,
+          },
+          adHocRouteResult: null,
+        }
+      }
+
+      return { routeProfile: profile }
+    })
+  },
+
   registerRouteSelection: (point: MapRouteSelectionPoint) => {
     set((state) => {
       if (!state.routeModeEnabled) {
@@ -1232,6 +1263,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           id: routeId,
           from: currentStart,
           to: point,
+          profile: state.routeProfile,
         },
         adHocRouteResult: null,
         selectedRouteSegmentId: routeId,

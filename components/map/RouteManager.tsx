@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
 import type { Feature, FeatureCollection, LineString } from 'geojson'
 import type { Trip } from '@/types'
-import { useSupabaseTripStore, MapRouteSelectionPoint } from '@/lib/store/supabase-trip-store'
+import { useSupabaseTripStore, MapRouteSelectionPoint, RouteProfile } from '@/lib/store/supabase-trip-store'
 import {
   buildIntraFinalKey,
   buildIntraSequenceKey,
@@ -245,9 +245,9 @@ export function RouteManager({
   }, [coordinatesMatch, toWaypoint])
 
   // Calculate individual segment route between two points
-  const calculateSegmentRoute = useCallback(async (fromWaypoint: RouteData['waypoints'][0], toWaypoint: RouteData['waypoints'][0]) => {
+  const calculateSegmentRoute = useCallback(async (fromWaypoint: RouteData['waypoints'][0], toWaypoint: RouteData['waypoints'][0], profile: RouteProfile = 'driving') => {
     const coordinates = [fromWaypoint.coordinates, toWaypoint.coordinates]
-    const cacheKey = `${coordinates.map(coord => `${coord[0]},${coord[1]}`).join('-')}-segment`
+    const cacheKey = `${profile}:${coordinates.map(coord => `${coord[0]},${coord[1]}`).join('-')}-segment`
     
     // Check cache first
     if (routeCache.current.has(cacheKey)) {
@@ -255,9 +255,10 @@ export function RouteManager({
     }
 
     try {
-      // Always use driving profile for all routes
       const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates.map(coord => `${coord[0]},${coord[1]}`).join(';')}?access_token=${token}&geometries=geojson&overview=full`
+        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates
+          .map(coord => `${coord[0]},${coord[1]}`)
+          .join(';')}?access_token=${token}&geometries=geojson&overview=full`
       )
 
       if (response.ok) {
@@ -303,7 +304,11 @@ export function RouteManager({
       return
     }
 
-    if (adHocRouteResult && adHocRouteResult.id === adHocRouteConfig.id) {
+    if (
+      adHocRouteResult &&
+      adHocRouteResult.id === adHocRouteConfig.id &&
+      adHocRouteResult.profile === adHocRouteConfig.profile
+    ) {
       return
     }
 
@@ -318,7 +323,7 @@ export function RouteManager({
         return
       }
 
-      const routeData = await calculateSegmentRoute(origin, destination)
+      const routeData = await calculateSegmentRoute(origin, destination, adHocRouteConfig.profile)
 
       if (!routeData || cancelled) {
         if (!cancelled) {

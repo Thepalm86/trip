@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Info, ChevronDown, ChevronUp, Route as RouteIcon, MapPin } from 'lucide-react'
+import { useMemo, useState, type ComponentType } from 'react'
+import { Info, ChevronDown, ChevronUp, Route as RouteIcon, MapPin, Car, Footprints } from 'lucide-react'
 import { CATEGORY_ORDER, getExploreCategoryMetadata, ExploreCategoryMetadata } from '@/lib/explore/categories'
-import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
+import { useSupabaseTripStore, RouteProfile } from '@/lib/store/supabase-trip-store'
 import mapboxgl from 'mapbox-gl'
 
 interface MapToggleProps {
@@ -23,7 +23,7 @@ export function MapLegendToggle({ map, className }: MapToggleProps) {
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex min-h-[3rem] w-full min-w-[220px] items-center gap-2 rounded-lg border border-white/12 bg-[rgba(8,14,24,0.55)] px-3 text-left text-white shadow-lg shadow-black/25 backdrop-blur-md transition-all duration-200 hover:bg-white/10 hover:border-white/20"
+        className="flex min-h-[3rem] w-full min-w-[220px] max-w-[220px] items-center gap-2 overflow-hidden rounded-lg border border-white/12 bg-[rgba(8,14,24,0.55)] px-3 text-left text-white shadow-lg shadow-black/25 backdrop-blur-md transition-all duration-200 hover:bg-white/10 hover:border-white/20"
         aria-expanded={isExpanded}
       >
         <Info className="h-4 w-4 text-white/60" />
@@ -75,7 +75,9 @@ export function MapRouteToggle({ map, className }: MapToggleProps) {
   const routeModeEnabled = useSupabaseTripStore((state) => state.routeModeEnabled)
   const routeSelectionStart = useSupabaseTripStore((state) => state.routeSelectionStart)
   const adHocRouteResult = useSupabaseTripStore((state) => state.adHocRouteResult)
+  const routeProfile = useSupabaseTripStore((state) => state.routeProfile)
   const setRouteModeEnabled = useSupabaseTripStore((state) => state.setRouteModeEnabled)
+  const setRouteProfile = useSupabaseTripStore((state) => state.setRouteProfile)
   const clearAdHocRoute = useSupabaseTripStore((state) => state.clearAdHocRoute)
 
   const handleToggle = () => {
@@ -83,6 +85,13 @@ export function MapRouteToggle({ map, className }: MapToggleProps) {
     setRouteModeEnabled(next)
     if (!next) {
       clearAdHocRoute()
+    }
+  }
+
+  const handleProfileClick = (profile: RouteProfile) => {
+    setRouteProfile(profile)
+    if (!routeModeEnabled) {
+      setRouteModeEnabled(true)
     }
   }
 
@@ -97,19 +106,62 @@ export function MapRouteToggle({ map, className }: MapToggleProps) {
     ? 'border-emerald-400/80 text-white shadow-lg shadow-emerald-500/25'
     : 'border-white/12 text-white/80 shadow-lg shadow-black/25'
 
+  const pillVariants: Array<{
+    profile: RouteProfile
+    icon: ComponentType<{ className?: string }>
+    label: string
+  }> = [
+    { profile: 'driving', icon: Car, label: 'Car route' },
+    { profile: 'walking', icon: Footprints, label: 'Walking route' },
+  ]
+
   return (
-    <button
-      type="button"
-      onClick={handleToggle}
-      aria-pressed={routeModeEnabled}
-      className={`flex min-h-[3rem] w-full min-w-[220px] items-center gap-3 rounded-lg border bg-[rgba(8,14,24,0.55)] px-4 py-2 backdrop-blur-md transition-all duration-200 ${activeClasses} ${className ?? ''}`}
+    <div
+      role="group"
+      className={`flex min-h-[3rem] w-full min-w-[240px] max-w-[240px] items-center gap-3 overflow-hidden rounded-lg border bg-[rgba(8,14,24,0.55)] px-3 py-2 backdrop-blur-md transition-all duration-200 ${activeClasses} ${className ?? ''}`}
     >
-      <RouteIcon className="h-4 w-4" />
-      <div className="flex flex-col text-left">
-        <span className="text-sm font-semibold">Route</span>
-        <span className="text-xs opacity-80">{statusLabel}</span>
+      <button
+        type="button"
+        onClick={handleToggle}
+        aria-pressed={routeModeEnabled}
+        className="flex flex-1 items-center gap-3 rounded-md px-1 py-1 text-left transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+      >
+        <RouteIcon className="h-4 w-4" />
+        <div className="flex flex-col min-w-0 text-left">
+          <span className="text-sm font-semibold">Route</span>
+          <span className="text-xs opacity-80 truncate">{statusLabel}</span>
+        </div>
+      </button>
+      <div className="flex items-center gap-2">
+        {pillVariants.map(({ profile, icon: Icon, label }) => {
+          const isActive = routeModeEnabled && routeProfile === profile
+          const baseClasses =
+            'flex h-8 w-8 items-center justify-center rounded-full border text-white transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60'
+          const stateClasses = (() => {
+            if (!routeModeEnabled) {
+              return 'border-white/10 text-white/30 hover:border-white/20 hover:text-white/50'
+            }
+            if (isActive) {
+              return 'border-emerald-400/80 bg-emerald-400/15 text-white hover:bg-emerald-400/20'
+            }
+            return 'border-white/12 text-white/50 hover:border-white/20 hover:text-white/80'
+          })()
+
+          return (
+            <button
+              key={profile}
+              type="button"
+              aria-pressed={isActive}
+              aria-label={label}
+              onClick={() => handleProfileClick(profile)}
+              className={`${baseClasses} ${stateClasses}`}
+            >
+              <Icon className="h-4 w-4" />
+            </button>
+          )
+        })}
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -189,7 +241,7 @@ export function AllDestinationsToggle({ map, className }: MapToggleProps) {
       type="button"
       onClick={handleToggle}
       aria-pressed={showAllDestinations}
-      className={`flex min-h-[3rem] w-full min-w-[220px] items-center gap-3 rounded-lg border bg-[rgba(8,14,24,0.55)] px-4 py-2 backdrop-blur-md transition-all duration-200 ${activeClasses} ${className ?? ''}`}
+      className={`flex min-h-[3rem] w-full min-w-[240px] max-w-[240px] items-center gap-3 overflow-hidden rounded-lg border bg-[rgba(8,14,24,0.55)] px-4 py-2 backdrop-blur-md transition-all duration-200 ${activeClasses} ${className ?? ''}`}
     >
       <MapPin className="h-4 w-4" />
       <div className="flex flex-col text-left">
