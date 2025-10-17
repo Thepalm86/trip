@@ -187,7 +187,7 @@ export function ExploreMarkersToggle({ map, className, positioned = true }: Expl
         <button
           type="button"
           onClick={toggleDropdown}
-          className="flex w-full min-w-[220px] items-center gap-2 rounded-lg border border-white/12 bg-[rgba(8,14,24,0.55)] px-3 py-2 text-left text-white shadow-lg shadow-black/25 backdrop-blur-md transition-all duration-200 hover:bg-white/10 hover:border-white/20"
+          className="flex w-full min-w-[260px] max-w-[260px] items-center gap-2 rounded-lg border border-white/12 bg-[rgba(8,14,24,0.55)] px-4 py-2 text-left text-white shadow-lg shadow-black/25 backdrop-blur-md transition-all duration-200 hover:bg-white/10 hover:border-white/20"
           aria-haspopup="listbox"
           aria-expanded={isOpen}
         >
@@ -210,8 +210,8 @@ export function ExploreMarkersToggle({ map, className, positioned = true }: Expl
         </button>
 
         {isOpen && (
-          <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 min-w-[240px] rounded-lg border border-white/10 bg-slate-950/95 shadow-xl backdrop-blur-sm">
-            <div className="border-b border-white/10 px-3 py-2">
+          <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 min-w-[260px] rounded-lg border border-white/10 bg-slate-950/95 shadow-xl backdrop-blur-sm">
+            <div className="border-b border-white/10 px-4 py-2">
               <p className="mb-2 text-xs uppercase tracking-wider text-white/50">Show</p>
               <div className="flex items-center gap-2">
                 <button

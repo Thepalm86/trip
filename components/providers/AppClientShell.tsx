@@ -4,6 +4,7 @@ import { PropsWithChildren } from 'react'
 import { usePathname } from 'next/navigation'
 import { AppOnboarding } from '@/components/onboarding/AppOnboarding'
 import { ExploreSyncProvider } from '@/components/providers/ExploreSyncProvider'
+import { PersonalizationOverlayRoot } from '@/components/providers/PersonalizationOverlayRoot'
 
 const ONBOARDING_BLOCKLIST = new Set(['/auth'])
 
@@ -14,6 +15,7 @@ export function AppClientShell({ children }: PropsWithChildren) {
   return (
     <ExploreSyncProvider>
       {children}
+      <PersonalizationOverlayRoot />
       {shouldShowOnboarding ? <AppOnboarding /> : null}
     </ExploreSyncProvider>
   )

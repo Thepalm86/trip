@@ -106,6 +106,10 @@ export const userPreferenceSchema = z.object({
   interests: z.array(z.string()).optional(),
   accessibility: z.array(z.string()).optional(),
   dietary: z.array(z.string()).optional(),
+  pace: z.enum(['leisurely', 'balanced', 'packed']).optional(),
+  mobility: z.enum(['walking', 'mixed', 'rideshare']).optional(),
+  budgetLevel: z.enum(['lean', 'mid', 'premium']).optional(),
+  notes: z.string().optional(),
 })
 
 export const assistantUserSchema = z.object({

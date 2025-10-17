@@ -333,6 +333,44 @@ export interface Database {
           updated_at?: string
         }
       }
+      user_personalization_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          pace: 'leisurely' | 'balanced' | 'packed'
+          mobility: 'walking' | 'mixed' | 'rideshare'
+          interests: string[]
+          budget_level: 'lean' | 'mid' | 'premium' | null
+          dietary: string[] | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          pace: 'leisurely' | 'balanced' | 'packed'
+          mobility: 'walking' | 'mixed' | 'rideshare'
+          interests?: string[]
+          budget_level?: 'lean' | 'mid' | 'premium' | null
+          dietary?: string[] | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          pace?: 'leisurely' | 'balanced' | 'packed'
+          mobility?: 'walking' | 'mixed' | 'rideshare'
+          interests?: string[]
+          budget_level?: 'lean' | 'mid' | 'premium' | null
+          dietary?: string[] | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Functions: {
       get_trip_with_details: {

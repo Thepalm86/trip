@@ -52,7 +52,7 @@ Guidelines:
 - Highlight time-sensitive constraints such as bookings or day/time gaps when relevant.
 - Suggest at most 3 actionable next steps.
 - Never invent reservations, tickets, or costs that are not present in the context.
-- Respect the user’s preferences (budget, style, dietary, accessibility).
+- Respect the user’s preferences (budget, pace, mobility, interests, dietary needs, accessibility).
 - Keep the tone optimistic, professional, and friendly.`
 
 const UI_ACTION_PROMPT = `
@@ -163,11 +163,23 @@ function summarizePreferences(context: AssistantContext): string {
   if (prefs.interests?.length) {
     segments.push(`Interests: ${prefs.interests.join(', ')}.`)
   }
+  if (prefs.pace) {
+    segments.push(`Preferred pace: ${prefs.pace}.`)
+  }
+  if (prefs.mobility) {
+    segments.push(`Mobility preference: ${prefs.mobility}.`)
+  }
   if (prefs.dietary?.length) {
     segments.push(`Dietary: ${prefs.dietary.join(', ')}.`)
   }
   if (prefs.accessibility?.length) {
     segments.push(`Accessibility: ${prefs.accessibility.join(', ')}.`)
+  }
+  if (prefs.budgetLevel) {
+    segments.push(`Budget comfort: ${prefs.budgetLevel}.`)
+  }
+  if (prefs.notes) {
+    segments.push(`Additional notes: ${prefs.notes}`)
   }
 
   return segments.length ? segments.join(' ') : 'No explicit user preferences captured.'

@@ -90,6 +90,15 @@ type UserPreferenceRow = {
   dietary: string[] | null
 }
 
+type PersonalizationProfileRow = {
+  pace: 'leisurely' | 'balanced' | 'packed'
+  mobility: 'walking' | 'mixed' | 'rideshare'
+  interests: string[] | null
+  budget_level: 'lean' | 'mid' | 'premium' | null
+  dietary: string[] | null
+  notes: string | null
+}
+
 function parsePoint(pointStr: string | null): [number, number] | undefined {
   if (!pointStr) return undefined
   const match = pointStr.match(/\(([^,]+),([^)]+)\)/)
@@ -250,18 +259,51 @@ function mapExploreMarkers(rows: ExplorePlaceRow[]) {
   })
 }
 
-function mapUserPreferences(row: UserPreferenceRow | null): AssistantUser['preferences'] {
-  if (!row) return undefined
-  return {
-    budgetRange:
-      row.budget_range_min || row.budget_range_max
-        ? { min: row.budget_range_min ?? undefined, max: row.budget_range_max ?? undefined }
-        : undefined,
-    travelStyle: row.travel_style ?? undefined,
-    interests: row.interests ?? undefined,
-    accessibility: row.accessibility ?? undefined,
-    dietary: row.dietary ?? undefined,
+function mapUserPreferences(
+  legacy: UserPreferenceRow | null,
+  personalization: PersonalizationProfileRow | null
+): AssistantUser['preferences'] {
+  if (!legacy && !personalization) return undefined
+
+  const interestSet = new Set<string>()
+  ;(legacy?.interests ?? []).forEach((value) => interestSet.add(value))
+  ;(personalization?.interests ?? []).forEach((value) => interestSet.add(value))
+
+  const dietarySet = new Set<string>()
+  ;(legacy?.dietary ?? []).forEach((value) => dietarySet.add(value))
+  ;(personalization?.dietary ?? []).forEach((value) => dietarySet.add(value))
+
+  const budgetRange =
+    legacy?.budget_range_min || legacy?.budget_range_max
+      ? {
+          min: legacy?.budget_range_min ?? undefined,
+          max: legacy?.budget_range_max ?? undefined,
+        }
+      : undefined
+
+  const preferences: AssistantUser['preferences'] = {
+    budgetRange,
+    travelStyle: legacy?.travel_style ?? undefined,
+    interests: interestSet.size ? Array.from(interestSet) : undefined,
+    accessibility: legacy?.accessibility ?? undefined,
+    dietary: dietarySet.size ? Array.from(dietarySet) : undefined,
+    pace: personalization?.pace ?? undefined,
+    mobility: personalization?.mobility ?? undefined,
+    budgetLevel: personalization?.budget_level ?? undefined,
+    notes: personalization?.notes ?? undefined,
   }
+
+  const hasValue = Object.values(preferences).some((value) => {
+    if (Array.isArray(value)) {
+      return value.length > 0
+    }
+    if (value && typeof value === 'object') {
+      return Object.values(value).some((inner) => inner !== undefined && inner !== null)
+    }
+    return value !== undefined && value !== null
+  })
+
+  return hasValue ? preferences : undefined
 }
 
 async function fetchTrip(options: BuildContextOptions): Promise<TripRow | null> {
@@ -360,38 +402,64 @@ async function fetchExploreMarkers(userId: string): Promise<ExplorePlaceRow[]> {
   return (data as ExplorePlaceRow[]) ?? []
 }
 
-async function fetchUserPreferences(userId: string): Promise<UserPreferenceRow | null> {
-  const { data, error } = await supabaseAdmin
-    .from('user_trip_preferences')
-    .select(
-      `
-        user_id,
-        default_country,
-        preferred_categories,
-        budget_range_min,
-        budget_range_max,
-        travel_style,
-        interests,
-        accessibility,
-        dietary
-      `
-    )
-    .eq('user_id', userId)
-    .maybeSingle()
+async function fetchUserPreferences(userId: string): Promise<{
+  legacy: UserPreferenceRow | null
+  personalization: PersonalizationProfileRow | null
+}> {
+  const [legacyResult, personalizationResult] = await Promise.all([
+    supabaseAdmin
+      .from('user_trip_preferences')
+      .select(
+        `
+          user_id,
+          default_country,
+          preferred_categories,
+          budget_range_min,
+          budget_range_max,
+          travel_style,
+          interests,
+          accessibility,
+          dietary
+        `
+      )
+      .eq('user_id', userId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('user_personalization_profiles')
+      .select(
+        `
+          pace,
+          mobility,
+          interests,
+          budget_level,
+          dietary,
+          notes
+        `
+      )
+      .eq('user_id', userId)
+      .maybeSingle(),
+  ])
 
-  if (error) {
-    console.error('[assistant] fetchUserPreferences error', error)
-    return null
+  if (legacyResult.error) {
+    console.error('[assistant] fetchUserPreferences legacy error', legacyResult.error)
+  }
+  if (personalizationResult.error) {
+    console.error('[assistant] fetchUserPreferences personalization error', personalizationResult.error)
   }
 
-  return (data as UserPreferenceRow) ?? null
+  return {
+    legacy: legacyResult.error ? null : ((legacyResult.data as UserPreferenceRow) ?? null),
+    personalization: personalizationResult.error
+      ? null
+      : ((personalizationResult.data as PersonalizationProfileRow) ?? null),
+  }
 }
 
 export async function buildAssistantContext(
   options: BuildContextOptions
 ): Promise<AssistantContext> {
   const { userId, ui } = options
-  const [tripRow, exploreRows, preferenceRow] = await Promise.all([
+  const [tripRow, exploreRows, preferenceBundle] = await Promise.all([
     fetchTrip(options),
     fetchExploreMarkers(userId),
     fetchUserPreferences(userId),
@@ -402,7 +470,7 @@ export async function buildAssistantContext(
 
   const user = assistantUserSchema.parse({
     id: userId,
-    preferences: mapUserPreferences(preferenceRow),
+    preferences: mapUserPreferences(preferenceBundle.legacy, preferenceBundle.personalization),
   })
 
   const contextObject = {

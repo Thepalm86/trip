@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth/auth-context'
 import { MiniAssistantMap } from '@/components/map/MiniAssistantMap'
 import { type AssistantUiAction } from '@/lib/assistant/actions'
 import { useAssistantActionBridge } from '@/lib/ai-assistant/ui/action-bridge'
+import { PersonalizationLauncher } from '@/components/assistant/PersonalizationLauncher'
 
 type ChatRole = 'user' | 'assistant'
 
@@ -479,17 +480,18 @@ export function AssistantDock({
             )}
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 shadow-inner ring-1 ring-white/15">
-                  <Sparkles className="h-5 w-5 text-emerald-300" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[11px] uppercase tracking-[0.32em] text-slate-300/70">Traveal AI Assistant</p>
-                  <h2 className="text-xl font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>
-                    {tripTitle}
-                  </h2>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 shadow-inner ring-1 ring-white/15">
+                <Sparkles className="h-5 w-5 text-emerald-300" />
               </div>
+              <div className="space-y-1.5">
+                <p className="text-[11px] uppercase tracking-[0.32em] text-slate-300/70">Traveal AI Assistant</p>
+                <h2 className="text-xl font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>
+                  {tripTitle}
+                </h2>
+                <PersonalizationLauncher variant="inline" />
+              </div>
+            </div>
               <div className="flex items-start gap-3">
                 {isRail ? (
                   <>
