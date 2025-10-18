@@ -5,8 +5,8 @@ import {
   X,
   Sparkles,
   Footprints,
-  Bicycle,
   BusFront,
+  Car,
   Gauge,
   Feather,
   Mountain,
@@ -93,7 +93,7 @@ const mobilityOptions: MobilityOption[] = [
     value: 'mixed',
     title: 'Mix it up',
     description: 'Happy to blend walking with transit and short rides.',
-    icon: Bicycle,
+    icon: Car,
   },
   {
     value: 'rideshare',

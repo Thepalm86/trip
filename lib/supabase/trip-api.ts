@@ -78,7 +78,21 @@ function formatPoint(coordinates: [number, number]): string {
 }
 
 function formatDateOnly(date: Date): string {
-  return date.toISOString().split('T')[0]
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function parseDateOnly(date: string | null | undefined): Date {
+  if (!date) {
+    return new Date(NaN)
+  }
+  const [yearStr, monthStr, dayStr] = date.split('-')
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+  const day = Number(dayStr)
+  return new Date(year, month - 1, day)
 }
 
 // Map Mapbox geocoder categories to our allowed categories
@@ -161,7 +175,7 @@ function dbDayToTimelineDay(day: DatabaseDay, destinations: DatabaseDestination[
   return {
     id: day.id,
     dayOrder: day.day_order,
-    date: new Date(day.date),
+    date: parseDateOnly(day.date),
     destinations: dayDestinations,
     baseLocations: baseLocations,
     openSlots: [],
@@ -175,8 +189,8 @@ function dbTripToAppTrip(dbTrip: DatabaseTrip, days: DatabaseDay[], destinations
   return {
     id: dbTrip.id,
     name: dbTrip.name,
-    startDate: new Date(dbTrip.start_date),
-    endDate: new Date(dbTrip.end_date),
+    startDate: parseDateOnly(dbTrip.start_date),
+    endDate: parseDateOnly(dbTrip.end_date),
     country: dbTrip.country_code,
     totalBudget: dbTrip.total_budget,
     days: tripDays
@@ -385,6 +399,24 @@ export const tripApi = {
     }
 
     return data.id
+  },
+
+  async getLastActiveTripId(): Promise<string | null> {
+    const userId = await getAuthenticatedUserId()
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .select('last_active_trip_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (error) throw error
+    return data?.last_active_trip_id ?? null
+  },
+
+  async setLastActiveTrip(tripId: string): Promise<void> {
+    if (!tripId) return
+    const { error } = await supabase.rpc('set_last_active_trip', { trip_id: tripId })
+    if (error) throw error
   },
 
   // Update trip

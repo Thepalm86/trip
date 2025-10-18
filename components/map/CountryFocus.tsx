@@ -15,6 +15,8 @@ const WORLD_VIEW = {
   zoom: 1.25,
 }
 
+const MAP_FOCUS_COMPLETE_EVENT = 'trip3:map-focus-complete'
+
 export function CountryFocus({ map }: CountryFocusProps) {
   const trip = useSupabaseTripStore((state) => state.currentTrip)
 
@@ -37,34 +39,64 @@ export function CountryFocus({ map }: CountryFocusProps) {
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ''
 
-  const lastHashRef = useRef<string>('__initial__')
+  const normalizedCountriesRef = useRef<string[]>([])
+  const normalizedKey = useMemo(() => normalizedCountries.join(','), [normalizedCountries])
+  const focusTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    normalizedCountriesRef.current = normalizedCountries
+  }, [normalizedCountries])
 
   useEffect(() => {
     if (!map) return
 
-    const hash = normalizedCountries.join(',')
-    if (hash === lastHashRef.current) {
-      return
+    if (focusTimeoutRef.current) {
+      window.clearTimeout(focusTimeoutRef.current)
+      focusTimeoutRef.current = null
     }
-    lastHashRef.current = hash
 
-    if (!normalizedCountries.length) {
+    const countries = normalizedCountriesRef.current
+
+    if (!countries.length) {
       map.flyTo({
         center: WORLD_VIEW.center,
         zoom: WORLD_VIEW.zoom,
         duration: 1200,
+      })
+      map.once('moveend', () => {
+        window.dispatchEvent(new Event(MAP_FOCUS_COMPLETE_EVENT))
       })
       return
     }
 
     let cancelled = false
 
+    const zoomToBounds = (bounds: mapboxgl.LngLatBounds) => {
+      map.flyTo({
+        center: WORLD_VIEW.center,
+        zoom: WORLD_VIEW.zoom,
+        duration: 600,
+      })
+
+      focusTimeoutRef.current = window.setTimeout(() => {
+        if (cancelled) return
+        map.fitBounds(bounds, {
+          padding: { top: 120, bottom: 140, left: 160, right: 160 },
+          duration: 1400,
+          maxZoom: 6,
+        })
+        map.once('moveend', () => {
+          window.dispatchEvent(new Event(MAP_FOCUS_COMPLETE_EVENT))
+        })
+      }, 1000)
+    }
+
     const focus = async () => {
       if (!token) {
         return
       }
       try {
-        const cachedBounds = normalizedCountries
+        const cachedBounds = countries
           .map(code => getCountryMeta(code)?.bbox ?? null)
           .filter((entry): entry is [number, number, number, number] => Array.isArray(entry))
 
@@ -80,16 +112,12 @@ export function CountryFocus({ map }: CountryFocusProps) {
           }, null)
 
           if (combinedCached) {
-            map.fitBounds(combinedCached, {
-              padding: { top: 120, bottom: 140, left: 160, right: 160 },
-              duration: 1400,
-              maxZoom: 6,
-            })
+            zoomToBounds(combinedCached)
           }
         }
 
         const boundsList = await Promise.all(
-          normalizedCountries.map(code => getCountryBounds(code, token))
+          countries.map(code => getCountryBounds(code, token))
         )
 
         if (cancelled) return
@@ -102,6 +130,9 @@ export function CountryFocus({ map }: CountryFocusProps) {
               center: WORLD_VIEW.center,
               zoom: WORLD_VIEW.zoom,
               duration: 1200,
+            })
+            map.once('moveend', () => {
+              window.dispatchEvent(new Event(MAP_FOCUS_COMPLETE_EVENT))
             })
           }
           return
@@ -118,11 +149,7 @@ export function CountryFocus({ map }: CountryFocusProps) {
         }, null)
 
         if (combined) {
-          map.fitBounds(combined, {
-            padding: { top: 120, bottom: 140, left: 160, right: 160 },
-            duration: 1400,
-            maxZoom: 6,
-          })
+          zoomToBounds(combined)
         }
       } catch (error) {
         console.error('CountryFocus: failed to focus map', error)
@@ -133,8 +160,12 @@ export function CountryFocus({ map }: CountryFocusProps) {
 
     return () => {
       cancelled = true
+      if (focusTimeoutRef.current) {
+        window.clearTimeout(focusTimeoutRef.current)
+        focusTimeoutRef.current = null
+      }
     }
-  }, [map, normalizedCountries, token])
+  }, [map, normalizedKey, token])
 
   return null
 }

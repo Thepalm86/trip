@@ -162,6 +162,7 @@ export interface Database {
           base_location_name: string | null
           base_location_coordinates: string | null
           base_location_context: string | null
+          base_locations_json: any | null
           notes: string | null
           created_at: string
           updated_at: string
@@ -174,6 +175,7 @@ export interface Database {
           base_location_name?: string | null
           base_location_coordinates?: string | null
           base_location_context?: string | null
+          base_locations_json?: any | null
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -186,6 +188,7 @@ export interface Database {
           base_location_name?: string | null
           base_location_coordinates?: string | null
           base_location_context?: string | null
+          base_locations_json?: any | null
           notes?: string | null
           created_at?: string
           updated_at?: string

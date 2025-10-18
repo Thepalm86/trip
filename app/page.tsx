@@ -1,18 +1,30 @@
 'use client'
 
 import { useRef, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { InteractiveMap, InteractiveMapRef } from '@/components/map/InteractiveMap'
 import { LeftPanel } from '@/components/left-panel/LeftPanel'
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { TripLoader } from '@/components/trip/TripLoader'
 import { ResearchCommandPalette } from '@/components/research/ResearchCommandPalette'
+import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 
 export default function HomePage() {
+  const router = useRouter()
   const mapRef = useRef<InteractiveMapRef>(null)
   const [map, setMap] = useState<any>(null)
   const [leftPanelWidth, setLeftPanelWidth] = useState(60) // Percentage
   const [isResizing, setIsResizing] = useState(false)
   const animationFrameRef = useRef<number | null>(null)
+  const hasLoadedTrips = useSupabaseTripStore((state) => state.hasLoadedTrips)
+  const isLoadingTrips = useSupabaseTripStore((state) => state.isLoading)
+  const trips = useSupabaseTripStore((state) => state.trips)
+
+  useEffect(() => {
+    if (hasLoadedTrips && !isLoadingTrips && trips.length === 0) {
+      router.replace('/setup')
+    }
+  }, [hasLoadedTrips, isLoadingTrips, router, trips.length])
 
   // Get map instance after component mounts
   useEffect(() => {
@@ -112,9 +124,16 @@ export default function HomePage() {
     }
   }, [map, leftPanelWidth, isResizing])
 
+  const isReady = hasLoadedTrips && trips.length > 0 && !isLoadingTrips
+
   return (
     <AuthGuard>
       <TripLoader />
+      {!isReady ? (
+        <div className="flex h-screen items-center justify-center bg-gradient-dark text-white/70">
+          Preparing your workspace...
+        </div>
+      ) : (
       <div className="h-screen bg-gradient-dark map-viewport-container page-container overflow-hidden">
 
         {/* Main Layout Container */}
@@ -157,6 +176,7 @@ export default function HomePage() {
       </div>
       <ResearchCommandPalette />
     </div>
+      )}
     </AuthGuard>
   )
 }

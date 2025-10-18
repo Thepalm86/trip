@@ -12,9 +12,11 @@ import { ShareTripModal } from '@/components/modals/ShareTripModal'
 import { buildCountryOptions } from './CountrySelector'
 import { searchCountries, CountrySearchResult } from '@/lib/map/country-search'
 import { getCountryMeta, setCountryMeta } from '@/lib/map/country-cache'
+import { TripSwitcher } from './TripSwitcher'
 
 export function LeftPanel() {
   const { currentTrip, updateTrip } = useSupabaseTripStore()
+  const trips = useSupabaseTripStore((state) => state.trips)
   const openResearch = useResearchStore((state) => state.open)
   const [showDateSelector, setShowDateSelector] = useState(false)
   const [isEditingTripName, setIsEditingTripName] = useState(false)
@@ -25,6 +27,8 @@ export function LeftPanel() {
   const [countryName, setCountryName] = useState<string | null>(null)
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ''
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [isTripSwitcherOpen, setIsTripSwitcherOpen] = useState(false)
+  const [showTripSwitcherHint, setShowTripSwitcherHint] = useState(false)
 
   useEffect(() => {
     if (currentTrip && !isEditingTripName) {
@@ -151,6 +155,22 @@ export function LeftPanel() {
     }
   }
 
+  const handleTripSwitcherOpenChange = (open: boolean) => {
+    if (open) {
+      setShowTripSwitcherHint(false)
+    }
+    setIsTripSwitcherOpen(open)
+  }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const shouldHighlight = window.sessionStorage.getItem('trip3:show-trip-switcher-hint')
+    if (shouldHighlight) {
+      window.sessionStorage.removeItem('trip3:show-trip-switcher-hint')
+      setShowTripSwitcherHint(true)
+    }
+  }, [trips.length])
+
   if (!currentTrip) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" data-tour="left-panel">
@@ -200,6 +220,11 @@ export function LeftPanel() {
                 )}
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
+                <TripSwitcher
+                  open={isTripSwitcherOpen}
+                  onOpenChange={handleTripSwitcherOpenChange}
+                  highlight={showTripSwitcherHint && trips.length > 1}
+                />
                 <button
                   type="button"
                   onClick={() => setShowCountrySelector(true)}
@@ -247,6 +272,38 @@ export function LeftPanel() {
                 />
               </div>
             </div>
+
+            {showTripSwitcherHint && trips.length > 1 ? (
+              <div className="mt-4 flex items-start justify-between gap-3 rounded-2xl border border-blue-400/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-100">
+                <div>
+                  <p className="font-semibold">New itinerary ready!</p>
+                  <p className="text-blue-100/80">
+                    Switch between your trips from the header anytime. Your latest plan is highlighted in the switcher.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTripSwitcherHint(false)
+                    }}
+                    className="rounded-lg border border-white/20 px-3 py-1 text-sm text-white/80 transition hover:border-white/30 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsTripSwitcherOpen(true)
+                      setShowTripSwitcherHint(false)
+                    }}
+                    className="rounded-lg border border-blue-400/50 bg-blue-500/30 px-3 py-1 text-sm font-semibold text-white transition hover:border-blue-300/60 hover:bg-blue-500/40 focus:outline-none focus:ring-2 focus:ring-blue-300/40"
+                  >
+                    Open switcher
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
           </div>
         </div>

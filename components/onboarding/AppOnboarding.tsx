@@ -14,6 +14,7 @@ interface OnboardingStep {
 
 export const ONBOARDING_STORAGE_KEY = 'traveal:onboardingSeen:v1'
 export const ONBOARDING_EVENT_NAME = 'traveal:start-onboarding'
+const MAP_FOCUS_EVENT_NAME = 'trip3:map-focus-complete'
 const HIGHLIGHT_CLASS = 'traveal-onboarding-highlight'
 const STORAGE_KEY = ONBOARDING_STORAGE_KEY
 const MAX_SELECTOR_ATTEMPTS = 12
@@ -143,12 +144,22 @@ export function AppOnboarding() {
       return
     }
 
-    const timer = window.setTimeout(() => {
-      startTour()
-    }, 1800)
+    let started = false
+
+    const maybeStart = () => {
+      if (started) return
+      started = true
+      window.setTimeout(() => {
+        startTour()
+      }, 600)
+    }
+
+    window.addEventListener(MAP_FOCUS_EVENT_NAME, maybeStart)
+    const fallback = window.setTimeout(maybeStart, 3200)
 
     return () => {
-      window.clearTimeout(timer)
+      window.clearTimeout(fallback)
+      window.removeEventListener(MAP_FOCUS_EVENT_NAME, maybeStart)
     }
   }, [authLoading, mounted, startTour, user])
 

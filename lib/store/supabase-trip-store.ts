@@ -45,6 +45,7 @@ interface SupabaseTripStore {
   error: string | null
   lastUpdate: number // Force re-renders
   hasLoadedTrips: boolean
+  lastActiveTripId: string | null
   
   // Selection state
   selectedCardId: string | null
@@ -61,7 +62,7 @@ interface SupabaseTripStore {
   maybeLocations: Destination[]
   
   // Actions
-  loadTrips: () => Promise<void>
+  loadTrips: (options?: { force?: boolean; preferredTripId?: string | null }) => Promise<void>
   loadTrip: (tripId: string) => Promise<void>
   createTrip: (trip: Omit<Trip, 'id'>) => Promise<string>
   updateTrip: (tripId: string, updates: Partial<Trip>) => Promise<void>
@@ -89,6 +90,9 @@ interface SupabaseTripStore {
   reorderDestinations: (dayId: string, startIndex: number, endIndex: number) => Promise<void>
   updateTripDates: (startDate: Date, endDate: Date) => Promise<void>
   ensureDayCount: (desiredCount: number) => Promise<void>
+
+  // Trip selection
+  setCurrentTripById: (tripId: string) => Promise<void>
 
   // Selection actions
   setSelectedCard: (cardId: string | null) => void
@@ -128,6 +132,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   error: null,
   lastUpdate: Date.now(),
   hasLoadedTrips: false,
+  lastActiveTripId: null,
   
   // Selection state
   selectedCardId: null,
@@ -144,26 +149,41 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   maybeLocations: [],
 
   // Load all trips for the user
-  loadTrips: async () => {
+  loadTrips: async (options) => {
     const state = get()
-    if (state.isLoading) {
+    const force = options?.force ?? false
+    const preferredTripId = options?.preferredTripId ?? null
+    if (state.isLoading && !force) {
       return
     }
     console.log('SupabaseTripStore: Loading trips...')
     set({ isLoading: true, error: null })
     try {
-      const trips = await tripApi.getUserTrips()
+      const [trips, lastActiveFromPrefs] = await Promise.all([
+        tripApi.getUserTrips(),
+        tripApi.getLastActiveTripId().catch((error) => {
+          console.warn('SupabaseTripStore: Unable to fetch last active trip preference', error)
+          return null
+        }),
+      ])
       console.log('SupabaseTripStore: Trips loaded:', trips)
       
       // Set the first trip as current trip if none is selected
       const { currentTrip } = get()
-      const newCurrentTrip = currentTrip
-        ? trips.find(trip => trip.id === currentTrip.id) ?? (trips.length > 0 ? trips[0] : null)
+      const targetTripId =
+        preferredTripId ??
+        lastActiveFromPrefs ??
+        (currentTrip ? currentTrip.id : null)
+      const newCurrentTrip = targetTripId
+        ? trips.find(trip => trip.id === targetTripId) ?? (trips.length > 0 ? trips[0] : null)
         : (trips.length > 0 ? trips[0] : null)
       
       // Preserve selectedDayId if it's still valid, otherwise leave nothing selected
       const currentSelectedDayId = get().selectedDayId
       const isValidSelectedDay = newCurrentTrip?.days.some(day => day.id === currentSelectedDayId)
+      const resolvedSelectedDayId = isValidSelectedDay
+        ? currentSelectedDayId
+        : newCurrentTrip?.days[0]?.id ?? null
       
       set((state) => {
         const currentTripId = state.currentTrip?.id ?? null
@@ -173,12 +193,14 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         return {
           trips,
           currentTrip: newCurrentTrip,
-          selectedDayId: isValidSelectedDay ? currentSelectedDayId : null,
+          selectedDayId: resolvedSelectedDayId,
           selectedDestination: null,
           selectedBaseLocation: null,
           selectionOrigin: null,
           isLoading: false,
           hasLoadedTrips: true,
+          lastActiveTripId: newCurrentTrip?.id ?? null,
+          selectedCardId: shouldResetRoute ? null : state.selectedCardId,
           ...(shouldResetRoute
             ? {
                 routeModeEnabled: false,
@@ -186,6 +208,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
                 adHocRouteConfig: null,
                 adHocRouteResult: null,
                 selectedRouteSegmentId: null,
+                showAllDestinations: false,
+                showDayRouteOverlay: false,
               }
             : {}),
         }
@@ -196,6 +220,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to load trips',
         isLoading: false,
         hasLoadedTrips: false,
+        lastActiveTripId: null,
       })
     }
   },
@@ -205,23 +230,39 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const trip = await tripApi.getTrip(tripId)
+      if (!trip) {
+        set({
+          isLoading: false,
+          error: 'Trip not found',
+        })
+        return
+      }
       
       // Preserve selectedDayId if it's still valid, otherwise leave nothing selected
       const currentSelectedDayId = get().selectedDayId
-      const isValidSelectedDay = trip?.days.some(day => day.id === currentSelectedDayId)
+      const isValidSelectedDay = trip.days.some(day => day.id === currentSelectedDayId)
+      const nextSelectedDayId = isValidSelectedDay
+        ? currentSelectedDayId
+        : trip.days[0]?.id ?? null
+      const currentTrips = get().trips
+      const updatedTrips = currentTrips.some(existing => existing.id === trip.id)
+        ? currentTrips.map(existing => (existing.id === trip.id ? trip : existing))
+        : [...currentTrips, trip]
       
       set((state) => {
         const currentTripId = state.currentTrip?.id ?? null
-        const nextTripId = trip?.id ?? null
+        const nextTripId = trip.id ?? null
         const shouldResetRoute = currentTripId !== nextTripId
 
         return {
           currentTrip: trip,
-          selectedDayId: isValidSelectedDay ? currentSelectedDayId : null,
+          trips: updatedTrips,
+          selectedDayId: nextSelectedDayId,
           selectedDestination: null,
           selectedBaseLocation: null,
           selectionOrigin: null,
           isLoading: false,
+          lastActiveTripId: trip.id,
           ...(shouldResetRoute
             ? {
                 routeModeEnabled: false,
@@ -232,6 +273,9 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
               }
             : {}),
         }
+      })
+      void tripApi.setLastActiveTrip(trip.id).catch(error => {
+        console.error('SupabaseTripStore: Failed to persist active trip preference during loadTrip', error)
       })
     } catch (error) {
       set({ 
@@ -246,22 +290,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const tripId = await tripApi.createTrip(trip)
-      const newTrip = await tripApi.getTrip(tripId)
-
-      await get().loadTrips()
-
-      // For new trips, always select the first day
-      set({ 
-        currentTrip: newTrip ?? null,
-        selectedDayId: newTrip?.days[0]?.id ?? null,
-        selectionOrigin: null,
-        isLoading: false,
-        routeModeEnabled: false,
-        routeSelectionStart: null,
-        adHocRouteConfig: null,
-        adHocRouteResult: null,
-        selectedRouteSegmentId: null,
-      })
+      await tripApi.setLastActiveTrip(tripId)
+      await get().loadTrips({ force: true, preferredTripId: tripId })
       return tripId
     } catch (error) {
       set({ 
@@ -302,8 +332,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const newTripId = await tripApi.duplicateTrip(tripId, newName)
-      await get().loadTrips() // Refresh trips list
-      set({ isLoading: false })
+      await tripApi.setLastActiveTrip(newTripId)
+      await get().loadTrips({ force: true, preferredTripId: newTripId })
       return newTripId
     } catch (error) {
       set({ 
@@ -1134,6 +1164,45 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
 
     const targetEnd = addDays(start, desiredCount - 1)
     await state.updateTripDates(start, targetEnd)
+  },
+
+  setCurrentTripById: async (tripId: string) => {
+    const state = get()
+    const nextTrip = state.trips.find(trip => trip.id === tripId)
+    if (!nextTrip) {
+      console.warn('SupabaseTripStore: Attempted to select unknown trip', { tripId })
+      return
+    }
+
+    const previousTripId = state.currentTrip?.id ?? null
+    const nextFirstDayId = nextTrip.days[0]?.id ?? null
+
+    set({
+      currentTrip: nextTrip,
+      selectedDayId: nextFirstDayId,
+      selectedDestination: null,
+      selectedBaseLocation: null,
+      selectionOrigin: null,
+      selectedCardId: null,
+      selectedRouteSegmentId: null,
+      routeSelectionStart: null,
+      adHocRouteConfig: null,
+      adHocRouteResult: null,
+      lastActiveTripId: nextTrip.id,
+      ...(previousTripId !== nextTrip.id
+        ? {
+            routeModeEnabled: false,
+            showDayRouteOverlay: false,
+            showAllDestinations: false,
+          }
+        : {}),
+    })
+
+    try {
+      await tripApi.setLastActiveTrip(tripId)
+    } catch (error) {
+      console.error('SupabaseTripStore: Failed to persist active trip preference', error)
+    }
   },
 
   // Set error
