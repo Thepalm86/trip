@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Edit3, Search, Calendar, Globe, ChevronDown, Loader2 } from 'lucide-react'
+import { Search, Calendar, Globe, ChevronDown, Loader2 } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
@@ -19,8 +19,6 @@ export function LeftPanel() {
   const trips = useSupabaseTripStore((state) => state.trips)
   const openResearch = useResearchStore((state) => state.open)
   const [showDateSelector, setShowDateSelector] = useState(false)
-  const [isEditingTripName, setIsEditingTripName] = useState(false)
-  const [tripName, setTripName] = useState(currentTrip?.name || '')
   const [showCountrySelector, setShowCountrySelector] = useState(false)
   const [isCountrySaving, setIsCountrySaving] = useState(false)
   const countryOptions = useMemo(() => buildCountryOptions(), [])
@@ -29,12 +27,6 @@ export function LeftPanel() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [isTripSwitcherOpen, setIsTripSwitcherOpen] = useState(false)
   const [showTripSwitcherHint, setShowTripSwitcherHint] = useState(false)
-
-  useEffect(() => {
-    if (currentTrip && !isEditingTripName) {
-      setTripName(currentTrip.name)
-    }
-  }, [currentTrip?.name, isEditingTripName])
 
   const selectedCountry = currentTrip?.country ?? null
   const countryLabel = selectedCountry
@@ -96,29 +88,6 @@ export function LeftPanel() {
 
   const hasDates = Boolean(currentTrip?.startDate && currentTrip?.endDate)
   const datesSummary = hasDates ? dateRangeLabel : 'Set travel dates'
-
-  const handleTripNameSave = async () => {
-    if (!currentTrip) {
-      setIsEditingTripName(false)
-      return
-    }
-
-    if (tripName.trim() && tripName !== currentTrip.name) {
-      await updateTrip(currentTrip.id, { name: tripName.trim() })
-    }
-    setIsEditingTripName(false)
-  }
-
-  const handleTripNameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleTripNameSave()
-    } else if (e.key === 'Escape') {
-      if (currentTrip) {
-        setTripName(currentTrip.name)
-      }
-      setIsEditingTripName(false)
-    }
-  }
 
   const handleRestartOnboarding = () => {
     if (typeof window === 'undefined') return
@@ -192,33 +161,7 @@ export function LeftPanel() {
           <div className="mb-2">
             {/* Trip Title - Hero with Profile and Actions */}
             <div className="mb-4 flex flex-wrap items-center gap-3">
-              <div className="flex flex-1 min-w-[220px] items-center gap-3">
-                {isEditingTripName ? (
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={tripName}
-                        onChange={(e) => setTripName(e.target.value)}
-                        onBlur={handleTripNameSave}
-                        onKeyDown={handleTripNameKeyDown}
-                        className="w-full bg-transparent text-3xl font-bold text-white outline-none focus:outline-none border-b-2 border-blue-400/50 pb-2"
-                        autoFocus
-                        placeholder="Enter trip name..."
-                      />
-                      <div className="absolute -bottom-1 left-0 h-0.5 w-full bg-gradient-to-r from-blue-400 to-purple-400"></div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setIsEditingTripName(true)}
-                      className="group flex items-center gap-3 text-left transition-all duration-200 hover:text-blue-300"
-                    >
-                      <h1 className="text-3xl font-bold text-white group-hover:text-blue-300 transition-colors duration-200">
-                        {currentTrip.name}
-                      </h1>
-                    <Edit3 className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-blue-400" />
-                  </button>
-                )}
-              </div>
+              <div className="flex flex-1 min-w-[220px] items-center gap-3" />
               <div className="flex flex-shrink-0 items-center gap-2">
                 <TripSwitcher
                   open={isTripSwitcherOpen}
@@ -272,39 +215,6 @@ export function LeftPanel() {
                 />
               </div>
             </div>
-
-            {showTripSwitcherHint && trips.length > 1 ? (
-              <div className="mt-4 flex items-start justify-between gap-3 rounded-2xl border border-blue-400/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-100">
-                <div>
-                  <p className="font-semibold">New itinerary ready!</p>
-                  <p className="text-blue-100/80">
-                    Switch between your trips from the header anytime. Your latest plan is highlighted in the switcher.
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowTripSwitcherHint(false)
-                    }}
-                    className="rounded-lg border border-white/20 px-3 py-1 text-sm text-white/80 transition hover:border-white/30 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20"
-                  >
-                    Dismiss
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsTripSwitcherOpen(true)
-                      setShowTripSwitcherHint(false)
-                    }}
-                    className="rounded-lg border border-blue-400/50 bg-blue-500/30 px-3 py-1 text-sm font-semibold text-white transition hover:border-blue-300/60 hover:bg-blue-500/40 focus:outline-none focus:ring-2 focus:ring-blue-300/40"
-                  >
-                    Open switcher
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
           </div>
         </div>
       </div>

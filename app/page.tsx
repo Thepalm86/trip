@@ -17,8 +17,9 @@ export default function HomePage() {
   const [isResizing, setIsResizing] = useState(false)
   const animationFrameRef = useRef<number | null>(null)
   const hasLoadedTrips = useSupabaseTripStore((state) => state.hasLoadedTrips)
-  const isLoadingTrips = useSupabaseTripStore((state) => state.isLoading)
   const trips = useSupabaseTripStore((state) => state.trips)
+  const loading = useSupabaseTripStore((state) => state.loading)
+  const isLoadingTrips = loading.trips
 
   useEffect(() => {
     if (hasLoadedTrips && !isLoadingTrips && trips.length === 0) {
@@ -124,7 +125,7 @@ export default function HomePage() {
     }
   }, [map, leftPanelWidth, isResizing])
 
-  const isReady = hasLoadedTrips && trips.length > 0 && !isLoadingTrips
+  const isReady = hasLoadedTrips && trips.length > 0 && !loading.trips
 
   return (
     <AuthGuard>

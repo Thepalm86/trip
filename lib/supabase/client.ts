@@ -120,6 +120,7 @@ export interface Database {
           start_date: string
           end_date: string
           country_code: string
+          focus_countries: string[] | null
           total_budget: number | null
           status: 'planning' | 'active' | 'completed' | 'cancelled'
           notes: string | null
@@ -133,6 +134,7 @@ export interface Database {
           start_date: string
           end_date: string
           country_code: string
+          focus_countries?: string[] | null
           total_budget?: number | null
           status?: 'planning' | 'active' | 'completed' | 'cancelled'
           notes?: string | null
@@ -146,6 +148,7 @@ export interface Database {
           start_date?: string
           end_date?: string
           country_code?: string
+          focus_countries?: string[] | null
           total_budget?: number | null
           status?: 'planning' | 'active' | 'completed' | 'cancelled'
           notes?: string | null

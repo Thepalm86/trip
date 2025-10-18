@@ -15,20 +15,30 @@ interface TripSwitcherProps {
 
 export function TripSwitcher({ open, onOpenChange, highlight }: TripSwitcherProps) {
   const trips = useSupabaseTripStore((state) => state.trips)
-  const currentTripId = useSupabaseTripStore((state) => state.currentTrip?.id ?? null)
+  const currentTrip = useSupabaseTripStore((state) => state.currentTrip)
+  const currentTripId = currentTrip?.id ?? null
   const selectTrip = useSupabaseTripStore((state) => state.setCurrentTripById)
   const [pendingTripId, setPendingTripId] = useState<string | null>(null)
   const router = useRouter()
 
-  const triggerCopy = useMemo(() => {
+  const primaryLabel = useMemo(() => {
+    if (currentTrip?.name) return currentTrip.name
+    if (trips.length > 0) return 'Select a trip'
+    return 'Create your first trip'
+  }, [currentTrip?.name, trips.length])
+
+  const secondaryLabel = useMemo(() => {
+    if (currentTrip?.name) {
+      return null
+    }
     if (trips.length === 0) {
       return 'No trips yet'
     }
     if (trips.length === 1) {
-      return '1 trip available'
+      return 'Only trip'
     }
     return `${trips.length} trips available`
-  }, [trips.length])
+  }, [currentTrip?.name, trips.length])
 
   const handleSelectTrip = async (tripId: string) => {
     if (pendingTripId) return
@@ -70,12 +80,17 @@ export function TripSwitcher({ open, onOpenChange, highlight }: TripSwitcherProp
             <Layers className="h-4 w-4 text-blue-300" />
           </span>
           <span className="min-w-0">
-            <span className="block text-[10px] font-semibold uppercase tracking-[0.26em] text-white/50">
-              Trips
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.26em] text-white/50">
+            Trip
+          </span>
+          <span className="block truncate text-sm font-semibold text-white">
+            {primaryLabel}
+          </span>
+          {secondaryLabel ? (
+            <span className="block truncate text-[11px] font-medium text-white/45">
+              {secondaryLabel}
             </span>
-            <span className="block truncate text-sm font-semibold text-white">
-              {triggerCopy}
-            </span>
+          ) : null}
           </span>
           <ChevronDown className="h-4 w-4 text-white/40 transition group-hover:text-blue-300" />
           {highlight ? (

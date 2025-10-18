@@ -5,6 +5,13 @@ import { Destination, Trip, DayLocation } from '@/types'
 import { addDays } from '@/lib/utils'
 import { tripApi } from '@/lib/supabase/trip-api'
 
+const DEBUG_TRIP_STORE = process.env.NEXT_PUBLIC_DEBUG_TRIP_STORE === 'true'
+const debugTripStoreLog = (...args: unknown[]) => {
+  if (DEBUG_TRIP_STORE) {
+    console.log(...args)
+  }
+}
+
 type SelectionOrigin = 'map' | 'timeline' | 'preview'
 
 export type RouteSelectionSource = 'base' | 'destination' | 'explore'
@@ -41,11 +48,15 @@ interface SupabaseTripStore {
   selectedBaseLocation: { dayId: string; index: number } | null
   selectedDayId: string | null
   selectionOrigin: SelectionOrigin | null
-  isLoading: boolean
   error: string | null
   lastUpdate: number // Force re-renders
   hasLoadedTrips: boolean
   lastActiveTripId: string | null
+  loading: {
+    trips: boolean
+    tripMutation: boolean
+    destinationMutation: boolean
+  }
   
   // Selection state
   selectedCardId: string | null
@@ -120,7 +131,14 @@ interface SupabaseTripStore {
  clearError: () => void
 }
 
-export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
+export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => {
+  const setLoading = (key: keyof SupabaseTripStore['loading'], value: boolean) => {
+    set((state) => ({
+      loading: { ...state.loading, [key]: value },
+    }))
+  }
+
+  return {
   // Initial state
   currentTrip: null,
   trips: [],
@@ -128,11 +146,15 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
   selectedBaseLocation: null,
   selectedDayId: null,
   selectionOrigin: null,
-  isLoading: false,
   error: null,
   lastUpdate: Date.now(),
   hasLoadedTrips: false,
   lastActiveTripId: null,
+  loading: {
+    trips: false,
+    tripMutation: false,
+    destinationMutation: false,
+  },
   
   // Selection state
   selectedCardId: null,
@@ -153,11 +175,13 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     const state = get()
     const force = options?.force ?? false
     const preferredTripId = options?.preferredTripId ?? null
-    if (state.isLoading && !force) {
+    if (state.loading.trips && !force) {
       return
     }
-    console.log('SupabaseTripStore: Loading trips...')
-    set({ isLoading: true, error: null })
+
+    debugTripStoreLog('SupabaseTripStore: Loading trips...')
+    set({ error: null })
+    setLoading('trips', true)
     try {
       const [trips, lastActiveFromPrefs] = await Promise.all([
         tripApi.getUserTrips(),
@@ -166,7 +190,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           return null
         }),
       ])
-      console.log('SupabaseTripStore: Trips loaded:', trips)
+      debugTripStoreLog('SupabaseTripStore: Trips loaded:', trips)
       
       // Set the first trip as current trip if none is selected
       const { currentTrip } = get()
@@ -197,7 +221,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           selectedDestination: null,
           selectedBaseLocation: null,
           selectionOrigin: null,
-          isLoading: false,
           hasLoadedTrips: true,
           lastActiveTripId: newCurrentTrip?.id ?? null,
           selectedCardId: shouldResetRoute ? null : state.selectedCardId,
@@ -218,23 +241,25 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.error('SupabaseTripStore: Error loading trips:', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to load trips',
-        isLoading: false,
         hasLoadedTrips: false,
         lastActiveTripId: null,
       })
+    } finally {
+      setLoading('trips', false)
     }
   },
 
   // Load a specific trip
   loadTrip: async (tripId: string) => {
-    set({ isLoading: true, error: null })
+    set({ error: null })
+    setLoading('trips', true)
     try {
       const trip = await tripApi.getTrip(tripId)
       if (!trip) {
         set({
-          isLoading: false,
           error: 'Trip not found',
         })
+        setLoading('trips', false)
         return
       }
       
@@ -261,7 +286,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           selectedDestination: null,
           selectedBaseLocation: null,
           selectionOrigin: null,
-          isLoading: false,
           lastActiveTripId: trip.id,
           ...(shouldResetRoute
             ? {
@@ -280,14 +304,16 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to load trip',
-        isLoading: false 
       })
+    } finally {
+      setLoading('trips', false)
     }
   },
 
   // Create a new trip
   createTrip: async (trip: Omit<Trip, 'id'>) => {
-    set({ isLoading: true, error: null })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       const tripId = await tripApi.createTrip(trip)
       await tripApi.setLastActiveTrip(tripId)
@@ -296,15 +322,17 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to create trip',
-        isLoading: false 
       })
       throw error
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
   // Update trip
   updateTrip: async (tripId: string, updates: Partial<Trip>) => {
-    set({ isLoading: true, error: null })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       await tripApi.updateTrip(tripId, updates)
       const refreshedTrip = await tripApi.getTrip(tripId)
@@ -317,19 +345,20 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       set({ 
         currentTrip: refreshedTrip ?? currentTrip,
         trips: updatedTrips,
-        isLoading: false 
       })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to update trip',
-        isLoading: false 
       })
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
   // Duplicate trip
   duplicateTrip: async (tripId: string, newName: string) => {
-    set({ isLoading: true, error: null })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       const newTripId = await tripApi.duplicateTrip(tripId, newName)
       await tripApi.setLastActiveTrip(newTripId)
@@ -338,31 +367,33 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to duplicate trip',
-        isLoading: false 
       })
       throw error
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
   // Add destination to day
   addDestinationToDay: async (destination: Destination, dayId: string, options?: { index?: number }) => {
-    console.log('SupabaseTripStore: Adding destination to day', { destination, dayId, options })
-    set({ isLoading: true, error: null })
+    debugTripStoreLog('SupabaseTripStore: Adding destination to day', { destination, dayId, options })
+    set({ error: null })
+    setLoading('destinationMutation', true)
     try {
       const createdDestination = await tripApi.addDestinationToDay(dayId, destination)
-      console.log('SupabaseTripStore: Destination created in database', createdDestination)
+      debugTripStoreLog('SupabaseTripStore: Destination created in database', createdDestination)
 
       const { currentTrip, trips } = get()
       if (!currentTrip) {
         console.warn('SupabaseTripStore: No current trip found when adding destination')
-        set({ isLoading: false })
+        setLoading('destinationMutation', false)
         return
       }
 
       const targetDay = currentTrip.days.find((day) => day.id === dayId)
       if (!targetDay) {
         console.warn('SupabaseTripStore: Target day not found when adding destination', { dayId })
-        set({ isLoading: false })
+        setLoading('destinationMutation', false)
         return
       }
 
@@ -382,7 +413,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
 
       const updatedTrips = trips.map((trip) => (trip.id === currentTrip.id ? updatedTrip : trip))
 
-      console.log('SupabaseTripStore: Updating local state with new destination', {
+      debugTripStoreLog('SupabaseTripStore: Updating local state with new destination', {
         dayId,
         insertIndex,
         newDestinationCount: destinationsWithNew.length,
@@ -391,7 +422,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       set({
         currentTrip: updatedTrip,
         trips: updatedTrips,
-        isLoading: false,
         lastUpdate: Date.now(),
       })
     } catch (error) {
@@ -404,18 +434,20 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       })
       set({
         error: error instanceof Error ? error.message : 'Failed to add destination',
-        isLoading: false,
       })
+    } finally {
+      setLoading('destinationMutation', false)
     }
   },
 
   // Update destination
   updateDestination: async (dayId: string, destinationId: string, destination: Destination) => {
-    console.log('SupabaseTripStore: Updating destination', { dayId, destinationId, destination })
-    set({ isLoading: true, error: null })
+    debugTripStoreLog('SupabaseTripStore: Updating destination', { dayId, destinationId, destination })
+    set({ error: null })
+    setLoading('destinationMutation', true)
     try {
       const updatedDestination = await tripApi.updateDestination(destinationId, destination)
-      console.log('SupabaseTripStore: Destination updated in database', updatedDestination)
+      debugTripStoreLog('SupabaseTripStore: Destination updated in database', updatedDestination)
 
       // Update local state
       const { currentTrip, trips } = get()
@@ -437,7 +469,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         set({ 
           currentTrip: updatedTrip,
           trips: trips.map(trip => trip.id === currentTrip.id ? updatedTrip : trip),
-          isLoading: false 
         })
       }
     } catch (error) {
@@ -448,13 +479,16 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         destinationId,
         destination
       })
-      set({ error: error instanceof Error ? error.message : 'Failed to update destination', isLoading: false })
+      set({ error: error instanceof Error ? error.message : 'Failed to update destination' })
+    } finally {
+      setLoading('destinationMutation', false)
     }
   },
 
   // Remove destination from day
   removeDestinationFromDay: async (destinationId: string, dayId: string) => {
-    set({ isLoading: true, error: null })
+    set({ error: null })
+    setLoading('destinationMutation', true)
     try {
       await tripApi.removeDestinationFromDay(destinationId)
       
@@ -488,15 +522,14 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
             : trip
         )
 
-        set({ currentTrip: updatedTrip, trips: updatedTrips, isLoading: false })
-      } else {
-        set({ isLoading: false })
+        set({ currentTrip: updatedTrip, trips: updatedTrips })
       }
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to remove destination',
-        isLoading: false 
       })
+    } finally {
+      setLoading('destinationMutation', false)
     }
   },
 
@@ -505,7 +538,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     const { currentTrip } = get()
     if (!currentTrip) return
 
-    set({ isLoading: true, error: null })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       const lastDay = currentTrip.days[currentTrip.days.length - 1]
       const newDate = lastDay ? addDays(lastDay.date, 1) : currentTrip.startDate
@@ -521,13 +555,13 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         currentTrip: refreshedTrip ?? currentTrip,
         trips: updatedTrips,
         selectedDayId: refreshedTrip?.days[refreshedTrip.days.length - 1]?.id ?? null,
-        isLoading: false,
       })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to add day',
-        isLoading: false 
       })
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
@@ -536,7 +570,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     const { currentTrip } = get()
     if (!currentTrip) return
 
-    set({ isLoading: true, error: null })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       const dayIndex = currentTrip.days.findIndex(day => day.id === dayId)
       if (dayIndex === -1) return
@@ -555,13 +590,13 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         currentTrip: refreshedTrip ?? currentTrip,
         trips: updatedTrips,
         selectedDayId: newSelectedDayId ?? null,
-        isLoading: false,
       })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to duplicate day',
-        isLoading: false 
       })
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
@@ -570,7 +605,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     const { currentTrip, selectedBaseLocation, selectedDestination } = get()
     if (!currentTrip || currentTrip.days.length <= 1) return
 
-    set({ isLoading: true, error: null })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       await tripApi.removeDay(currentTrip.id, dayId)
 
@@ -592,18 +628,19 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         selectedDayId: refreshedTrip?.days[0]?.id ?? null,
         selectedBaseLocation: shouldClearBaseSelection ? null : selectedBaseLocation,
         selectedDestination: destinationStillExists ? selectedDestination : null,
-        isLoading: false 
       })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to remove day',
-        isLoading: false 
       })
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
   updateDayNotes: async (dayId: string, notes: string) => {
-    set({ isLoading: true, error: null })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       const trimmed = notes.trim()
       const notesToPersist = trimmed.length > 0 ? notes : null
@@ -624,19 +661,17 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         set({
           currentTrip: updatedTrip,
           trips: trips.map(trip => (trip.id === updatedTrip.id ? updatedTrip : trip)),
-          isLoading: false,
           lastUpdate: Date.now(),
         })
-      } else {
-        set({ isLoading: false })
       }
     } catch (error) {
       console.error('SupabaseTripStore: Failed to update day notes', error)
       set({
         error: error instanceof Error ? error.message : 'Failed to update day notes',
-        isLoading: false,
       })
       throw error
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
@@ -666,11 +701,12 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
 
   // Set day location (for backward compatibility - sets first base location)
   setDayLocation: async (dayId: string, location: DayLocation | null) => {
-    console.log('SupabaseTripStore: Setting day location', { dayId, location })
-    set({ isLoading: true, error: null })
+    debugTripStoreLog('SupabaseTripStore: Setting day location', { dayId, location })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       await tripApi.setDayLocation(dayId, location)
-      console.log('SupabaseTripStore: Day location updated in database')
+      debugTripStoreLog('SupabaseTripStore: Day location updated in database')
       
       // Update local state
       const { currentTrip, trips } = get()
@@ -710,7 +746,7 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           nextSelectedBaseLocation = null
         }
 
-        console.log('SupabaseTripStore: Updating local state with new location', { 
+        debugTripStoreLog('SupabaseTripStore: Updating local state with new location', { 
           dayId, 
           locationName: location?.name 
         })
@@ -720,29 +756,29 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           trips: updatedTrips, 
           selectedBaseLocation: nextSelectedBaseLocation,
           selectedDestination: nextSelectedBaseLocation ? null : get().selectedDestination,
-          isLoading: false,
           lastUpdate: Date.now()
         })
       } else {
         console.warn('SupabaseTripStore: No current trip found when setting day location')
-        set({ isLoading: false })
       }
     } catch (error) {
       console.error('SupabaseTripStore: Error setting day location', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to set day location',
-        isLoading: false 
       })
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
   // Add base location to day
   addBaseLocation: async (dayId: string, location: DayLocation) => {
-    console.log('SupabaseTripStore: Adding base location', { dayId, location })
-    set({ isLoading: true, error: null })
+    debugTripStoreLog('SupabaseTripStore: Adding base location', { dayId, location })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       await tripApi.addBaseLocation(dayId, location)
-      console.log('SupabaseTripStore: Base location added to database')
+      debugTripStoreLog('SupabaseTripStore: Base location added to database')
       
       // Update local state
       const { currentTrip, trips, selectedBaseLocation, selectedDestination } = get()
@@ -779,7 +815,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
           trips: updatedTrips,
           selectedBaseLocation,
           selectedDestination: selectedBaseLocation ? null : selectedDestination,
-          isLoading: false,
           lastUpdate: Date.now()
         })
       }
@@ -787,18 +822,20 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.error('SupabaseTripStore: Error adding base location:', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to add base location',
-        isLoading: false 
       })
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
   // Remove base location from day
   removeBaseLocation: async (dayId: string, locationIndex: number) => {
-    console.log('SupabaseTripStore: Removing base location', { dayId, locationIndex })
-    set({ isLoading: true, error: null })
+    debugTripStoreLog('SupabaseTripStore: Removing base location', { dayId, locationIndex })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       await tripApi.removeBaseLocation(dayId, locationIndex)
-      console.log('SupabaseTripStore: Base location removed from database')
+      debugTripStoreLog('SupabaseTripStore: Base location removed from database')
       
       // Update local state
       const { currentTrip, trips } = get()
@@ -833,7 +870,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         set({
           currentTrip: updatedTrip,
           trips: updatedTrips,
-          isLoading: false,
           lastUpdate: Date.now()
         })
       }
@@ -841,18 +877,20 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.error('SupabaseTripStore: Error removing base location:', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to remove base location',
-        isLoading: false 
       })
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
   // Update base location
   updateBaseLocation: async (dayId: string, locationIndex: number, location: DayLocation) => {
-    console.log('SupabaseTripStore: Updating base location', { dayId, locationIndex, location })
-    set({ isLoading: true, error: null })
+    debugTripStoreLog('SupabaseTripStore: Updating base location', { dayId, locationIndex, location })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       await tripApi.updateBaseLocation(dayId, locationIndex, location)
-      console.log('SupabaseTripStore: Base location updated in database')
+      debugTripStoreLog('SupabaseTripStore: Base location updated in database')
       
       // Update local state
       const { currentTrip, trips } = get()
@@ -891,7 +929,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         set({
           currentTrip: updatedTrip,
           trips: updatedTrips,
-          isLoading: false,
           lastUpdate: Date.now()
         })
       }
@@ -899,18 +936,20 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.error('SupabaseTripStore: Error updating base location:', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to update base location',
-        isLoading: false 
       })
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
   // Reorder base locations
   reorderBaseLocations: async (dayId: string, fromIndex: number, toIndex: number) => {
-    console.log('SupabaseTripStore: Reordering base locations', { dayId, fromIndex, toIndex })
-    set({ isLoading: true, error: null })
+    debugTripStoreLog('SupabaseTripStore: Reordering base locations', { dayId, fromIndex, toIndex })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       await tripApi.reorderBaseLocations(dayId, fromIndex, toIndex)
-      console.log('SupabaseTripStore: Base locations reordered in database')
+      debugTripStoreLog('SupabaseTripStore: Base locations reordered in database')
       
       // Update local state
       const { currentTrip, trips } = get()
@@ -955,7 +994,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         set({
           currentTrip: updatedTrip,
           trips: updatedTrips,
-          isLoading: false,
           lastUpdate: Date.now()
         })
       }
@@ -963,8 +1001,9 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       console.error('SupabaseTripStore: Error reordering base locations:', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to reorder base locations',
-        isLoading: false 
       })
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
@@ -1109,7 +1148,8 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
     const { currentTrip } = get()
     if (!currentTrip) return
 
-    set({ isLoading: true, error: null })
+    set({ error: null })
+    setLoading('tripMutation', true)
     try {
       await tripApi.updateTripDates(currentTrip.id, startDate, endDate)
 
@@ -1131,13 +1171,13 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
         currentTrip: nextTrip,
         trips: updatedTrips,
         selectedDayId: nextSelectedDayId,
-        isLoading: false,
       })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to update trip dates',
-        isLoading: false 
       })
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
@@ -1402,8 +1442,9 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       return
     }
 
-    console.log('SupabaseTripStore: Duplicating base location', { sourceDayId, locationIndex, targetDayIds: uniqueTargets })
-    set({ isLoading: true, error: null })
+    debugTripStoreLog('SupabaseTripStore: Duplicating base location', { sourceDayId, locationIndex, targetDayIds: uniqueTargets })
+    set({ error: null })
+    setLoading('tripMutation', true)
 
     try {
       const { currentTrip, trips } = get()
@@ -1462,7 +1503,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       }
 
       if (Object.keys(createdLocations).length === 0) {
-        set({ isLoading: false })
         return
       }
 
@@ -1493,16 +1533,16 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       set({
         currentTrip: updatedTrip,
         trips: updatedTrips,
-        isLoading: false,
         lastUpdate: Date.now(),
       })
     } catch (error) {
       console.error('SupabaseTripStore: Error duplicating base location:', error)
       set({
         error: error instanceof Error ? error.message : 'Failed to duplicate accommodation',
-        isLoading: false,
       })
       throw error
+    } finally {
+      setLoading('tripMutation', false)
     }
   },
 
@@ -1512,8 +1552,9 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       return
     }
 
-    console.log('SupabaseTripStore: Duplicating destination', { sourceDayId, destinationId, targetDayIds: uniqueTargets })
-    set({ isLoading: true, error: null })
+    debugTripStoreLog('SupabaseTripStore: Duplicating destination', { sourceDayId, destinationId, targetDayIds: uniqueTargets })
+    set({ error: null })
+    setLoading('destinationMutation', true)
 
     try {
       const { currentTrip, trips } = get()
@@ -1566,7 +1607,6 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       }
 
       if (Object.keys(createdDestinations).length === 0) {
-        set({ isLoading: false })
         return
       }
 
@@ -1597,16 +1637,17 @@ export const useSupabaseTripStore = create<SupabaseTripStore>((set, get) => ({
       set({
         currentTrip: updatedTrip,
         trips: updatedTrips,
-        isLoading: false,
         lastUpdate: Date.now(),
       })
     } catch (error) {
       console.error('SupabaseTripStore: Error duplicating destination:', error)
       set({
         error: error instanceof Error ? error.message : 'Failed to duplicate destination',
-        isLoading: false,
       })
       throw error
+    } finally {
+      setLoading('destinationMutation', false)
     }
+  },
   }
-}));
+});

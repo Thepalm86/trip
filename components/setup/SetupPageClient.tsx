@@ -9,7 +9,7 @@ import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 export function SetupPageClient() {
   const router = useRouter()
   const hasLoadedTrips = useSupabaseTripStore((state) => state.hasLoadedTrips)
-  const isLoading = useSupabaseTripStore((state) => state.isLoading)
+  const isTripsLoading = useSupabaseTripStore((state) => state.loading.trips)
   const trips = useSupabaseTripStore((state) => state.trips)
   const loadTrips = useSupabaseTripStore((state) => state.loadTrips)
   const forceSetupRef = useRef(false)
@@ -26,10 +26,10 @@ export function SetupPageClient() {
   }, [])
 
   useEffect(() => {
-    if (!hasLoadedTrips && !isLoading) {
+    if (!hasLoadedTrips && !isTripsLoading) {
       void loadTrips()
     }
-  }, [hasLoadedTrips, isLoading, loadTrips])
+  }, [hasLoadedTrips, isTripsLoading, loadTrips])
 
   useEffect(() => {
     if (hasLoadedTrips && trips.length > 0) {

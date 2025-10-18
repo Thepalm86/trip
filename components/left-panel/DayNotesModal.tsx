@@ -12,7 +12,7 @@ interface DayNotesModalProps {
 export function DayNotesModal({ dayId, onClose }: DayNotesModalProps) {
   const currentTrip = useSupabaseTripStore(state => state.currentTrip)
   const updateDayNotes = useSupabaseTripStore(state => state.updateDayNotes)
-  const isSaving = useSupabaseTripStore(state => state.isLoading)
+  const isSaving = useSupabaseTripStore(state => state.loading.tripMutation)
   const [notes, setNotes] = useState('')
 
   const day = currentTrip?.days.find(d => d.id === dayId)

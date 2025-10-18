@@ -31,7 +31,7 @@ export function TripLoader() {
     const ensureTripsLoaded = async () => {
       try {
         const store = useSupabaseTripStore.getState()
-        if (!store.hasLoadedTrips && !store.isLoading) {
+        if (!store.hasLoadedTrips && !store.loading.trips) {
           await loadTripsRef.current()
         }
         if (cancelled) return

@@ -3,6 +3,12 @@ import { Destination, TimelineDay, Trip, DayLocation } from '@/types'
 import { addDays } from '@/lib/utils'
 
 const supabase = createClient()
+const DEBUG_TRIP_API = process.env.NEXT_PUBLIC_DEBUG_TRIP_API === 'true'
+const debugTripApiLog = (...args: unknown[]) => {
+  if (DEBUG_TRIP_API) {
+    console.log(...args)
+  }
+}
 
 // Database types matching our schema
 interface DatabaseTrip {
@@ -12,6 +18,7 @@ interface DatabaseTrip {
   start_date: string
   end_date: string
   country_code: string
+  focus_countries: string[] | null
   total_budget?: number
   status: 'planning' | 'active' | 'completed' | 'cancelled'
   notes?: string
@@ -192,6 +199,9 @@ function dbTripToAppTrip(dbTrip: DatabaseTrip, days: DatabaseDay[], destinations
     startDate: parseDateOnly(dbTrip.start_date),
     endDate: parseDateOnly(dbTrip.end_date),
     country: dbTrip.country_code,
+    countries: Array.isArray(dbTrip.focus_countries) && dbTrip.focus_countries.length > 0
+      ? dbTrip.focus_countries
+      : undefined,
     totalBudget: dbTrip.total_budget,
     days: tripDays
   }
@@ -223,6 +233,9 @@ export const tripApi = {
         startDate: new Date(trip.start_date),
         endDate: new Date(trip.end_date),
         country: trip.country_code,
+        countries: Array.isArray(trip.focus_countries) && trip.focus_countries.length > 0
+          ? trip.focus_countries
+          : undefined,
         totalBudget: trip.total_budget,
         days: [],
       }))
@@ -244,6 +257,9 @@ export const tripApi = {
         startDate: new Date(trip.start_date),
         endDate: new Date(trip.end_date),
         country: trip.country_code,
+        countries: Array.isArray(trip.focus_countries) && trip.focus_countries.length > 0
+          ? trip.focus_countries
+          : undefined,
         totalBudget: trip.total_budget,
         days: [],
       }))
@@ -326,6 +342,9 @@ export const tripApi = {
         start_date: formatDateOnly(trip.startDate),
         end_date: formatDateOnly(trip.endDate),
         country_code: trip.country,
+        focus_countries: Array.isArray(trip.countries) && trip.countries.length > 0
+          ? trip.countries
+          : null,
         total_budget: trip.totalBudget,
         status: 'planning',
         user_id: userId,
@@ -428,6 +447,13 @@ export const tripApi = {
     if (updates.startDate) updateData.start_date = updates.startDate.toISOString().split('T')[0]
     if (updates.endDate) updateData.end_date = updates.endDate.toISOString().split('T')[0]
     if (updates.country) updateData.country_code = updates.country
+    if (updates.countries !== undefined) {
+      if (Array.isArray(updates.countries) && updates.countries.length > 0) {
+        updateData.focus_countries = updates.countries
+      } else {
+        updateData.focus_countries = null
+      }
+    }
     if (updates.totalBudget !== undefined) updateData.total_budget = updates.totalBudget
 
     const { error } = await supabase
@@ -441,7 +467,7 @@ export const tripApi = {
 
   // Add destination to day
   async addDestinationToDay(dayId: string, destination: Destination): Promise<Destination> {
-    console.log('TripAPI: Adding destination to day', { dayId, destination })
+    debugTripApiLog('TripAPI: Adding destination to day', { dayId, destination })
     
     // Get current max order_index for this day
     const { data: maxOrder, error: orderError } = await supabase
@@ -457,7 +483,7 @@ export const tripApi = {
     }
 
     const nextOrder = maxOrder.length > 0 ? maxOrder[0].order_index + 1 : 0
-    console.log('TripAPI: Next order index', nextOrder)
+    debugTripApiLog('TripAPI: Next order index', nextOrder)
 
     const insertData = {
       day_id: dayId,
@@ -476,10 +502,10 @@ export const tripApi = {
       order_index: nextOrder
     }
     
-    console.log('TripAPI: Inserting destination data', insertData)
-    console.log('TripAPI: Formatted coordinates:', insertData.coordinates)
-    console.log('TripAPI: Original coordinates:', destination.coordinates)
-    console.log('TripAPI: Category mapping:', { 
+    debugTripApiLog('TripAPI: Inserting destination data', insertData)
+    debugTripApiLog('TripAPI: Formatted coordinates:', insertData.coordinates)
+    debugTripApiLog('TripAPI: Original coordinates:', destination.coordinates)
+    debugTripApiLog('TripAPI: Category mapping:', { 
       original: destination.category, 
       mapped: insertData.category 
     })
@@ -502,7 +528,7 @@ export const tripApi = {
       throw error
     }
 
-    console.log('TripAPI: Destination inserted successfully', data)
+    debugTripApiLog('TripAPI: Destination inserted successfully', data)
     return dbDestinationToDestination(data)
   },
 
@@ -517,11 +543,11 @@ export const tripApi = {
   },
 
   async updateDestination(destinationId: string, destination: Destination): Promise<Destination> {
-    console.log('TripAPI: Updating destination', { destinationId, destination })
+    debugTripApiLog('TripAPI: Updating destination', { destinationId, destination })
     
     // Check authentication first
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    console.log('TripAPI: Authentication check', { user: user?.id, authError })
+    debugTripApiLog('TripAPI: Authentication check', { user: user?.id, authError })
     
     if (authError || !user) {
       throw new Error('User not authenticated')
@@ -550,8 +576,8 @@ export const tripApi = {
       links_json: destination.links ? JSON.stringify(destination.links) : null
     }
 
-    console.log('TripAPI: Update data being sent', updateData)
-    console.log('TripAPI: Category mapping debug', {
+    debugTripApiLog('TripAPI: Update data being sent', updateData)
+    debugTripApiLog('TripAPI: Category mapping debug', {
       originalCategory: destination.category,
       mappedCategory: destination.category ? mapCategoryToAllowed(destination.category) : 'attraction',
       finalCategory: updateData.category
@@ -576,9 +602,9 @@ export const tripApi = {
       throw error
     }
     
-    console.log('TripAPI: Destination updated successfully', data)
+    debugTripApiLog('TripAPI: Destination updated successfully', data)
     const convertedDestination = dbDestinationToDestination(data)
-    console.log('TripAPI: Converted destination for return', convertedDestination)
+    debugTripApiLog('TripAPI: Converted destination for return', convertedDestination)
     return convertedDestination
   },
 
@@ -912,7 +938,7 @@ export const tripApi = {
   },
 
   async updateTripDates(tripId: string, startDate: Date, endDate: Date): Promise<void> {
-    console.log('TripAPI: Updating trip dates', { tripId, startDate, endDate })
+    debugTripApiLog('TripAPI: Updating trip dates', { tripId, startDate, endDate })
     
     const { error: tripUpdateError } = await supabase
       .from('user_trips')
@@ -927,7 +953,7 @@ export const tripApi = {
     // Calculate the number of days needed
     const timeDiff = endDate.getTime() - startDate.getTime()
     const daysNeeded = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1
-    console.log('TripAPI: Days needed for new date range:', daysNeeded)
+    debugTripApiLog('TripAPI: Days needed for new date range:', daysNeeded)
 
     // Get existing days
     const { data: existingDays, error: daysError } = await supabase
@@ -939,12 +965,12 @@ export const tripApi = {
     if (daysError) throw daysError
 
     const currentDayCount = existingDays?.length || 0
-    console.log('TripAPI: Current day count:', currentDayCount)
+    debugTripApiLog('TripAPI: Current day count:', currentDayCount)
 
     if (daysNeeded > currentDayCount) {
       // Need to add more days
       const daysToAdd = daysNeeded - currentDayCount
-      console.log('TripAPI: Adding', daysToAdd, 'new days')
+      debugTripApiLog('TripAPI: Adding', daysToAdd, 'new days')
       
       const newDays = []
       for (let i = 0; i < daysToAdd; i++) {
@@ -968,7 +994,7 @@ export const tripApi = {
     } else if (daysNeeded < currentDayCount) {
       // Need to remove excess days
       const daysToRemove = currentDayCount - daysNeeded
-      console.log('TripAPI: Removing', daysToRemove, 'excess days')
+      debugTripApiLog('TripAPI: Removing', daysToRemove, 'excess days')
       
       // Get the days to remove (the last ones)
       const daysToDelete = existingDays?.slice(-daysToRemove) || []
@@ -1015,7 +1041,7 @@ export const tripApi = {
       currentDate = addDays(currentDate, 1)
     }
 
-    console.log('TripAPI: Trip dates updated successfully')
+    debugTripApiLog('TripAPI: Trip dates updated successfully')
   },
 
   async normalizeTripDays(tripId: string): Promise<void> {
