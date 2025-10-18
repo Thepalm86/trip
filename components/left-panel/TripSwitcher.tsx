@@ -72,25 +72,22 @@ export function TripSwitcher({ open, onOpenChange, highlight }: TripSwitcherProp
         <button
           type="button"
           className={cn(
-            'relative group flex h-12 items-center gap-3 rounded-full border border-white/10 bg-white/[0.06] px-4 text-left text-white/90 shadow-sm backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-blue-300/40 hover:border-blue-400/60 hover:bg-blue-500/10 hover:text-white',
+            'relative group flex h-12 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-left text-white/90 shadow-sm backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-blue-300/40 hover:border-blue-400/60 hover:bg-blue-500/10 hover:text-white',
             highlight && 'border-blue-400/50 shadow-[0_0_0_4px_rgba(59,130,246,0.18)]'
           )}
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-blue-400/30 bg-blue-500/10">
-            <Layers className="h-4 w-4 text-blue-300" />
-          </span>
           <span className="min-w-0">
-          <span className="block text-[10px] font-semibold uppercase tracking-[0.26em] text-white/50">
-            Trip
-          </span>
-          <span className="block truncate text-sm font-semibold text-white">
-            {primaryLabel}
-          </span>
-          {secondaryLabel ? (
-            <span className="block truncate text-[11px] font-medium text-white/45">
-              {secondaryLabel}
+            <span className="block text-[11px] font-medium uppercase tracking-[0.2em] text-white/60">
+              Trip
             </span>
-          ) : null}
+            <span className="block truncate text-sm font-semibold text-white">
+              {primaryLabel}
+            </span>
+            {secondaryLabel ? (
+              <span className="block truncate text-[11px] text-white/45">
+                {secondaryLabel}
+              </span>
+            ) : null}
           </span>
           <ChevronDown className="h-4 w-4 text-white/40 transition group-hover:text-blue-300" />
           {highlight ? (

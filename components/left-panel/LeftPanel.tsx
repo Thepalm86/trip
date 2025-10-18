@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Search, Calendar, Globe, ChevronDown, Loader2 } from 'lucide-react'
+import { Search, ChevronDown, Loader2 } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TabSystem } from './TabSystem'
 import { DateSelector } from './DateSelector'
@@ -13,6 +13,7 @@ import { buildCountryOptions } from './CountrySelector'
 import { searchCountries, CountrySearchResult } from '@/lib/map/country-search'
 import { getCountryMeta, setCountryMeta } from '@/lib/map/country-cache'
 import { TripSwitcher } from './TripSwitcher'
+import { TravealLogo } from '@/components/common/TravealLogo'
 
 export function LeftPanel() {
   const { currentTrip, updateTrip } = useSupabaseTripStore()
@@ -160,9 +161,9 @@ export function LeftPanel() {
           {/* Trip Hero Section */}
           <div className="mb-2">
             {/* Trip Title - Hero with Profile and Actions */}
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <div className="flex flex-1 min-w-[220px] items-center gap-3" />
-              <div className="flex flex-shrink-0 items-center gap-2">
+            <div className="mb-4 flex items-center gap-4">
+              <TravealLogo className="shrink-0" />
+              <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
                 <TripSwitcher
                   open={isTripSwitcherOpen}
                   onOpenChange={handleTripSwitcherOpenChange}
@@ -171,48 +172,40 @@ export function LeftPanel() {
                 <button
                   type="button"
                   onClick={() => setShowCountrySelector(true)}
-                  className="group flex h-12 items-center gap-3 rounded-full border border-white/10 bg-white/[0.06] px-4 text-left text-white/90 shadow-sm backdrop-blur transition hover:border-blue-400/60 hover:bg-blue-500/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/40"
+                  className="group flex h-12 shrink-0 items-center justify-between gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-left text-white/90 shadow-sm backdrop-blur transition hover:border-blue-400/60 hover:bg-blue-500/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/40"
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-blue-400/30 bg-blue-500/10">
-                    <Globe className="h-4 w-4 text-blue-300" />
-                  </span>
                   <span className="min-w-0">
-                    <span className="block text-[10px] font-semibold uppercase tracking-[0.26em] text-white/50">
+                    <span className="block text-[11px] font-medium uppercase tracking-[0.2em] text-white/60">
                       Destination
                     </span>
                     <span className="block truncate text-sm font-semibold text-white">
                       {countryLabel}
                     </span>
                   </span>
-                  <ChevronDown className="h-4 w-4 text-white/40 transition group-hover:text-blue-300" />
+                  <ChevronDown className="h-4 w-4 flex-shrink-0 text-white/40 transition group-hover:text-blue-300" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowDateSelector(true)}
-                  className="group flex h-12 items-center gap-3 rounded-full border border-white/10 bg-white/[0.06] px-4 text-left text-white/90 shadow-sm backdrop-blur transition hover:border-emerald-400/60 hover:bg-emerald-500/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+                  className="group flex h-12 shrink-0 items-center justify-between gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-left text-white/90 shadow-sm backdrop-blur transition hover:border-emerald-400/60 hover:bg-emerald-500/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10">
-                    <Calendar className="h-4 w-4 text-emerald-300" />
-                  </span>
                   <span className="min-w-0">
-                    <span className="block text-[10px] font-semibold uppercase tracking-[0.26em] text-white/50">
+                    <span className="block text-[11px] font-medium uppercase tracking-[0.2em] text-white/60">
                       Dates
                     </span>
                     <span className="block truncate text-sm font-semibold text-white">
                       {datesSummary}
                     </span>
                   </span>
-                  <ChevronDown className="h-4 w-4 text-white/40 transition group-hover:text-emerald-300" />
+                  <ChevronDown className="h-4 w-4 flex-shrink-0 text-white/40 transition group-hover:text-emerald-300" />
                 </button>
-              </div>
-              
-              {/* Actions and User Profile */}
-              <div className="ml-auto flex items-center gap-2" data-tour="header-actions">
-                <UserProfile
-                  onShare={() => setIsShareModalOpen(true)}
-                  onShowGuide={handleRestartOnboarding}
-                  onOpenResearch={openResearch}
-                />
+                <div className="ml-2 flex items-center gap-2" data-tour="header-actions">
+                  <UserProfile
+                    onShare={() => setIsShareModalOpen(true)}
+                    onShowGuide={handleRestartOnboarding}
+                    onOpenResearch={openResearch}
+                  />
+                </div>
               </div>
             </div>
           </div>
