@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { InteractiveMap } from '@/components/map/InteractiveMap'
 import { AssistantBubbleOverlay } from '@/components/assistant/AssistantBubbleOverlay'
+import { ItineraryOverlay } from '@/components/overlays/ItineraryOverlay'
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { TripLoader } from '@/components/trip/TripLoader'
 import { ResearchCommandPalette } from '@/components/research/ResearchCommandPalette'
@@ -38,6 +39,7 @@ export default function HomePage() {
               <InteractiveMap />
             </div>
           </div>
+          <ItineraryOverlay />
           <AssistantBubbleOverlay />
           <ResearchCommandPalette />
         </div>
