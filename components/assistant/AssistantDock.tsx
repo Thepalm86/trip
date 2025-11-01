@@ -456,7 +456,10 @@ export function AssistantDock({
               !isVisible && 'hidden',
               className
             )
-          : clsx('fixed bottom-5 right-4 z-50 flex flex-col items-end gap-3 sm:inset-y-6 sm:right-6 sm:bottom-auto', className)
+          : clsx(
+              'fixed bottom-5 right-4 z-50 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6 sm:top-[calc(var(--navbar-height,88px)+1.5rem)]',
+              className
+            )
       )}
     >
       {isOpen ? (
