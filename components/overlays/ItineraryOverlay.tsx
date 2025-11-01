@@ -8,9 +8,6 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { ItineraryTab } from '@/components/left-panel/ItineraryTab'
 
-const COLLAPSE_STORAGE_KEY = 'trip3:itinerary:panel-collapsed'
-const COLLAPSE_PEEK_WIDTH = 84
-
 export function ItineraryOverlay() {
   const currentTrip = useSupabaseTripStore((state) => state.currentTrip)
 
