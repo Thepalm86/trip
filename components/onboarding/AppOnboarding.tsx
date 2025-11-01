@@ -61,12 +61,6 @@ export function AppOnboarding() {
         description: 'Toggle routes, reorder destinations, manage accommodations, and capture notes within the detailed planner for the selected day.'
       },
       {
-        id: 'assistant-rail',
-        selector: '[data-tour="assistant-tab"]',
-        title: 'Assistant insight rail',
-        description: 'Switch to the Assistant tab to chat alongside the itinerary, review follow-up suggestions, and pop open the mini-map for quick context.'
-      },
-      {
         id: 'map',
         selector: '[data-tour="map"]',
         title: 'Visualize the trip',

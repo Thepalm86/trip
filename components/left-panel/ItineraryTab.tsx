@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { Calendar, CalendarRange, Plus, Map, Heart, LayoutList, Sparkles } from 'lucide-react'
+import { Calendar, CalendarRange, Plus, Map, Heart, LayoutList } from 'lucide-react'
 import { Destination, TimelineDay, DayLocation } from '@/types'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { DayCard } from './DayCard'
 import { AddDestinationModal } from './AddDestinationModal'
 import { DayNotesModal } from './DayNotesModal'
 import { BaseLocationPicker } from './BaseLocationPicker'
-import { AssistantDock } from '@/components/assistant/AssistantDock'
 import { getExploreCategoryMetadata } from '@/lib/explore/categories'
 import {
   DndContext,
@@ -41,12 +40,6 @@ const DETAIL_TABS = [
     description: 'Destinations & stays',
     Icon: CalendarRange,
   },
-  {
-    id: 'assistant' as const,
-    label: 'Assistant',
-    description: 'Collaborate & ideate',
-    Icon: Sparkles,
-  },
 ] as const
 
 type DetailTabId = (typeof DETAIL_TABS)[number]['id']
@@ -68,8 +61,10 @@ function readStoredDetailTabs(): DetailTabPreferences {
     const result: DetailTabPreferences = {}
 
     for (const [key, value] of Object.entries(parsed)) {
-      if (value === 'plan' || value === 'assistant') {
+      if (value === 'plan') {
         result[key] = value
+      } else if (value === 'assistant') {
+        result[key] = 'plan'
       }
     }
 
@@ -312,12 +307,6 @@ export function ItineraryTab() {
     reorderBaseLocations,
   } = useSupabaseTripStore()
 
-  const clearRouteSegmentSelection = useCallback(() => {
-    useSupabaseTripStore.setState({
-      selectedRouteSegmentId: null,
-    })
-  }, [])
-  
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -582,11 +571,8 @@ export function ItineraryTab() {
     (tab: DetailTabId, targetDayId?: string | null) => {
       const key = targetDayId ?? selectedDay?.id ?? GLOBAL_TAB_KEY
       setDetailTabPreferences(prev => applyDetailTabPreference(prev, key, tab))
-      if (tab === 'assistant') {
-        clearRouteSegmentSelection()
-      }
     },
-    [selectedDay?.id, clearRouteSegmentSelection]
+    [selectedDay?.id]
   )
 
   const setDetailTabForCurrentContext = useCallback(
@@ -595,44 +581,6 @@ export function ItineraryTab() {
     },
     [updateDetailTabPreferenceForKey]
   )
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    const openHandler = () => {
-      setDetailTabForCurrentContext('assistant')
-      clearRouteSegmentSelection()
-    }
-    const closeHandler = () => setDetailTabForCurrentContext('plan')
-    const toggleHandler = () => {
-      const key = selectedDay?.id ?? GLOBAL_TAB_KEY
-      const current = detailTabPreferences[key] ?? DEFAULT_DETAIL_TAB
-      if (current === 'assistant') {
-        setDetailTabForCurrentContext('plan')
-      } else {
-        setDetailTabForCurrentContext('assistant')
-        clearRouteSegmentSelection()
-      }
-    }
-    const promptHandler = () => {
-      setDetailTabForCurrentContext('assistant')
-      clearRouteSegmentSelection()
-    }
-
-    window.addEventListener('assistant-dock:open', openHandler)
-    window.addEventListener('assistant-dock:close', closeHandler)
-    window.addEventListener('assistant-dock:toggle', toggleHandler)
-    window.addEventListener('assistant-dock:prompt', promptHandler)
-
-    return () => {
-      window.removeEventListener('assistant-dock:open', openHandler)
-      window.removeEventListener('assistant-dock:close', closeHandler)
-      window.removeEventListener('assistant-dock:toggle', toggleHandler)
-      window.removeEventListener('assistant-dock:prompt', promptHandler)
-    }
-  }, [detailTabPreferences, selectedDay?.id, setDetailTabForCurrentContext, clearRouteSegmentSelection])
 
   const handleSelectDay = useCallback(
     (dayId: string) => {
@@ -715,7 +663,10 @@ export function ItineraryTab() {
             <div
               role="tablist"
               aria-label="Day detail views"
-              className="grid grid-cols-2 gap-0 overflow-hidden text-sm text-white/70 backdrop-blur-sm"
+              className={clsx(
+                'grid gap-0 overflow-hidden text-sm text-white/70 backdrop-blur-sm',
+                DETAIL_TABS.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
+              )}
             >
               {DETAIL_TABS.map(({ id, label, description, Icon }) => {
                 const isActive = id === activeDetailTab
@@ -730,7 +681,7 @@ export function ItineraryTab() {
                     type="button"
                     aria-selected={isActive}
                     aria-controls={panelId}
-                    data-tour={id === 'assistant' ? 'assistant-tab' : id === 'plan' ? 'plan-tab' : undefined}
+                    data-tour={id === 'plan' ? 'plan-tab' : undefined}
                     onClick={() => setDetailTabForCurrentContext(id)}
                     className={clsx(
                       'group relative flex h-full w-full items-center gap-3 px-5 py-2.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60 border-y border-transparent first:border-l last:border-r rounded-none',
@@ -834,22 +785,6 @@ export function ItineraryTab() {
               </div>
             </section>
 
-            <section
-              role="tabpanel"
-              id="day-detail-panel-assistant"
-              aria-labelledby="day-detail-tab-assistant"
-              className={clsx(
-                'absolute inset-0 flex min-h-0 flex-col transition-opacity duration-200',
-                activeDetailTab === 'assistant' ? 'opacity-100' : 'pointer-events-none opacity-0'
-              )}
-            >
-              <AssistantDock
-                variant="rail"
-                isVisible={activeDetailTab === 'assistant'}
-                onRequestClose={() => setDetailTabForCurrentContext('plan')}
-                className="h-full w-full rounded-none border-0 bg-transparent shadow-none"
-              />
-            </section>
           </div>
         </div>
       </div>
