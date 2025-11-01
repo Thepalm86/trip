@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { CSSProperties, useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { Calendar, CalendarRange, Plus, Map, Heart, LayoutList } from 'lucide-react'
 import { Destination, TimelineDay, DayLocation } from '@/types'
@@ -45,6 +45,10 @@ const DETAIL_TABS = [
 type DetailTabId = (typeof DETAIL_TABS)[number]['id']
 type DetailTabPreferences = Record<string, DetailTabId>
 const DEFAULT_DETAIL_TAB: DetailTabId = 'plan'
+
+interface ItineraryTabProps {
+  isDetailCollapsed?: boolean
+}
 
 function readStoredDetailTabs(): DetailTabPreferences {
   if (typeof window === 'undefined') {
@@ -296,7 +300,7 @@ function DroppableDay({ day, index, isSelected, onSelect, isSource, isTarget, is
   )
 }
 
-export function ItineraryTab() {
+export function ItineraryTab({ isDetailCollapsed = false }: ItineraryTabProps) {
   const { 
     currentTrip, 
     addNewDay, 
@@ -593,6 +597,10 @@ export function ItineraryTab() {
     [setSelectedDay, updateDetailTabPreferenceForKey]
   )
 
+  const detailPanelStyle: CSSProperties | undefined = isDetailCollapsed
+    ? { flex: '0 0 0%', width: 0 }
+    : undefined
+
   return (
     <DndContext
       sensors={sensors}
@@ -658,7 +666,15 @@ export function ItineraryTab() {
         </div>
 
         {/* Day Details */}
-        <div className="flex-1 flex flex-col bg-white/[0.01]" data-tour="day-details">
+        <div
+          className={clsx(
+            'flex-1 flex flex-col bg-white/[0.01] transition-all duration-300 ease-in-out',
+            isDetailCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
+          )}
+          style={detailPanelStyle}
+          data-tour="day-details"
+          aria-hidden={isDetailCollapsed}
+        >
           <div className="border-b border-white/12 bg-white/[0.035]">
             <div
               role="tablist"
