@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { InteractiveMap } from '@/components/map/InteractiveMap'
 import { AssistantBubbleOverlay } from '@/components/assistant/AssistantBubbleOverlay'
@@ -9,6 +9,7 @@ import { AuthGuard } from '@/components/auth/auth-guard'
 import { TripLoader } from '@/components/trip/TripLoader'
 import { ResearchCommandPalette } from '@/components/research/ResearchCommandPalette'
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
+import { TripHeader } from '@/components/left-panel/TripHeader'
 
 export default function HomePage() {
   const router = useRouter()
@@ -25,6 +26,8 @@ export default function HomePage() {
 
   const isReady = hasLoadedTrips && trips.length > 0 && !loading.trips
 
+  const layoutStyle = { '--navbar-height': '88px' } as CSSProperties
+
   return (
     <AuthGuard>
       <TripLoader />
@@ -33,15 +36,23 @@ export default function HomePage() {
           Preparing your workspace...
         </div>
       ) : (
-        <div className="h-screen bg-gradient-dark map-viewport-container page-container overflow-hidden">
-          <div className="relative h-full w-full">
-            <div className="map-container h-full w-full">
-              <InteractiveMap />
+        <div
+          className="flex h-screen flex-col bg-gradient-dark map-viewport-container page-container overflow-hidden"
+          style={layoutStyle}
+        >
+          <header className="fixed inset-x-0 top-0 z-50 h-[88px]">
+            <TripHeader variant="navbar" className="h-full" />
+          </header>
+          <main className="relative flex-1 pt-[88px]" style={{ paddingTop: 'var(--navbar-height, 88px)' }}>
+            <div className="relative h-full w-full">
+              <div className="map-container h-full w-full">
+                <InteractiveMap />
+              </div>
             </div>
-          </div>
-          <ItineraryOverlay />
-          <AssistantBubbleOverlay />
-          <ResearchCommandPalette />
+            <ItineraryOverlay />
+            <AssistantBubbleOverlay />
+            <ResearchCommandPalette />
+          </main>
         </div>
       )}
     </AuthGuard>
