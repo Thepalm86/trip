@@ -254,7 +254,7 @@ export function AssistantBubbleOverlay() {
   }
 
   return (
-    <div className="pointer-events-none fixed inset-y-5 right-4 z-[60] flex w-[min(380px,calc(100vw-2.5rem))] flex-col gap-4 sm:right-6 sm:w-[min(420px,calc(100vw-3rem))]">
+    <div className="pointer-events-none fixed right-4 z-[60] flex w-[min(380px,calc(100vw-2.5rem))] flex-col gap-4 top-[calc(var(--navbar-height,88px)+1.25rem)] bottom-5 sm:right-6 sm:w-[min(420px,calc(100vw-3rem))] sm:top-[calc(var(--navbar-height,88px)+1.5rem)] sm:bottom-6">
       <div className="flex justify-end">
         <button
           type="button"

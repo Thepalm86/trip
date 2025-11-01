@@ -14,6 +14,7 @@ import { TripSwitcher } from './TripSwitcher'
 import { UserProfile } from '@/components/auth/user-profile'
 import { ShareTripModal } from '@/components/modals/ShareTripModal'
 import { TravealLogo } from '@/components/common/TravealLogo'
+import { cn } from '@/lib/utils'
 
 type StaticCountryOption = ReturnType<typeof buildCountryOptions>[number]
 
@@ -191,9 +192,10 @@ function CountrySelectModal({ onClose, onSelect, options, selectedCode, isSaving
 
 interface TripHeaderProps {
   className?: string
+  variant?: 'default' | 'navbar'
 }
 
-export function TripHeader({ className }: TripHeaderProps) {
+export function TripHeader({ className, variant = 'default' }: TripHeaderProps) {
   const { currentTrip, updateTrip } = useSupabaseTripStore()
   const trips = useSupabaseTripStore((state) => state.trips)
   const openResearch = useResearchStore((state) => state.open)
@@ -326,16 +328,45 @@ export function TripHeader({ className }: TripHeaderProps) {
     return null
   }
 
-  return (
-    <div className={className}>
-      <div className="relative overflow-visible rounded-[32px] border border-white/12 bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950/95">
-        <div className="absolute inset-0 rounded-[32px] bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-emerald-500/5" />
-        <div className="absolute inset-0 rounded-[32px] bg-[radial-gradient(circle_at_30%_20%,rgba(59,130,246,0.08),transparent_55%)]" />
+  const containerClassName = cn(
+    'relative overflow-visible bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950/95',
+    variant === 'navbar'
+      ? 'flex h-full items-center border-b border-white/12 from-slate-950/95 via-slate-950/90 to-slate-950/95 backdrop-blur-xl'
+      : 'rounded-[32px] border border-white/12'
+  )
 
-        <div className="relative z-10 rounded-[32px] p-6" data-tour="trip-summary">
-          <div className="mb-4 flex items-center gap-4">
+  const glowOverlayClassName = cn(
+    'absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-emerald-500/5',
+    variant === 'navbar' ? undefined : 'rounded-[32px]'
+  )
+
+  const radialOverlayClassName = cn(
+    'absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(59,130,246,0.08),transparent_55%)]',
+    variant === 'navbar' ? undefined : 'rounded-[32px]'
+  )
+
+  const innerClassName = cn(
+    'relative z-10',
+    variant === 'navbar'
+      ? 'w-full px-6 py-4 sm:px-8 lg:px-12'
+      : 'rounded-[32px] p-6'
+  )
+
+  const headerRowClassName = cn(
+    'flex items-center gap-4',
+    variant === 'navbar' ? 'w-full' : 'mb-4'
+  )
+
+  return (
+    <div className={cn(variant === 'navbar' && 'h-full', className)}>
+      <div className={containerClassName}>
+        <div className={glowOverlayClassName} />
+        <div className={radialOverlayClassName} />
+
+        <div className={innerClassName} data-tour="trip-summary">
+          <div className={headerRowClassName}>
             <TravealLogo className="shrink-0" />
-            <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
               <TripSwitcher
                 open={isTripSwitcherOpen}
                 onOpenChange={handleTripSwitcherOpenChange}
