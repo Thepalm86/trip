@@ -11,8 +11,6 @@ import { ResearchCommandPalette } from '@/components/research/ResearchCommandPal
 import { useSupabaseTripStore } from '@/lib/store/supabase-trip-store'
 import { TripHeader } from '@/components/left-panel/TripHeader'
 
-const NAVBAR_HEIGHT = 88
-
 export default function HomePage() {
   const router = useRouter()
   const hasLoadedTrips = useSupabaseTripStore((state) => state.hasLoadedTrips)
@@ -28,9 +26,7 @@ export default function HomePage() {
 
   const isReady = hasLoadedTrips && trips.length > 0 && !loading.trips
 
-  const layoutStyle = {
-    '--navbar-height': `${NAVBAR_HEIGHT}px`,
-  } as CSSProperties
+  const layoutStyle = { '--navbar-height': '88px' } as CSSProperties
 
   return (
     <AuthGuard>
@@ -44,10 +40,10 @@ export default function HomePage() {
           className="flex h-screen flex-col bg-gradient-dark map-viewport-container page-container overflow-hidden"
           style={layoutStyle}
         >
-          <header className="fixed inset-x-0 top-0 z-50 h-[var(--navbar-height,88px)]">
+          <header className="fixed inset-x-0 top-0 z-50 h-[88px]">
             <TripHeader variant="navbar" className="h-full" />
           </header>
-          <main className="relative flex-1 overflow-hidden pt-[var(--navbar-height,88px)]">
+          <main className="relative flex-1 pt-[88px]" style={{ paddingTop: 'var(--navbar-height, 88px)' }}>
             <div className="relative h-full w-full">
               <div className="map-container h-full w-full">
                 <InteractiveMap />
