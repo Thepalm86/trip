@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp:*)",
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run build:*)",
+      "Bash(git push:*)",
+      "Bash(gh auth:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git restore:*)",
+      "Bash(git clean:*)",
+      "Bash(git commit:*)",
+      "Bash(git log:*)",
+      "Read(//home/eypal/**)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(rm:*)",
+      "Bash(cat:*)",
+      "Bash(git fetch:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(gh api:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
